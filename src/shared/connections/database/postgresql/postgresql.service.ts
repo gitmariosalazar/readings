@@ -2,7 +2,6 @@ import { Pool, PoolConfig, QueryResult } from 'pg';
 import { environments } from 'src/settings/environments/environments';
 import { DatabaseAbstract } from '../abstract/abstract.database';
 
-// Custom error class for database-specific errors
 class DatabaseError extends Error {
   constructor(message: string, public readonly code?: string) {
     super(message);
@@ -18,32 +17,28 @@ export class DatabaseServicePostgreSQL extends DatabaseAbstract {
   private readonly retryDelayMs: number = 1000;
   private readonly queryTimeoutMs: number = 10000;
 
-  private constructor() {
+  public constructor() {
     super();
-    // Validate environment variables
     this.validateConfig();
-    
-    // Configure connection pool with sensible defaults
+    console.log(environments.DATABASE_HOST, environments.DATABASE_NAME, environments.DATABASE_PASSWORD, environments.DATABASE_PORT, environments.DATABASE_USER)
     const poolConfig: PoolConfig = {
       user: environments.DATABASE_USER,
       host: environments.DATABASE_HOST,
       password: environments.DATABASE_PASSWORD,
       database: environments.DATABASE_NAME,
       port: environments.DATABASE_PORT,
-      max: 20, // Maximum number of clients in the pool
-      idleTimeoutMillis: 30000, // Close idle clients after 30 seconds
-      connectionTimeoutMillis: 2000, // Connection timeout
+      max: 20,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 2000,
     };
 
     this.pool = new Pool(poolConfig);
-    // Handle pool errors
     this.pool.on('error', (err) => {
       console.error('Unexpected error on idle client', err);
       this.isConnected = false;
     });
   }
 
-  // Singleton pattern
   public static getInstance(): DatabaseServicePostgreSQL {
     if (!DatabaseServicePostgreSQL.instance) {
       DatabaseServicePostgreSQL.instance = new DatabaseServicePostgreSQL();
@@ -95,7 +90,6 @@ export class DatabaseServicePostgreSQL extends DatabaseAbstract {
           throw new DatabaseError('Database connection failed after maximum retries', error.code);
         }
 
-        // Exponential backoff
         await new Promise(resolve => setTimeout(resolve, this.retryDelayMs * Math.pow(2, attempt)));
       }
     }
@@ -107,10 +101,9 @@ export class DatabaseServicePostgreSQL extends DatabaseAbstract {
     }
 
     try {
-      // Set query timeout
       const result: QueryResult<T> = await Promise.race([
         this.pool.query<T>(sql, params),
-        new Promise((_, reject) => 
+        new Promise((_, reject) =>
           setTimeout(() => reject(new DatabaseError('Query timeout')), this.queryTimeoutMs)
         )
       ]) as QueryResult<T>;
