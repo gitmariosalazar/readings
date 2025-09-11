@@ -1,17 +1,29 @@
-FROM node:24-alpine3.22 AS deps
+FROM node:24-bullseye AS deps
 
-# Set working directory
+RUN apt-get update && apt-get install -y \
+  python3 \
+  make \
+  g++ \
+  libcairo2-dev \
+  libpango1.0-dev \
+  libjpeg-dev \
+  libgif-dev \
+  libpixman-1-dev \
+  libpng-dev \
+  libfreetype6-dev \
+  librsvg2-dev \
+  && rm -rf /var/lib/apt/lists/*
 WORKDIR /usr/src/app
 
-# Copy package.json and package-lock.json
-COPY package.json ./
+COPY package*.json ./
 COPY package-lock.json ./
 
-# Install dependencies
-RUN npm install --legacy-peer-deps
+RUN npm install
 
-# Copy the rest of the application code
 COPY . .
 
-# Start the application in development mode with watch
-EXPOSE 3005
+ENV NODE_ENV=development
+
+EXPOSE 3006
+
+CMD ["npm", "run", "start:dev"]

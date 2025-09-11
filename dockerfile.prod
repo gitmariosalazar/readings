@@ -37,6 +37,6 @@ ENV NODE_ENV=production
 USER node
 
 # Expose the application port
-EXPOSE 3000
+EXPOSE 3006
 # Start the application
 CMD ["node", "dist/main.js"]
