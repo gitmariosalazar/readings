@@ -4,16 +4,22 @@ import { Logger } from '@nestjs/common';
 import { Transport } from '@nestjs/microservices';
 import { environments } from './settings/environments/environments';
 import * as morgan from 'morgan';
+import { DatabaseServicePostgreSQL } from './shared/connections/database/postgresql/postgresql.service';
 
 async function bootstrap() {
-  const logger: Logger = new Logger('Main');
+  const logger: Logger = new Logger('QRCodeMain');
 
   const app = await NestFactory.create(AppModule);
 
-  await app.listen(3005);
+  await app.listen(3010);
   app.use(morgan('dev'));
+
+
+  const postgresqlService: DatabaseServicePostgreSQL = new DatabaseServicePostgreSQL();
+
+  logger.log(await postgresqlService.connect())
   logger.log(
-    `🚀🎉 The QRCode microservice is running on: http://localhost:${3005}✅`,
+    `🚀🎉 The QRCode microservice is running on: http://localhost:${3010}✅`,
   );
 
   const microservice = await NestFactory.createMicroservice(AppModule, {
@@ -29,7 +35,8 @@ async function bootstrap() {
       },
     },
   });
+
   await microservice.listen();
-  logger.log(`🚀🎉 The QRCode microservice is listening to KAFKA...✅`);
+  logger.log(`🚀🎉 The QRCode - microservice is listening to KAFKA...✅`);
 }
 bootstrap();
