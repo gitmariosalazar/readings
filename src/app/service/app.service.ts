@@ -9,4 +9,14 @@ export class AppService {
       message: 'Hello World!',
     };
   }
+
+  getHealthCheck(): {
+    status: string;
+    timestamp: Date;
+  } {
+    return {
+      status: 'healthy',
+      timestamp: new Date(),
+    };
+  }
 }
