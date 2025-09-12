@@ -19,7 +19,7 @@ async function bootstrap() {
 
   logger.log(await postgresqlService.connect())
   logger.log(
-    `🚀🎉 The Readings microservice is running on: http://localhost:${3007}✅`
+    `🚀🎉 The Readings microservice is running on: http://localhost:${3007}✅`,
   );
 
   const microservice = await NestFactory.createMicroservice(AppModule, {
