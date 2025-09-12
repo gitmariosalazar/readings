@@ -11,7 +11,7 @@ async function bootstrap() {
 
   const app = await NestFactory.create(AppModule);
 
-  await app.listen(3010);
+  await app.listen(3006);
   app.use(morgan('dev'));
 
 
@@ -19,7 +19,7 @@ async function bootstrap() {
 
   logger.log(await postgresqlService.connect())
   logger.log(
-    `🚀🎉 The QRCode microservice is running on: http://localhost:${3010}✅`,
+    `🚀🎉 The QRCode microservice is running on: http://localhost:${3006}✅`,
   );
 
   const microservice = await NestFactory.createMicroservice(AppModule, {
