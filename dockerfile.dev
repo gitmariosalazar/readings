@@ -1,18 +1,5 @@
-FROM node:24-bullseye AS deps
+FROM node:24-alpine3.22 AS deps
 
-RUN apt-get update && apt-get install -y \
-  python3 \
-  make \
-  g++ \
-  libcairo2-dev \
-  libpango1.0-dev \
-  libjpeg-dev \
-  libgif-dev \
-  libpixman-1-dev \
-  libpng-dev \
-  libfreetype6-dev \
-  librsvg2-dev \
-  && rm -rf /var/lib/apt/lists/*
 WORKDIR /usr/src/app
 
 COPY package*.json ./
@@ -24,6 +11,6 @@ COPY . .
 
 ENV NODE_ENV=development
 
-EXPOSE 3006
+EXPOSE 3008
 
 CMD ["npm", "run", "start:dev"]
