@@ -13,9 +13,9 @@ interface EnvironmentsVariables {
   SECRET_KEY: string;
   KAFKA_BROKER_URL: string;
   KAFKA_TOPIC: string;
-  QRCODE_KAFKA_CLIENT_ID: string;
-  QRCODE_KAFKA_GROUP_ID: string;
-  QRCODE_KAFKA_CLIENT: string;
+  READINGS_KAFKA_CLIENT_ID: string;
+  READINGS_KAFKA_GROUP_ID: string;
+  READINGS_KAFKA_CLIENT: string;
   KAFKA_BROKER_INTERNAL: string;
   KAFKA_BROKER_EXTERNAL: string;
 }
@@ -34,9 +34,9 @@ const environmentsSchema = Joi.object<EnvironmentsVariables>({
   SECRET_KEY: Joi.string().required(),
   KAFKA_BROKER_URL: Joi.string().required(),
   KAFKA_TOPIC: Joi.string().required(),
-  QRCODE_KAFKA_CLIENT_ID: Joi.string().required(),
-  QRCODE_KAFKA_GROUP_ID: Joi.string().required(),
-  QRCODE_KAFKA_CLIENT: Joi.string().required(),
+  READINGS_KAFKA_CLIENT_ID: Joi.string().required(),
+  READINGS_KAFKA_GROUP_ID: Joi.string().required(),
+  READINGS_KAFKA_CLIENT: Joi.string().required(),
   KAFKA_BROKER_INTERNAL: Joi.string().required(),
   KAFKA_BROKER_EXTERNAL: Joi.string().required()
 }).unknown(true);
@@ -59,9 +59,9 @@ export const environments: EnvironmentsVariables = {
   SECRET_KEY: envVars.SECRET_KEY,
   KAFKA_BROKER_URL: envVars.KAFKA_BROKER_INTERNAL || envVars.KAFKA_BROKER_EXTERNAL,
   KAFKA_TOPIC: envVars.KAFKA_TOPIC,
-  QRCODE_KAFKA_CLIENT_ID: envVars.QRCODE_KAFKA_CLIENT_ID,
-  QRCODE_KAFKA_GROUP_ID: envVars.QRCODE_KAFKA_GROUP_ID,
-  QRCODE_KAFKA_CLIENT: envVars.QRCODE_KAFKA_CLIENT,
+  READINGS_KAFKA_CLIENT_ID: envVars.READINGS_KAFKA_CLIENT_ID,
+  READINGS_KAFKA_GROUP_ID: envVars.READINGS_KAFKA_GROUP_ID,
+  READINGS_KAFKA_CLIENT: envVars.READINGS_KAFKA_CLIENT,
   KAFKA_BROKER_EXTERNAL: envVars.KAFKA_BROKER_EXTERNAL,
   KAFKA_BROKER_INTERNAL: envVars.KAFKA_BROKER_INTERNAL
 };
