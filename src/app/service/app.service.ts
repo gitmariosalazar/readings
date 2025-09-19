@@ -15,7 +15,7 @@ export class AppService {
     timestamp: Date;
   } {
     return {
-      status: 'healthy',
+      status: 'Readings Service is healthy',
       timestamp: new Date(),
     };
   }

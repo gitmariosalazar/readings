@@ -95,6 +95,28 @@ export class DatabaseServicePostgreSQL extends DatabaseAbstract {
     }
   }
 
+  public async transaction<T>(operations: (client: Pool) => Promise<T>): Promise<T> {
+    if (!this.isConnected) {
+      throw new DatabaseError('Database is not connected');
+    }
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const result = await operations(client);
+      await client.query('COMMIT');
+      return result;
+    }
+    catch (error) {
+      await client.query('ROLLBACK');
+      const errorMessage = `Transaction failed: ${error.message}`;
+      console.error(errorMessage);
+      throw new DatabaseError(errorMessage, error.code);
+    }
+    finally {
+      client.release();
+    }
+  }
+
   public async query<T>(sql: string, params: any[] = []): Promise<T[]> {
     if (!this.isConnected) {
       throw new DatabaseError('Database is not connected');
