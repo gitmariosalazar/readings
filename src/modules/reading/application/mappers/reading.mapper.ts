@@ -14,6 +14,12 @@ export class ReadingMapper {
     readingModel.setSector(readingRequest.sector)
     readingModel.setPreviousReading(readingRequest.previousReading)
     readingModel.setSewerRate(readingRequest.sewerRate)
+    readingModel.setCurrentReading(readingRequest.currentReading ?? 0)
+    readingModel.setReadingDate(readingRequest.readingDate)
+    readingModel.setReadingTime(readingRequest.readingTime)
+    readingModel.setReadingValue(readingRequest.readingValue)
+    readingModel.setRentalIncomeCode(readingRequest.rentalIncomeCode ?? 0)
+    readingModel.setNovelty(readingRequest.novelty ?? 'NO NOVELTY')
     return readingModel;
   }
 

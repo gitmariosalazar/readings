@@ -29,7 +29,7 @@ export class DatabaseServicePostgreSQL extends DatabaseAbstract {
       port: environments.DATABASE_PORT,
       max: 20,
       idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 2000,
+      connectionTimeoutMillis: 10000,
     };
 
     this.pool = new Pool(poolConfig);

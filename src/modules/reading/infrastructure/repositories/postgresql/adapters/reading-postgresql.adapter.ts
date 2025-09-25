@@ -9,13 +9,13 @@ export class ReadingPostgreSQLAdapter {
       previousReadingDate: readingResultSQL.previousReadingDate,
       cadastralKey: readingResultSQL.catastralCode,
       cardId: readingResultSQL.cardId,
-      firstNames: readingResultSQL.firstNames,
-      lastNames: readingResultSQL.lastNames,
+      clientName: readingResultSQL.clientName,
       address: readingResultSQL.address,
       previousReading: readingResultSQL.previousReading,
       currentReading: readingResultSQL.currentReading,
       sector: readingResultSQL.sector,
       account: readingResultSQL.account,
+      readingValue: readingResultSQL.readingValue,
       averageConsumption: readingResultSQL.averageConsumption
     }
     return response

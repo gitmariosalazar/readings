@@ -1,8 +1,8 @@
 {
-  "name": "qrcode",
+  "name": "readings",
   "version": "0.0.1",
-  "description": "",
-  "author": "",
+  "description": "The readings Service",
+  "author": "Mario Salazar",
   "private": true,
   "license": "UNLICENSED",
   "scripts": {

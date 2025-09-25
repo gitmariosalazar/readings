@@ -3,12 +3,12 @@ export interface ReadingBasicInfoResponse {
   previousReadingDate: Date | null
   cadastralKey: string
   cardId: string
-  firstNames: string
-  lastNames: string
+  clientName: string
   address: string
   previousReading: number
   currentReading: number | null
   sector: number
   account: number
+  readingValue: number
   averageConsumption: number
 }

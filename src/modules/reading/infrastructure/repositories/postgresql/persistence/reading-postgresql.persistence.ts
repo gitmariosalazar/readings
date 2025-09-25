@@ -16,36 +16,30 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
   async findReadingBasicInfo(catastralCode: string): Promise<ReadingBasicInfoResponse[]> {
     try {
       const query: string = `
-       WITH consumo_promedio AS (
-          SELECT
-            acometidaid,
-            AVG(CAST(lecturaactual - lecturaanterior AS DECIMAL)) AS average_consumption
-          FROM lectura
-          GROUP BY acometidaid
-        )
         SELECT
           l.lecturaid AS "readingId",
           l.fechalectura AS "previousReadingDate",
           ac.acometidaid AS "catastralCode",
           c.clienteid AS "cardId",
-          ci.nombres AS "firstNames",
-          ci.apellidos AS "lastNames",
+          COALESCE(ci.nombres || ' ' || ci.apellidos, e.razonsocial) AS "clientName",
           ac.direccion AS address,
           l.lecturaanterior AS "previousReading",
           l.lecturaactual AS "currentReading",
           ac.sector,
           ac.cuenta AS account,
-          COALESCE(cp.average_consumption, 0) AS "averageConsumption"
+          l.valorlectura as "readingValue",
+          cp.average_consumption AS "averageConsumption"
         FROM acometida ac
         LEFT JOIN cliente c ON ac.clienteid = c.clienteid
         LEFT JOIN ciudadano ci ON ci.ciudadanoid = c.clienteid
+        LEFT JOIN empresa e ON e.ruc = c.clienteid
         INNER JOIN lectura l ON l.acometidaid = ac.acometidaid
         LEFT JOIN consumo_promedio cp ON cp.acometidaid = ac.acometidaid
-        WHERE ac.acometidaid = $1
-        ORDER BY l.lecturaanterior  DESC
+        WHERE ac.acometidaid = $1 AND l.fechalectura IS NOT NULL
+        ORDER BY l.fechalectura  DESC
         LIMIT 2;
       `
-      const params: string[] = [catastralCode]
+      const params: string[] = [catastralCode];
 
       const result = await this.postgresqlService.query<ReadingBasicInfoSQLResult>(query, params);
       const response: ReadingBasicInfoResponse[] = result.map((value) => ReadingPostgreSQLAdapter.fromReadingPostgreSQLResultToReadingBasicInfoResponse(value));
@@ -123,7 +117,7 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
     try {
       console.log(readingModel)
       const query: string = `
-        INSERT INTO lectura(acometidaid,sector,cuenta,clavecatastral,lecturaanterior,codigoingreso) VALUES($1,$2,$3,$4,$5,$6) RETURNING
+        INSERT INTO lectura(acometidaid,fechalectura,horalectura,sector,cuenta,clavecatastral,valorlectura,tasaalcantarillado,lecturaanterior,lecturaactual,codigoingresorenta,novedad,codigoingreso) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING
         lecturaid as "readingId",
         acometidaid as "connectionId",
         fechalectura as "readingDate",
@@ -133,7 +127,7 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
         clavecatastral as "cadastralKey",
         valorlectura as "readingValue",
         tasaalcantarillado as "sewerRate",
-        lecturaanterior as "previewsReading",
+        lecturaanterior as "previousReading",
         lecturaactual as "currentReading",
         codigoingresorenta as "rentalIncomeCode",
         novedad as "novelty",
@@ -141,11 +135,18 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
       `
       const params: (string | Date | number)[] = [
         readingModel.getConnectionId(),
+        readingModel.getReadingDate() ?? new Date(),
+        readingModel.getReadingTime() ?? new Date().getTime().toLocaleString(),
         readingModel.getSector(),
         readingModel.getAccount(),
         readingModel.getCadastralKey(),
+        readingModel.getReadingValue() ?? 0,
+        readingModel.getSewerRate() ?? 0,
         readingModel.getPreviousReading() ?? 0,
-        readingModel.getIncomeCode() ?? 0
+        readingModel.getCurrentReading() ?? 0,
+        readingModel.getRentalIncomeCode() ?? 0,
+        readingModel.getNovelty() ?? 'NO NOVELTY',
+        readingModel.getIncomeCode() ?? 0,
       ]
       const result = await this.postgresqlService.query<ReadingSQLResult>(query, params);
       if (result.length === 0) {

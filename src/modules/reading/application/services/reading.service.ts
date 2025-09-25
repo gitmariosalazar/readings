@@ -10,6 +10,7 @@ import { validateFields } from 'src/shared/validators/fields.validators';
 import { ReadingModel } from '../../domain/schemas/model/reading.model';
 import { ReadingMapper } from '../mappers/reading.mapper';
 import { CreateReadingRequest } from '../../domain/schemas/dto/request/create-reading.request';
+import { MONTHS } from 'src/shared/consts/months';
 
 @Injectable()
 export class ReadingUseCaseService implements InterfaceReadingUseCase {
@@ -38,7 +39,7 @@ export class ReadingUseCaseService implements InterfaceReadingUseCase {
   ): Promise<ReadingResponse | null> {
     try {
       const requiredFields: string[] = [
-        'previewsReading',
+        'previousReading',
         'currentReading',
         'rentalIncomeCode',
         'novelty',
@@ -141,8 +142,8 @@ export class ReadingUseCaseService implements InterfaceReadingUseCase {
     readingRequest: CreateReadingRequest,
   ): Promise<ReadingResponse | null> {
     try {
-      /*
-      const requiredFields: string[] = ['readingId', 'sewerRate', 'previewsReading', 'incomeCode', 'cadastralKey', 'account', 'sector'];
+
+      const requiredFields: string[] = ['connectionId', 'sewerRate', 'previousReading', 'incomeCode', 'cadastralKey', 'account', 'sector', 'readingValue', 'currentReading', 'rentalIncomeCode'];
       const missingFieldMessages: string[] = validateFields(readingRequest, requiredFields);
 
       if (missingFieldMessages.length > 0) {
@@ -151,9 +152,23 @@ export class ReadingUseCaseService implements InterfaceReadingUseCase {
           message: missingFieldMessages
         });
       }
-      */
+
+      const now: Date = new Date();
+      const hour: string = new Intl.DateTimeFormat('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false,
+        timeZone: 'America/Guayaquil'
+      }).format(now);
+      readingRequest.readingTime = hour;
+      readingRequest.readingDate = now;
+      readingRequest.readingTime = hour;
       const toCreate: ReadingModel =
         ReadingMapper.fromCreateReadingRequestToReadingModel(readingRequest);
+
+
+
       const created: ReadingResponse | null =
         await this.readingRepository.createReading(toCreate);
 

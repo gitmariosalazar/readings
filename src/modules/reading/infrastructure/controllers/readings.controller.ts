@@ -1,7 +1,8 @@
-import { Controller, Get, Put } from "@nestjs/common";
+import { Controller, Get, Post, Put } from "@nestjs/common";
 import { ReadingUseCaseService } from "../../application/services/reading.service";
 import { MessagePattern, Payload } from "@nestjs/microservices";
 import { UpdateReadingRequest } from "../../domain/schemas/dto/request/update-reading.request";
+import { CreateReadingRequest } from "../../domain/schemas/dto/request/create-reading.request";
 
 @Controller('Readings')
 export class ReadingController {
@@ -19,5 +20,11 @@ export class ReadingController {
   @MessagePattern('reading.update-current-reading')
   async updateCurrentReading(@Payload() data: { readingId: number, readingRequest: UpdateReadingRequest }) {
     return this.readingService.updateCurrentReading(data.readingId, data.readingRequest);
+  }
+
+  @Post('create-reading')
+  @MessagePattern('reading.create-reading')
+  async createReading(@Payload() readingRequest: CreateReadingRequest) {
+    return this.readingService.createReading(readingRequest);
   }
 }

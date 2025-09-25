@@ -3,13 +3,13 @@ export interface ReadingBasicInfoSQLResult {
   previousReadingDate: Date | null
   catastralCode: string
   cardId: string
-  firstNames: string
-  lastNames: string
+  clientName: string
   address: string
   previousReading: number
   currentReading: number | null
   sector: number
   account: number
+  readingValue: number
   averageConsumption: number
 }
 
