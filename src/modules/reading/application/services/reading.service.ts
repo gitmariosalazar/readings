@@ -11,6 +11,7 @@ import { ReadingModel } from '../../domain/schemas/model/reading.model';
 import { ReadingMapper } from '../mappers/reading.mapper';
 import { CreateReadingRequest } from '../../domain/schemas/dto/request/create-reading.request';
 import { MONTHS } from 'src/shared/consts/months';
+import { toZonedTime } from 'date-fns-tz';
 
 @Injectable()
 export class ReadingUseCaseService implements InterfaceReadingUseCase {
@@ -161,8 +162,9 @@ export class ReadingUseCaseService implements InterfaceReadingUseCase {
         hour12: false,
         timeZone: 'America/Guayaquil'
       }).format(now);
+      const formatDate: Date = toZonedTime(now, 'America/Guayaquil');
       readingRequest.readingTime = hour;
-      readingRequest.readingDate = now;
+      readingRequest.readingDate = formatDate;
       readingRequest.readingTime = hour;
       const toCreate: ReadingModel =
         ReadingMapper.fromCreateReadingRequestToReadingModel(readingRequest);
