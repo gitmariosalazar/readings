@@ -12,4 +12,6 @@ export class CreateReadingRequest {
   readingValue: number
   rentalIncomeCode: number
   novelty: string | null
+  averageConsumption: number
+  typeNoveltyReadingId: number
 }

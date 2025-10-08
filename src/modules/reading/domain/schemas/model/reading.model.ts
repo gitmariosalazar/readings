@@ -13,6 +13,7 @@ export class ReadingModel {
   private rentalIncomeCode: number | null;
   private novelty: string | null;
   private incomeCode: number | null;
+  private tipoNovedadLecturaId: number;
 
   public getReadingId(): number {
     return this.readingId;
@@ -124,5 +125,13 @@ export class ReadingModel {
 
   public setIncomeCode(incomeCode: number): void {
     this.incomeCode = incomeCode;
+  }
+
+  public getTipoNovedadLecturaId(): number {
+    return this.tipoNovedadLecturaId;
+  }
+
+  public setTipoNovedadLecturaId(tipoNovedadLecturaId: number): void {
+    this.tipoNovedadLecturaId = tipoNovedadLecturaId;
   }
 }

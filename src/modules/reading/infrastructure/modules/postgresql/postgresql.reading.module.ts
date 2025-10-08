@@ -5,6 +5,7 @@ import { ReadingController } from "../../controllers/readings.controller";
 import { DatabaseServicePostgreSQL } from "src/shared/connections/database/postgresql/postgresql.service";
 import { ReadingUseCaseService } from "src/modules/reading/application/services/reading.service";
 import { ReadingPersistencePostgreSQL } from "../../repositories/postgresql/persistence/reading-postgresql.persistence";
+import { ObservationReadingPostgreSQLPersistence } from "src/modules/observations/infrastructure/repositories/postgresql/persistence/postgresql.observation-reading.persistence";
 
 @Module({
   imports: [
@@ -31,6 +32,10 @@ import { ReadingPersistencePostgreSQL } from "../../repositories/postgresql/pers
     {
       provide: 'ReadingRepository',
       useClass: ReadingPersistencePostgreSQL
+    },
+    {
+      provide: 'ObservationReadingRepository',
+      useClass: ObservationReadingPostgreSQLPersistence
     }
   ],
   exports: []

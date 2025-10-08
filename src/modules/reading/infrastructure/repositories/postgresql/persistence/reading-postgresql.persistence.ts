@@ -117,7 +117,7 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
     try {
       console.log(readingModel)
       const query: string = `
-        INSERT INTO lectura(acometidaid,fechalectura,horalectura,sector,cuenta,clavecatastral,valorlectura,tasaalcantarillado,lecturaanterior,lecturaactual,codigoingresorenta,novedad,codigoingreso) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING
+        INSERT INTO lectura(acometidaid,fechalectura,horalectura,sector,cuenta,clavecatastral,valorlectura,tasaalcantarillado,lecturaanterior,lecturaactual,codigoingresorenta,novedad,codigoingreso,tiponovedadlecturaid) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING
         lecturaid as "readingId",
         acometidaid as "connectionId",
         fechalectura as "readingDate",
@@ -145,8 +145,9 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
         readingModel.getPreviousReading() ?? 0,
         readingModel.getCurrentReading() ?? 0,
         readingModel.getRentalIncomeCode() ?? 0,
-        readingModel.getNovelty() ?? 'NO NOVELTY',
+        readingModel.getNovelty() ?? 'NORMAL',
         readingModel.getIncomeCode() ?? 0,
+        readingModel.getTipoNovedadLecturaId() ?? 1
       ]
       const result = await this.postgresqlService.query<ReadingSQLResult>(query, params);
       if (result.length === 0) {

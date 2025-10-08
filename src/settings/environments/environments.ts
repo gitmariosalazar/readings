@@ -18,6 +18,9 @@ interface EnvironmentsVariables {
   READINGS_KAFKA_CLIENT: string;
   KAFKA_BROKER_INTERNAL: string;
   KAFKA_BROKER_EXTERNAL: string;
+  OBSERVATION_KAFKA_GROUP_ID: string;
+  OBSERVATION_KAFKA_CLIENT: string;
+  OBSERVATION_KAFKA_CLIENT_ID: string;
 }
 
 const environmentsSchema = Joi.object<EnvironmentsVariables>({
@@ -38,7 +41,10 @@ const environmentsSchema = Joi.object<EnvironmentsVariables>({
   READINGS_KAFKA_GROUP_ID: Joi.string().required(),
   READINGS_KAFKA_CLIENT: Joi.string().required(),
   KAFKA_BROKER_INTERNAL: Joi.string().required(),
-  KAFKA_BROKER_EXTERNAL: Joi.string().required()
+  KAFKA_BROKER_EXTERNAL: Joi.string().required(),
+  OBSERVATION_KAFKA_GROUP_ID: Joi.string().required(),
+  OBSERVATION_KAFKA_CLIENT: Joi.string().required(),
+  OBSERVATION_KAFKA_CLIENT_ID: Joi.string().required(),
 }).unknown(true);
 
 const { error, value: envVars } = environmentsSchema.validate(process.env);
@@ -63,5 +69,8 @@ export const environments: EnvironmentsVariables = {
   READINGS_KAFKA_GROUP_ID: envVars.READINGS_KAFKA_GROUP_ID,
   READINGS_KAFKA_CLIENT: envVars.READINGS_KAFKA_CLIENT,
   KAFKA_BROKER_EXTERNAL: envVars.KAFKA_BROKER_EXTERNAL,
-  KAFKA_BROKER_INTERNAL: envVars.KAFKA_BROKER_INTERNAL
+  KAFKA_BROKER_INTERNAL: envVars.KAFKA_BROKER_INTERNAL,
+  OBSERVATION_KAFKA_GROUP_ID: envVars.OBSERVATION_KAFKA_GROUP_ID,
+  OBSERVATION_KAFKA_CLIENT: envVars.OBSERVATION_KAFKA_CLIENT,
+  OBSERVATION_KAFKA_CLIENT_ID: envVars.OBSERVATION_KAFKA_CLIENT_ID,
 };

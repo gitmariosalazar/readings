@@ -19,7 +19,8 @@ export class ReadingMapper {
     readingModel.setReadingTime(readingRequest.readingTime)
     readingModel.setReadingValue(readingRequest.readingValue)
     readingModel.setRentalIncomeCode(readingRequest.rentalIncomeCode ?? 0)
-    readingModel.setNovelty(readingRequest.novelty ?? 'NO NOVELTY')
+    readingModel.setNovelty(readingRequest.novelty ?? 'NORMAL')
+    readingModel.setTipoNovedadLecturaId(readingRequest.typeNoveltyReadingId ?? 1)
     return readingModel;
   }
 
@@ -40,7 +41,7 @@ export class ReadingMapper {
     readingModel.setReadingTime(hour)
     readingModel.setCurrentReading(readingRequest.currentReading ?? 0)
     readingModel.setPreviousReading(readingRequest.previousReading ?? 0)
-    readingModel.setNovelty(readingRequest.novelty ?? 'NO NOVELTY')
+    readingModel.setNovelty(readingRequest.novelty ?? 'NORMAL')
     readingModel.setSewerRate(readingRequest.sewerRate ?? 0)
     readingModel.setReadingValue(readingRequest.readingValue ?? 0)
     return readingModel;
