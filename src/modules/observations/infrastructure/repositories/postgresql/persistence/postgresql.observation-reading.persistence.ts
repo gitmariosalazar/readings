@@ -13,6 +13,44 @@ export class ObservationReadingPostgreSQLPersistence implements InterfaceObserva
     private readonly postgresqlService: DatabaseServicePostgreSQL
   ) { }
 
+  async getObservations(): Promise<ObservationReadingResponse[]> {
+    try {
+      const query: string = `
+        SELECT
+            o.tituloobservacion as "observationTitle",
+            o.detalleobservacion as "observationDetail",
+            ol.fecharegistro as "registrationDate",
+            ol.lecturaid as "readingId",
+            l.acometidaid as "connectionId",
+            l.lecturaanterior as "previousReading",
+            l.lecturaactual as "currentReading",
+            l.sector as "sector",
+            l.cuenta as "account",
+            l.valorlectura as "readingValue",
+            tnl.tiponovedadlecturaid as "noveltyReadingTypeId",
+            tnl.nombre as "noveltyTypeName",
+            tnl.descripcion as "noveltyTypeDescription",
+            a.direccion as "address",
+            a.observaciones as "observations",
+            c.clienteid as "clientId",
+            COALESCE(c2.nombres || ' ' || c2.apellidos, e.razonsocial, e.nombrecomercial) AS "clientName"
+        FROM Acometida a
+        INNER JOIN Lectura l ON a.acometidaId = l.acometidaId
+        INNER JOIN ObservacionLectura ol ON l.lecturaId = ol.lecturaId
+        INNER JOIN Observacion o ON ol.observacionId = o.observacionId
+        INNER JOIN TipoNovedadLectura tnl ON l.tipoNovedadLecturaId = tnl.tipoNovedadLecturaId
+        INNER JOIN Cliente c ON a.clienteid = c.clienteid
+        LEFT JOIN Ciudadano c2 ON c2.ciudadanoid = c.clienteid
+        LEFT JOIN Empresa e ON e.clienteid = c.clienteid
+        ORDER BY l.fechalectura DESC;
+      `;
+      const result = await this.postgresqlService.query<ObservationReadingSQLResponse>(query);
+      return result.map(ObservationReadingSQLAdapter.toObservationReadingResponse);
+    } catch (error) {
+      throw error;
+    }
+  }
+
   async getObservationDetailsByCadastralKey(cadastralKey: string): Promise<ObservationDetailsResponse[]> {
     try {
       const query: string = `
@@ -33,11 +71,7 @@ export class ObservationReadingPostgreSQLPersistence implements InterfaceObserva
             a.direccion as "address",
             a.observaciones as "observations",
             c.clienteid as "clientId",
-            c2.nombres AS "citizenFirstName",
-            c2.apellidos AS "citizenLastName",
-            e.empresaid as "companyId",
-            e.nombrecomercial as "commercialName",
-            e.razonsocial as "socialReason"
+            COALESCE(c2.nombres || ' ' || c2.apellidos, e.razonsocial, e.nombrecomercial) AS "clientName"
         FROM Acometida a
         INNER JOIN Lectura l ON a.acometidaId = l.acometidaId
         INNER JOIN ObservacionLectura ol ON l.lecturaId = ol.lecturaId

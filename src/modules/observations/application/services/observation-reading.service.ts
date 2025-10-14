@@ -17,6 +17,14 @@ export class ObservationReadingService implements InterfaceObservationReadingUse
     private readonly observationRepository: InterfaceObservationReadingRepository,
   ) { }
 
+  async getObservations(): Promise<ObservationReadingResponse[]> {
+    try {
+      return await this.observationRepository.getObservations();
+    } catch (error) {
+      throw error;
+    }
+  }
+
   async createObservationReading(observation: CreateObservationReadingRequest): Promise<ObservationReadingResponse> {
     try {
 
