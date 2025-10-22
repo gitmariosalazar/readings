@@ -10,14 +10,12 @@ import { validateFields } from 'src/shared/validators/fields.validators';
 import { ReadingModel } from '../../domain/schemas/model/reading.model';
 import { ReadingMapper } from '../mappers/reading.mapper';
 import { CreateReadingRequest } from '../../domain/schemas/dto/request/create-reading.request';
-import { MONTHS } from 'src/shared/consts/months';
 import { toZonedTime } from 'date-fns-tz';
-import { INovelty, LOWER_ALERT_FACTOR, LOWER_NORMAL_FACTOR, NOVELTIES, UPPER_ALERT_FACTOR, UPPER_NORMAL_FACTOR } from '../usecases/novelty.interface';
 import { InterfaceObservationReadingRepository } from 'src/modules/observations/domain/contracts/observation-reading.interface.repository';
 import { CreateObservationReadingRequest } from 'src/modules/observations/domain/schemas/dto/request/create-observatio-reading.request';
 import { ObservationReadingMapper } from 'src/modules/observations/application/mappers/observation-reading.mapper';
 import { ObservationReadingModel } from 'src/modules/observations/domain/schemas/model/observation-reading.model';
-import { getNoveltyById } from 'src/shared/types/novelty.type';
+import { getTypeCurrentConsumption, INovelty } from 'src/shared/types/novelty.type';
 
 @Injectable()
 export class ReadingUseCaseService implements InterfaceReadingUseCase {
@@ -146,74 +144,15 @@ export class ReadingUseCaseService implements InterfaceReadingUseCase {
       throw error;
     }
   }
-
   /**
-     * Determines the type of consumption novelty based on the current and previous readings compared to the average.
-     * @param previousReading - The previous meter reading (in m3).
-     * @param currentReading - The current meter reading (in m3).
-     * @param average - The average consumption (in m3).
-     * @returns An object containing the novelty ID, title, and description.
-     * @throws Error if the input values are invalid.
-     */
-  private getTypeCurrentConsumption(previousReading: number, currentReading: number, average: number): INovelty {
-    if (!Number.isFinite(previousReading) || !Number.isFinite(currentReading) || !Number.isFinite(average)) {
-      throw new Error('Invalid input: readings and average must be finite numbers');
-    }
-    if (previousReading < 0 || currentReading < 0 || average < 0) {
-      throw new Error('Invalid input: readings and average cannot be negative');
-    }
-    if (currentReading < previousReading) {
-      throw new Error('Invalid input: current reading cannot be less than previous reading');
-    }
-
-    const currentConsumption: number = currentReading - previousReading;
-    const lowerNormal: number = average * LOWER_NORMAL_FACTOR;
-    const upperNormal: number = average * UPPER_NORMAL_FACTOR;
-    const lowerAlert: number = average * LOWER_ALERT_FACTOR;
-    const upperAlert: number = average * UPPER_ALERT_FACTOR;
-
-    let novelty: INovelty = {
-      id: 1,
-      title: NOVELTIES[1].title,
-      description: 'NORMAL',
-    };
-
-    if (currentConsumption >= lowerNormal && currentConsumption <= upperNormal) {
-      // Normal
-      novelty = { id: 1, title: NOVELTIES[1].title, description: 'NORMAL' };
-    } else if ((currentConsumption >= lowerAlert && currentConsumption < lowerNormal) ||
-      (currentConsumption > upperNormal && currentConsumption <= upperAlert)) {
-      // Warning
-      novelty = {
-        id: 2,
-        title: NOVELTIES[2].title,
-        description: currentConsumption < lowerNormal
-          ? `WARNING: Consumption is below normal. Average consumption is ${average} m3, but current consumption is ${currentConsumption} m3.`
-          : `WARNING: Consumption is above normal. Average consumption is ${average} m3, but current consumption is ${currentConsumption} m3.`,
-      };
-    } else if (currentConsumption < lowerAlert || currentConsumption > upperAlert) {
-      // Danger
-      novelty = {
-        id: 3,
-        title: NOVELTIES[3].title,
-        description: currentConsumption < lowerAlert
-          ? `DANGER: Consumption is significantly below normal. Average consumption is ${average} m3, but current consumption is ${currentConsumption} m3. Please verify the meter, reading or possible leaks.`
-          : `DANGER: Consumption is significantly above normal. Average consumption is ${average} m3, but current consumption is ${currentConsumption} m3. Please verify the meter, reading or possible leaks.`,
-      };
-    }
-
-    return novelty;
-  }
-
-  /**
-   * Creates a new reading record and processes any associated novelties.
-   * @param readingRequest - The request object containing reading details.
-   * @returns The created reading response or null if creation fails.
-   * @throws RpcException if validation fails or an error occurs during processing.
+   * Crea un nuevo registro de lectura y procesa cualquier novedad asociada.
+   * @param readingRequest - Objeto con los detalles de la lectura.
+   * @returns La respuesta de la lectura creada o null si falla la creación.
+   * @throws RpcException si la validación falla o ocurre un error durante el procesamiento.
    */
   async createReading(readingRequest: CreateReadingRequest): Promise<ReadingResponse | null> {
     try {
-      const requiredFields: string[] = [
+      const camposRequeridos: string[] = [
         'connectionId',
         'sewerRate',
         'previousReading',
@@ -225,12 +164,15 @@ export class ReadingUseCaseService implements InterfaceReadingUseCase {
         'currentReading',
         'rentalIncomeCode',
       ];
-      const missingFieldMessages: string[] = validateFields(readingRequest, requiredFields);
+      const mensajesFaltantes: string[] = validateFields(readingRequest, camposRequeridos);
+      console.log(`[Servicio (01)] Creando lectura para cuenta: `, readingRequest);
 
-      if (missingFieldMessages.length > 0) {
+      const novedadDesdeSolicitud: string | null = readingRequest.novelty;
+
+      if (mensajesFaltantes.length > 0) {
         throw new RpcException({
           statusCode: statusCode.BAD_REQUEST,
-          message: missingFieldMessages,
+          message: mensajesFaltantes,
         });
       }
 
@@ -238,81 +180,105 @@ export class ReadingUseCaseService implements InterfaceReadingUseCase {
       if (typeof readingRequest.currentReading !== 'number' || readingRequest.currentReading < 0) {
         throw new RpcException({
           statusCode: statusCode.BAD_REQUEST,
-          message: 'currentReading must be a non-negative number',
+          message: 'currentReading debe ser un número no negativo',
         });
       }
       if (typeof readingRequest.previousReading !== 'number' || readingRequest.previousReading < 0) {
         throw new RpcException({
           statusCode: statusCode.BAD_REQUEST,
-          message: 'previousReading must be a non-negative number',
+          message: 'previousReading debe ser un número no negativo',
         });
       }
       if (readingRequest.averageConsumption === undefined || readingRequest.averageConsumption < 0) {
         throw new RpcException({
           statusCode: statusCode.BAD_REQUEST,
-          message: 'averageConsumption must be a non-negative number',
+          message: 'averageConsumption debe ser un número no negativo',
         });
       }
 
       // Procesar fecha y hora
-      const now: Date = new Date();
-      const hour: string = new Intl.DateTimeFormat('en-US', {
+      const ahora: Date = new Date();
+      const hora: string = new Intl.DateTimeFormat('es-EC', {
         hour: '2-digit',
         minute: '2-digit',
         second: '2-digit',
         hour12: false,
         timeZone: 'America/Guayaquil',
-      }).format(now);
-      const formatDate: Date = toZonedTime(now, 'America/Guayaquil');
-      readingRequest.readingTime = hour;
-      readingRequest.readingDate = formatDate;
+      }).format(ahora);
+      const fechaFormateada: Date = toZonedTime(ahora, 'America/Guayaquil');
+      readingRequest.readingTime = hora;
+      readingRequest.readingDate = fechaFormateada;
 
-      const currentConsumption: INovelty = this.getTypeCurrentConsumption(
+      // Determinar la novedad del consumo
+      const consumoActual: INovelty = getTypeCurrentConsumption(
         readingRequest.previousReading,
         readingRequest.currentReading,
         readingRequest.averageConsumption,
       );
 
-      readingRequest.typeNoveltyReadingId = currentConsumption.id;
-      readingRequest.novelty = currentConsumption.title;
+      readingRequest.typeNoveltyReadingId = consumoActual.id;
+      readingRequest.novelty = consumoActual.title;
 
-      const toCreate: ReadingModel = ReadingMapper.fromCreateReadingRequestToReadingModel(readingRequest);
-      const created: ReadingResponse | null = await this.readingRepository.createReading(toCreate);
+      const paraCrear: ReadingModel = ReadingMapper.fromCreateReadingRequestToReadingModel(readingRequest);
+      const creado: ReadingResponse | null = await this.readingRepository.createReading(paraCrear);
 
-      if (created === null) {
+      if (creado === null) {
         throw new RpcException({
           statusCode: statusCode.INTERNAL_SERVER_ERROR,
-          message: 'Error creating new reading record!',
+          message: '¡Error al crear el registro de lectura!',
         });
       }
 
-      if (currentConsumption.id !== 1) {
-        created.novelty = NOVELTIES[currentConsumption.id].title;
-        const observationRequest: CreateObservationReadingRequest = {
-          readingId: created.readingId,
-          observationTitle: `NOVELTY DETECTED IN READING ID ${created.readingId}`,
-          observationDetails: currentConsumption.description,
+      // Registrar observación si la novedad ingresada no coincide
+      if (novedadDesdeSolicitud != null && novedadDesdeSolicitud.trim().length > 0 && novedadDesdeSolicitud !== consumoActual.title) {
+        console.warn(
+          `[Servicio] Advertencia: La novedad desde la solicitud (${novedadDesdeSolicitud}) no coincide con la novedad calculada (${consumoActual.title}). Usando el valor calculado.`,
+        );
+        const solicitudObservacion: CreateObservationReadingRequest = {
+          readingId: creado.readingId,
+          observationTitle: `Discrepancia de novedad en lectura ID: ${creado.readingId}`,
+          observationDetails: `Novedad ingresada por el lecturista: ${novedadDesdeSolicitud}. Novedad calculada: ${consumoActual.title}. Acción recomendada: ${consumoActual.actionRecommended}`,
         };
-        const observationModel: ObservationReadingModel = ObservationReadingMapper.fromCreateObservationReadingToModel(observationRequest);
-        const createdObservation = await this.observationRepository.createObservationReading(observationModel);
+        const modeloObservacion: ObservationReadingModel = ObservationReadingMapper.fromCreateObservationReadingToModel(solicitudObservacion);
+        const observacionCreada = await this.observationRepository.createObservationReading(modeloObservacion);
 
-        if (createdObservation === null) {
+        if (observacionCreada === null) {
           throw new RpcException({
             statusCode: statusCode.INTERNAL_SERVER_ERROR,
-            message: `Error creating observation for reading with ID ${created.readingId}!`,
+            message: `¡Error al crear la observación para la lectura con ID ${creado.readingId}!`,
           });
         }
       }
 
-      return created;
+      // Registrar observación para cualquier novedad distinta de NORMAL (ID 1)
+      if (consumoActual.id !== 1) {
+        creado.novelty = consumoActual.title;
+        const solicitudObservacion: CreateObservationReadingRequest = {
+          readingId: creado.readingId,
+          observationTitle: `NOVEDAD DETECTADA EN LECTURA ID: ${creado.readingId}`,
+          observationDetails: `${consumoActual.description} Acción recomendada: ${consumoActual.actionRecommended}`,
+        };
+        const modeloObservacion: ObservationReadingModel = ObservationReadingMapper.fromCreateObservationReadingToModel(solicitudObservacion);
+        const observacionCreada = await this.observationRepository.createObservationReading(modeloObservacion);
+
+        if (observacionCreada === null) {
+          throw new RpcException({
+            statusCode: statusCode.INTERNAL_SERVER_ERROR,
+            message: `¡Error al crear la observación para la lectura con ID ${creado.readingId}!`,
+          });
+        }
+      }
+
+      return creado;
     } catch (error) {
-      const errorMessage = error instanceof RpcException
+      const mensajeError = error instanceof RpcException
         ? error.message
-        : `Unexpected error while creating reading: ${error.message}`;
-      console.error(errorMessage, error);
+        : `Error inesperado al crear la lectura: ${error.message}`;
+      console.error(mensajeError, error);
       throw error;
     }
   }
+
 
   /*
     async createReading(

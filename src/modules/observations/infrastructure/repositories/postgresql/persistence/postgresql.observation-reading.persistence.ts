@@ -13,7 +13,7 @@ export class ObservationReadingPostgreSQLPersistence implements InterfaceObserva
     private readonly postgresqlService: DatabaseServicePostgreSQL
   ) { }
 
-  async getObservations(): Promise<ObservationReadingResponse[]> {
+  async getObservations(): Promise<ObservationDetailsResponse[]> {
     try {
       const query: string = `
         SELECT
@@ -44,8 +44,8 @@ export class ObservationReadingPostgreSQLPersistence implements InterfaceObserva
         LEFT JOIN Empresa e ON e.clienteid = c.clienteid
         ORDER BY l.fechalectura DESC;
       `;
-      const result = await this.postgresqlService.query<ObservationReadingSQLResponse>(query);
-      return result.map(ObservationReadingSQLAdapter.toObservationReadingResponse);
+      const result = await this.postgresqlService.query<ObservationDetailsResponse>(query);
+      return result;
     } catch (error) {
       throw error;
     }

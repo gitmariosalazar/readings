@@ -21,6 +21,9 @@ interface EnvironmentsVariables {
   OBSERVATION_KAFKA_GROUP_ID: string;
   OBSERVATION_KAFKA_CLIENT: string;
   OBSERVATION_KAFKA_CLIENT_ID: string;
+  PHOTO_READING_KAFKA_GROUP_ID: string;
+  PHOTO_READING_KAFKA_CLIENT: string;
+  PHOTO_READING_KAFKA_CLIENT_ID: string;
 }
 
 const environmentsSchema = Joi.object<EnvironmentsVariables>({
@@ -45,6 +48,9 @@ const environmentsSchema = Joi.object<EnvironmentsVariables>({
   OBSERVATION_KAFKA_GROUP_ID: Joi.string().required(),
   OBSERVATION_KAFKA_CLIENT: Joi.string().required(),
   OBSERVATION_KAFKA_CLIENT_ID: Joi.string().required(),
+  PHOTO_READING_KAFKA_GROUP_ID: Joi.string().required(),
+  PHOTO_READING_KAFKA_CLIENT: Joi.string().required(),
+  PHOTO_READING_KAFKA_CLIENT_ID: Joi.string().required(),
 }).unknown(true);
 
 const { error, value: envVars } = environmentsSchema.validate(process.env);
@@ -73,4 +79,7 @@ export const environments: EnvironmentsVariables = {
   OBSERVATION_KAFKA_GROUP_ID: envVars.OBSERVATION_KAFKA_GROUP_ID,
   OBSERVATION_KAFKA_CLIENT: envVars.OBSERVATION_KAFKA_CLIENT,
   OBSERVATION_KAFKA_CLIENT_ID: envVars.OBSERVATION_KAFKA_CLIENT_ID,
+  PHOTO_READING_KAFKA_GROUP_ID: envVars.PHOTO_READING_KAFKA_GROUP_ID,
+  PHOTO_READING_KAFKA_CLIENT: envVars.PHOTO_READING_KAFKA_CLIENT,
+  PHOTO_READING_KAFKA_CLIENT_ID: envVars.PHOTO_READING_KAFKA_CLIENT_ID,
 };

@@ -6,5 +6,5 @@ export interface InterfaceObservationReadingUseCase {
   createObservationReading(observation: CreateObservationReadingRequest): Promise<ObservationReadingResponse>;
   getObservationsByReadingId(readingId: number): Promise<ObservationReadingResponse[]>;
   getObservationDetailsByCadastralKey(cadastralKey: string): Promise<ObservationDetailsResponse[]>;
-  getObservations(): Promise<ObservationReadingResponse[]>;
+  getObservations(): Promise<ObservationDetailsResponse[]>;
 }

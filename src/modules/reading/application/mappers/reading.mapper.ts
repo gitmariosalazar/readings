@@ -17,7 +17,7 @@ export class ReadingMapper {
     readingModel.setCurrentReading(readingRequest.currentReading ?? 0)
     readingModel.setReadingDate(readingRequest.readingDate)
     readingModel.setReadingTime(readingRequest.readingTime)
-    readingModel.setReadingValue(readingRequest.readingValue)
+    readingModel.setReadingValue(0)
     readingModel.setRentalIncomeCode(readingRequest.rentalIncomeCode ?? 0)
     readingModel.setNovelty(readingRequest.novelty ?? 'NORMAL')
     readingModel.setTipoNovedadLecturaId(readingRequest.typeNoveltyReadingId ?? 1)

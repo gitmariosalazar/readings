@@ -115,7 +115,7 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
 
   async createReading(readingModel: ReadingModel): Promise<ReadingResponse | null> {
     try {
-      console.log(readingModel)
+      //console.log(`[Persistence] Creating reading for account: `, readingModel);
       const query: string = `
         INSERT INTO lectura(acometidaid,fechalectura,horalectura,sector,cuenta,clavecatastral,valorlectura,tasaalcantarillado,lecturaanterior,lecturaactual,codigoingresorenta,novedad,codigoingreso,tiponovedadlecturaid) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING
         lecturaid as "readingId",

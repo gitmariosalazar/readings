@@ -28,4 +28,10 @@ export class ObservationReadingController {
     return this.observationReadingService.getObservationDetailsByCadastralKey(data.cadastralKey);
   }
 
+  @Get('get-observations')
+  @MessagePattern('observation-reading.get-observations')
+  async getObservations() {
+    return this.observationReadingService.getObservations();
+  }
+
 }
