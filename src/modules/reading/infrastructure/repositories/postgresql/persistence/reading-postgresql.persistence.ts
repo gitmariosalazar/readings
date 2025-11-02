@@ -17,27 +17,30 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
     try {
       const query: string = `
         SELECT
-          l.lecturaid AS "readingId",
-          l.fechalectura AS "previousReadingDate",
-          ac.acometidaid AS "catastralCode",
-          c.clienteid AS "cardId",
-          COALESCE(ci.nombres || ' ' || ci.apellidos, e.razonsocial) AS "clientName",
-          ac.direccion AS address,
-          l.lecturaanterior AS "previousReading",
-          l.lecturaactual AS "currentReading",
-          ac.sector,
-          ac.cuenta AS account,
-          l.valorlectura as "readingValue",
-          cp.average_consumption AS "averageConsumption"
+            l.lecturaid AS "readingId",
+            l.fechalectura AS "previousReadingDate",
+            ac.acometidaid AS "catastralCode",
+            c.clienteid AS "cardId",
+            COALESCE(ci.nombres || ' ' || ci.apellidos, e.razonsocial) AS "clientName",
+            ac.direccion AS address,
+            l.lecturaanterior AS "previousReading",
+            l.lecturaactual AS "currentReading",
+            ac.sector,
+            ac.cuenta AS account,
+            l.valorlectura AS "readingValue",
+            cp.average_consumption AS "averageConsumption",
+            ac.numeromedidor AS "meterNumber",
+            ac.tarifaid AS "rateId",
+            t.nombre AS "rateName"
         FROM acometida ac
-        LEFT JOIN cliente c ON ac.clienteid = c.clienteid
-        LEFT JOIN ciudadano ci ON ci.ciudadanoid = c.clienteid
-        LEFT JOIN empresa e ON e.ruc = c.clienteid
-        INNER JOIN lectura l ON l.acometidaid = ac.acometidaid
-        LEFT JOIN consumo_promedio cp ON cp.acometidaid = ac.acometidaid
-        WHERE ac.acometidaid = $1 AND l.fechalectura IS NOT NULL
-        ORDER BY l.fechalectura  DESC
-        LIMIT 2;
+            LEFT JOIN cliente c ON ac.clienteid = c.clienteid
+            LEFT JOIN ciudadano ci ON ci.ciudadanoid = c.clienteid
+            LEFT JOIN empresa e ON e.ruc = c.clienteid
+            INNER JOIN lectura l ON l.acometidaid = ac.acometidaid
+            INNER JOIN tarifa t on t.tarifaid = ac.tarifaid
+            LEFT JOIN consumo_promedio cp ON cp.acometidaid = ac.acometidaid
+            WHERE ac.acometidaid = $1 AND l.fechalectura IS NOT NULL
+            ORDER BY l.fechalectura  DESC LIMIT 2;
       `
       const params: string[] = [catastralCode];
 

@@ -16,7 +16,10 @@ export class ReadingPostgreSQLAdapter {
       sector: readingResultSQL.sector,
       account: readingResultSQL.account,
       readingValue: readingResultSQL.readingValue,
-      averageConsumption: readingResultSQL.averageConsumption
+      averageConsumption: readingResultSQL.averageConsumption,
+      meterNumber: readingResultSQL.meterNumber,
+      rateId: readingResultSQL.rateId,
+      rateName: readingResultSQL.rateName
     }
     return response
   }

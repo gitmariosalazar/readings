@@ -11,4 +11,7 @@ export interface ReadingBasicInfoResponse {
   account: number
   readingValue: number
   averageConsumption: number
+  meterNumber: string
+  rateId: number
+  rateName: string
 }

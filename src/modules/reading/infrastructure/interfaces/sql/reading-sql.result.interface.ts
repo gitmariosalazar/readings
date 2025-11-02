@@ -11,6 +11,9 @@ export interface ReadingBasicInfoSQLResult {
   account: number
   readingValue: number
   averageConsumption: number
+  meterNumber: string
+  rateId: number
+  rateName: string
 }
 
 export interface ReadingSQLResult {
