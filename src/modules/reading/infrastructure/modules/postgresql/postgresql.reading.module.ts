@@ -1,11 +1,11 @@
 import { Module } from "@nestjs/common";
 import { ClientsModule, Transport } from "@nestjs/microservices";
-import { environments } from "src/settings/environments/environments";
 import { ReadingController } from "../../controllers/readings.controller";
-import { DatabaseServicePostgreSQL } from "src/shared/connections/database/postgresql/postgresql.service";
-import { ReadingUseCaseService } from "src/modules/reading/application/services/reading.service";
 import { ReadingPersistencePostgreSQL } from "../../repositories/postgresql/persistence/reading-postgresql.persistence";
-import { ObservationReadingPostgreSQLPersistence } from "src/modules/observations/infrastructure/repositories/postgresql/persistence/postgresql.observation-reading.persistence";
+import { environments } from "../../../../../settings/environments/environments";
+import { DatabaseServicePostgreSQL } from "../../../../../shared/connections/database/postgresql/postgresql.service";
+import { ReadingUseCaseService } from "../../../application/services/reading.service";
+import { ObservationReadingPostgreSQLPersistence } from "../../../../observations/infrastructure/repositories/postgresql/persistence/postgresql.observation-reading.persistence";
 
 @Module({
   imports: [

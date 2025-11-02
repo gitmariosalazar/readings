@@ -1,11 +1,11 @@
-import { DatabaseServicePostgreSQL } from 'src/shared/connections/database/postgresql/postgresql.service';
 import { InterfaceReadingRepository } from './../../../../domain/contracts/reading.interface.repository';
 import { Injectable } from "@nestjs/common";
-import { ReadingBasicInfoResponse } from 'src/modules/reading/domain/schemas/dto/response/reading-basic.response';
 import { ReadingBasicInfoSQLResult, ReadingSQLResult } from '../../../interfaces/sql/reading-sql.result.interface';
 import { ReadingPostgreSQLAdapter } from '../adapters/reading-postgresql.adapter';
-import { ReadingResponse } from 'src/modules/reading/domain/schemas/dto/response/reading.response';
-import { ReadingModel } from 'src/modules/reading/domain/schemas/model/reading.model';
+import { DatabaseServicePostgreSQL } from '../../../../../../shared/connections/database/postgresql/postgresql.service';
+import { ReadingBasicInfoResponse } from '../../../../domain/schemas/dto/response/reading-basic.response';
+import { ReadingModel } from '../../../../domain/schemas/model/reading.model';
+import { ReadingResponse } from '../../../../domain/schemas/dto/response/reading.response';
 
 @Injectable()
 export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository {

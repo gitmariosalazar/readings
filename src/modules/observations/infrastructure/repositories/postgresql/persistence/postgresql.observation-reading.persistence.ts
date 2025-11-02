@@ -1,11 +1,11 @@
 import { Injectable } from "@nestjs/common";
-import { InterfaceObservationReadingRepository } from "src/modules/observations/domain/contracts/observation-reading.interface.repository";
-import { ObservationReadingResponse } from "src/modules/observations/domain/schemas/dto/response/observation-reading.response";
-import { ObservationReadingModel } from "src/modules/observations/domain/schemas/model/observation-reading.model";
-import { DatabaseServicePostgreSQL } from "src/shared/connections/database/postgresql/postgresql.service";
 import { ObservationReadingSQLResponse, ObservationReadingSQLResult, ObservationSQLResult } from "../../../interfaces/observatio-reading.sql.response";
 import { ObservationReadingSQLAdapter } from "../adapters/observation-reading.postgresql.adapter";
-import { ObservationDetailsResponse } from "src/modules/observations/domain/schemas/dto/response/observation-dedtails.response";
+import { InterfaceObservationReadingRepository } from "../../../../domain/contracts/observation-reading.interface.repository";
+import { DatabaseServicePostgreSQL } from "../../../../../../shared/connections/database/postgresql/postgresql.service";
+import { ObservationDetailsResponse } from "../../../../domain/schemas/dto/response/observation-dedtails.response";
+import { ObservationReadingModel } from "../../../../domain/schemas/model/observation-reading.model";
+import { ObservationReadingResponse } from "../../../../domain/schemas/dto/response/observation-reading.response";
 
 @Injectable()
 export class ObservationReadingPostgreSQLPersistence implements InterfaceObservationReadingRepository {

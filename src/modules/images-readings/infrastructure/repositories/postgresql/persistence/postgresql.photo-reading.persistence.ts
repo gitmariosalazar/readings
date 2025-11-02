@@ -1,12 +1,12 @@
 import { Injectable } from "@nestjs/common";
-import { InterfacePhotoReadingRepository } from "src/modules/images-readings/domain/contracts/photo-reading.interface.repository";
-import { PhotoReadingResponse } from "src/modules/images-readings/domain/schemas/dto/response/photo-reading.response";
-import { PhotoReadingModel } from "src/modules/images-readings/domain/schemas/model/photo-reading.model";
-import { DatabaseServicePostgreSQL } from "src/shared/connections/database/postgresql/postgresql.service";
 import { PhotoReadingSQLResponse } from "../../../interfaces/sql/photo-reading.sql.response";
 import { PhotoReadingAdapter } from "../adapters/photo-reading.adapter";
 import { RpcException } from "@nestjs/microservices";
-import { statusCode } from "src/settings/environments/status-code";
+import { InterfacePhotoReadingRepository } from "../../../../domain/contracts/photo-reading.interface.repository";
+import { DatabaseServicePostgreSQL } from "../../../../../../shared/connections/database/postgresql/postgresql.service";
+import { PhotoReadingModel } from "../../../../domain/schemas/model/photo-reading.model";
+import { PhotoReadingResponse } from "../../../../domain/schemas/dto/response/photo-reading.response";
+import { statusCode } from "../../../../../../settings/environments/status-code";
 
 @Injectable()
 export class PhotoReadingPostgreSQLPersistence implements InterfacePhotoReadingRepository {

@@ -1,10 +1,10 @@
 import { Injectable } from "@nestjs/common";
-import { InterfaceLocationRepository } from "src/modules/location/domain/contracts/location.interface.repository";
-import { DatabaseServicePostgreSQL } from "src/shared/connections/database/postgresql/postgresql.service";
 import { LocationSqlResult } from "../../../interfaces/sql/location.sql.result";
-import { LocationResponse } from "src/modules/location/domain/schemas/dto/response/location.response";
 import { LocationAdapter } from "../adapters/location.postgresql.adapter";
-import { LocationModel } from "src/modules/location/domain/schemas/model/location.model";
+import { InterfaceLocationRepository } from "../../../../domain/contracts/location.interface.repository";
+import { DatabaseServicePostgreSQL } from "../../../../../../shared/connections/database/postgresql/postgresql.service";
+import { LocationResponse } from "../../../../domain/schemas/dto/response/location.response";
+import { LocationModel } from "../../../../domain/schemas/model/location.model";
 
 @Injectable()
 export class LocationPersistencePostgresql implements InterfaceLocationRepository {

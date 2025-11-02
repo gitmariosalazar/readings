@@ -1,10 +1,10 @@
 import { Module } from "@nestjs/common";
 import { ClientsModule, Transport } from "@nestjs/microservices";
-import { environments } from "src/settings/environments/environments";
 import { LocationController } from "../../controllers/location.controller";
-import { DatabaseServicePostgreSQL } from "src/shared/connections/database/postgresql/postgresql.service";
-import { LocationService } from "src/modules/location/application/services/location.service";
 import { LocationPersistencePostgresql } from "../../repositories/postgresql/persistence/postgresql.location.persistence";
+import { environments } from "../../../../../settings/environments/environments";
+import { DatabaseServicePostgreSQL } from "../../../../../shared/connections/database/postgresql/postgresql.service";
+import { LocationService } from "../../../application/services/location.service";
 
 @Module({
   imports: [

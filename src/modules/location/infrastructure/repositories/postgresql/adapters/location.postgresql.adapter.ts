@@ -1,4 +1,4 @@
-import { LocationResponse } from "src/modules/location/domain/schemas/dto/response/location.response";
+import { LocationResponse } from "../../../../domain/schemas/dto/response/location.response";
 import { LocationSqlResult } from "../../../interfaces/sql/location.sql.result";
 
 export class LocationAdapter {

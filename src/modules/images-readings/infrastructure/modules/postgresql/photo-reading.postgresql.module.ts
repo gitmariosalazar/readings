@@ -1,10 +1,10 @@
 import { Module } from "@nestjs/common";
 import { ClientsModule, Transport } from "@nestjs/microservices";
-import { environments } from "src/settings/environments/environments";
 import { PhotoReadingController } from "../../controllers/photo-reading.controller";
-import { DatabaseServicePostgreSQL } from "src/shared/connections/database/postgresql/postgresql.service";
 import { PhotoReadingPostgreSQLPersistence } from "../../repositories/postgresql/persistence/postgresql.photo-reading.persistence";
-import { PhotoReadingService } from "src/modules/images-readings/application/services/photo-reading.service";
+import { environments } from "../../../../../settings/environments/environments";
+import { DatabaseServicePostgreSQL } from "../../../../../shared/connections/database/postgresql/postgresql.service";
+import { PhotoReadingService } from "../../../application/services/photo-reading.service";
 
 @Module({
   imports: [

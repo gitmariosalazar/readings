@@ -1,10 +1,10 @@
 import { Module } from "@nestjs/common";
 import { ObservationReadingController } from "../../controllers/observation-reading.controller";
-import { ObservationReadingService } from "src/modules/observations/application/services/observation-reading.service";
-import { DatabaseServicePostgreSQL } from "src/shared/connections/database/postgresql/postgresql.service";
 import { ObservationReadingPostgreSQLPersistence } from "../../repositories/postgresql/persistence/postgresql.observation-reading.persistence";
 import { ClientsModule, Transport } from "@nestjs/microservices";
-import { environments } from "src/settings/environments/environments";
+import { environments } from "../../../../../settings/environments/environments";
+import { ObservationReadingService } from "../../../application/services/observation-reading.service";
+import { DatabaseServicePostgreSQL } from "../../../../../shared/connections/database/postgresql/postgresql.service";
 
 @Module({
   imports: [

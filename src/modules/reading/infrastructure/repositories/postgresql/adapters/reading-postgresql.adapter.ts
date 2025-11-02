@@ -1,6 +1,6 @@
-import { ReadingBasicInfoResponse } from "src/modules/reading/domain/schemas/dto/response/reading-basic.response";
+import { ReadingBasicInfoResponse } from "../../../../domain/schemas/dto/response/reading-basic.response";
+import { ReadingResponse } from "../../../../domain/schemas/dto/response/reading.response";
 import { ReadingBasicInfoSQLResult, ReadingSQLResult } from "../../../interfaces/sql/reading-sql.result.interface";
-import { ReadingResponse } from "src/modules/reading/domain/schemas/dto/response/reading.response";
 
 export class ReadingPostgreSQLAdapter {
   static fromReadingPostgreSQLResultToReadingBasicInfoResponse(readingResultSQL: ReadingBasicInfoSQLResult): ReadingBasicInfoResponse {

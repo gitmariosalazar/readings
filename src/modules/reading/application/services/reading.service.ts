@@ -3,19 +3,20 @@ import { InterfaceReadingUseCase } from '../usecases/reading.use-case.interface'
 import { InterfaceReadingRepository } from '../../domain/contracts/reading.interface.repository';
 import { ReadingBasicInfoResponse } from '../../domain/schemas/dto/response/reading-basic.response';
 import { RpcException } from '@nestjs/microservices';
-import { statusCode } from 'src/settings/environments/status-code';
 import { UpdateReadingRequest } from '../../domain/schemas/dto/request/update-reading.request';
 import { ReadingResponse } from '../../domain/schemas/dto/response/reading.response';
-import { validateFields } from 'src/shared/validators/fields.validators';
 import { ReadingModel } from '../../domain/schemas/model/reading.model';
 import { ReadingMapper } from '../mappers/reading.mapper';
 import { CreateReadingRequest } from '../../domain/schemas/dto/request/create-reading.request';
 import { toZonedTime } from 'date-fns-tz';
-import { InterfaceObservationReadingRepository } from 'src/modules/observations/domain/contracts/observation-reading.interface.repository';
-import { CreateObservationReadingRequest } from 'src/modules/observations/domain/schemas/dto/request/create-observatio-reading.request';
-import { ObservationReadingMapper } from 'src/modules/observations/application/mappers/observation-reading.mapper';
-import { ObservationReadingModel } from 'src/modules/observations/domain/schemas/model/observation-reading.model';
-import { getTypeCurrentConsumption, INovelty } from 'src/shared/types/novelty.type';
+import { InterfaceObservationReadingRepository } from '../../../observations/domain/contracts/observation-reading.interface.repository';
+import { statusCode } from '../../../../settings/environments/status-code';
+import { validateFields } from '../../../../shared/validators/fields.validators';
+import { INovelty } from '../usecases/novelty.interface';
+import { CreateObservationReadingRequest } from '../../../observations/domain/schemas/dto/request/create-observatio-reading.request';
+import { ObservationReadingModel } from '../../../observations/domain/schemas/model/observation-reading.model';
+import { ObservationReadingMapper } from '../../../observations/application/mappers/observation-reading.mapper';
+import { getTypeCurrentConsumption } from '../../../../shared/types/novelty.type';
 
 @Injectable()
 export class ReadingUseCaseService implements InterfaceReadingUseCase {

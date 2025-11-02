@@ -5,10 +5,10 @@ import { CreateObservationReadingRequest } from "../../domain/schemas/dto/reques
 import { ObservationReadingResponse } from "../../domain/schemas/dto/response/observation-reading.response";
 import { ObservationReadingModel } from "../../domain/schemas/model/observation-reading.model";
 import { ObservationReadingMapper } from "../mappers/observation-reading.mapper";
-import { validateFields } from "src/shared/validators/fields.validators";
 import { RpcException } from "@nestjs/microservices";
-import { statusCode } from "src/settings/environments/status-code";
 import { ObservationDetailsResponse } from "../../domain/schemas/dto/response/observation-dedtails.response";
+import { validateFields } from "../../../../shared/validators/fields.validators";
+import { statusCode } from "../../../../settings/environments/status-code";
 
 @Injectable()
 export class ObservationReadingService implements InterfaceObservationReadingUseCase {

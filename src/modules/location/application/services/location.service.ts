@@ -4,10 +4,10 @@ import { InterfaceLocationRepository } from "../../domain/contracts/location.int
 import { CreateLocationRequest } from "../../domain/schemas/dto/request/create.location.request";
 import { LocationResponse } from "../../domain/schemas/dto/response/location.response";
 import { RpcException } from "@nestjs/microservices";
-import { statusCode } from "src/settings/environments/status-code";
-import { validateFields } from "src/shared/validators/fields.validators";
 import { LocationModel } from "../../domain/schemas/model/location.model";
 import { LocationMapper } from "../mappers/location.mapper";
+import { validateFields } from "../../../../shared/validators/fields.validators";
+import { statusCode } from "../../../../settings/environments/status-code";
 
 @Injectable()
 export class LocationService implements InterfaceLocationUseCase {

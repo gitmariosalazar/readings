@@ -1,4 +1,4 @@
-import { PhotoReadingResponse } from "src/modules/images-readings/domain/schemas/dto/response/photo-reading.response";
+import { PhotoReadingResponse } from "../../../../domain/schemas/dto/response/photo-reading.response";
 import { PhotoReadingSQLResponse } from "../../../interfaces/sql/photo-reading.sql.response";
 
 export class PhotoReadingAdapter {

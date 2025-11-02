@@ -1,4 +1,4 @@
-import { ObservationReadingResponse } from "src/modules/observations/domain/schemas/dto/response/observation-reading.response";
+import { ObservationReadingResponse } from "../../../../domain/schemas/dto/response/observation-reading.response";
 import { ObservationReadingSQLResponse } from "../../../interfaces/observatio-reading.sql.response";
 
 export class ObservationReadingSQLAdapter {

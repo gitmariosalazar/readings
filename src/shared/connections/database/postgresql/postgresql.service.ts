@@ -1,8 +1,8 @@
 import { Pool, PoolConfig, QueryResult } from 'pg';
-import { environments } from 'src/settings/environments/environments';
 import { DatabaseAbstract } from '../abstract/abstract.database';
 import { RpcException } from '@nestjs/microservices';
-import { statusCode } from 'src/settings/environments/status-code';
+import { environments } from '../../../../settings/environments/environments';
+import { statusCode } from '../../../../settings/environments/status-code';
 
 class DatabaseError extends Error {
   constructor(message: string, public readonly code?: string) {

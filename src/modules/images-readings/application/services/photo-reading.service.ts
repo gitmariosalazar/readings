@@ -3,11 +3,11 @@ import { InterfacePhotoReadingUseCase } from "../usecases/photo-reading.use-case
 import { InterfacePhotoReadingRepository } from "../../domain/contracts/photo-reading.interface.repository";
 import { CreatePhotoReadingRequest } from "../../domain/schemas/dto/request/create.photo-reading.request";
 import { PhotoReadingResponse } from "../../domain/schemas/dto/response/photo-reading.response";
-import { validateFields } from "src/shared/validators/fields.validators";
 import { RpcException } from "@nestjs/microservices";
-import { statusCode } from "src/settings/environments/status-code";
 import { PhotoReadingMapper } from "../mappers/photo-reading.mapper";
 import { PhotoReadingModel } from "../../domain/schemas/model/photo-reading.model";
+import { statusCode } from "../../../../settings/environments/status-code";
+import { validateFields } from "../../../../shared/validators/fields.validators";
 
 @Injectable()
 export class PhotoReadingService implements InterfacePhotoReadingUseCase {
