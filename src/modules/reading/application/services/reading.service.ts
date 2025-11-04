@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { InterfaceReadingUseCase } from '../usecases/reading.use-case.interface';
 import { InterfaceReadingRepository } from '../../domain/contracts/reading.interface.repository';
-import { ReadingBasicInfoResponse } from '../../domain/schemas/dto/response/reading-basic.response';
+import { ReadingBasicInfoResponse, ReadingInfoResponse } from '../../domain/schemas/dto/response/reading-basic.response';
 import { RpcException } from '@nestjs/microservices';
 import { UpdateReadingRequest } from '../../domain/schemas/dto/request/update-reading.request';
 import { ReadingResponse } from '../../domain/schemas/dto/response/reading.response';
@@ -26,6 +26,29 @@ export class ReadingUseCaseService implements InterfaceReadingUseCase {
     @Inject('ObservationReadingRepository')
     private readonly observationRepository: InterfaceObservationReadingRepository,
   ) { }
+
+  async findReadingInfo(cadastralKey: string): Promise<ReadingInfoResponse[]> {
+    try {
+      if (cadastralKey.trim().length === 0 || !cadastralKey) {
+        throw new RpcException({
+          statusCode: statusCode.BAD_REQUEST,
+          message: `Parameter cadastralKey is required!`,
+        });
+      }
+      const readingFound: ReadingInfoResponse[] =
+        await this.readingRepository.findReadingInfo(cadastralKey);
+
+      if (readingFound.length === 0) {
+        throw new RpcException({
+          statusCode: statusCode.NOT_FOUND,
+          message: `Data not found for connection with ID: ${cadastralKey}`,
+        });
+      }
+      return readingFound;
+    } catch (error) {
+      throw error;
+    }
+  }
 
   async verifyReadingIfExist(readingId: number): Promise<boolean> {
     try {
@@ -355,22 +378,22 @@ export class ReadingUseCaseService implements InterfaceReadingUseCase {
       */
 
   async findReadingBasicInfo(
-    catastralCode: string,
+    cadastralKey: string,
   ): Promise<ReadingBasicInfoResponse[]> {
     try {
-      if (catastralCode.trim().length === 0 || !catastralCode) {
+      if (cadastralKey.trim().length === 0 || !cadastralKey) {
         throw new RpcException({
           statusCode: statusCode.BAD_REQUEST,
           message: `Parameter catastralCode is required!`,
         });
       }
       const readingFound: ReadingBasicInfoResponse[] =
-        await this.readingRepository.findReadingBasicInfo(catastralCode);
+        await this.readingRepository.findReadingBasicInfo(cadastralKey);
 
       if (readingFound.length === 0) {
         throw new RpcException({
           statusCode: statusCode.NOT_FOUND,
-          message: `Data not found for connection with ID: ${catastralCode}`,
+          message: `Data not found for connection with ID: ${cadastralKey}`,
         });
       }
       return readingFound;

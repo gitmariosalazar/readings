@@ -1,13 +1,13 @@
-import { ReadingBasicInfoResponse } from "../../../../domain/schemas/dto/response/reading-basic.response";
+import { ReadingBasicInfoResponse, ReadingInfoResponse } from "../../../../domain/schemas/dto/response/reading-basic.response";
 import { ReadingResponse } from "../../../../domain/schemas/dto/response/reading.response";
-import { ReadingBasicInfoSQLResult, ReadingSQLResult } from "../../../interfaces/sql/reading-sql.result.interface";
+import { ReadingBasicInfoSQLResult, ReadingInfoSQLResult, ReadingSQLResult } from "../../../interfaces/sql/reading-sql.result.interface";
 
 export class ReadingPostgreSQLAdapter {
   static fromReadingPostgreSQLResultToReadingBasicInfoResponse(readingResultSQL: ReadingBasicInfoSQLResult): ReadingBasicInfoResponse {
     const response: ReadingBasicInfoResponse = {
       readingId: readingResultSQL.readingId,
       previousReadingDate: readingResultSQL.previousReadingDate,
-      cadastralKey: readingResultSQL.catastralCode,
+      cadastralKey: readingResultSQL.cadastralKey,
       cardId: readingResultSQL.cardId,
       clientName: readingResultSQL.clientName,
       address: readingResultSQL.address,
@@ -40,6 +40,31 @@ export class ReadingPostgreSQLAdapter {
       rentalIncomeCode: readingResultSQL.rentalIncomeCode,
       novelty: readingResultSQL.novelty,
       incomeCode: readingResultSQL.incomeCode
+    }
+    return response
+  }
+
+  static fromReadingPostgreSQLResultToReadingInfoResponse(readingResultSQL: ReadingInfoSQLResult): ReadingInfoResponse {
+    const response: ReadingInfoResponse = {
+      readingId: readingResultSQL.readingId,
+      previousReadingDate: readingResultSQL.previousReadingDate,
+      readingTime: readingResultSQL.readingTime,
+      cadastralKey: readingResultSQL.cadastralKey,
+      cardId: readingResultSQL.cardId,
+      clientName: readingResultSQL.clientName,
+      clientPhones: readingResultSQL.clientPhones,
+      clientEmails: readingResultSQL.clientEmails,
+      address: readingResultSQL.address,
+      previousReading: readingResultSQL.previousReading,
+      currentReading: readingResultSQL.currentReading,
+      sector: readingResultSQL.sector,
+      account: readingResultSQL.account,
+      readingValue: readingResultSQL.readingValue,
+      averageConsumption: readingResultSQL.averageConsumption,
+      meterNumber: readingResultSQL.meterNumber,
+      rateId: readingResultSQL.rateId,
+      rateName: readingResultSQL.rateName,
+      hasCurrentReading: readingResultSQL.hasCurrentReading
     }
     return response
   }

@@ -27,4 +27,10 @@ export class ReadingController {
   async createReading(@Payload() readingRequest: CreateReadingRequest) {
     return this.readingService.createReading(readingRequest);
   }
+
+  @Get('find-reading-info/:cadastralKey')
+  @MessagePattern('reading.find-reading-info')
+  async findReadingInfoByCadastralKey(@Payload() cadastralKey: string) {
+    return this.readingService.findReadingInfo(cadastralKey);
+  }
 }
