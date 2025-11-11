@@ -64,7 +64,10 @@ export class ReadingPostgreSQLAdapter {
       meterNumber: readingResultSQL.meterNumber,
       rateId: readingResultSQL.rateId,
       rateName: readingResultSQL.rateName,
-      hasCurrentReading: readingResultSQL.hasCurrentReading
+      hasCurrentReading: readingResultSQL.hasCurrentReading,
+      monthReading: readingResultSQL.monthReading,
+      startDatePeriod: readingResultSQL.startDatePeriod,
+      endDatePeriod: readingResultSQL.endDatePeriod
     }
     return response
   }

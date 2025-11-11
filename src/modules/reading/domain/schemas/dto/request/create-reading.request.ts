@@ -14,4 +14,5 @@ export class CreateReadingRequest {
   novelty: string | null
   averageConsumption: number
   typeNoveltyReadingId: number
+  previousMonthReading: string
 }

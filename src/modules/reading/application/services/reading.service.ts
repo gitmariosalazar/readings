@@ -187,6 +187,7 @@ export class ReadingUseCaseService implements InterfaceReadingUseCase {
         'readingValue',
         'currentReading',
         'rentalIncomeCode',
+        'previousMonthReading'
       ];
       const mensajesFaltantes: string[] = validateFields(readingRequest, camposRequeridos);
       console.log(`[Servicio (01)] Creando lectura para cuenta: `, readingRequest);

@@ -21,6 +21,11 @@ export class ReadingMapper {
     readingModel.setRentalIncomeCode(readingRequest.rentalIncomeCode ?? 0)
     readingModel.setNovelty(readingRequest.novelty ?? 'NORMAL')
     readingModel.setTipoNovedadLecturaId(readingRequest.typeNoveltyReadingId ?? 1)
+    const [year, month] = readingRequest.previousMonthReading.split('-').map(Number);
+    const nextDate = new Date(year, month, 1);
+    const currentMonthReading = `${nextDate.getFullYear()}-${String(nextDate.getMonth()).padStart(2, '0')}`;
+
+    readingModel.setCurrentMonthReading(currentMonthReading)
     return readingModel;
   }
 

@@ -59,7 +59,7 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
 
       const query: string = `
         WITH ultima_lectura_valida AS (
-          -- 1. Obtener SOLO las últimas 5 lecturas válidas (por fecha)
+          -- 1. Últimas 5 lecturas válidas
           SELECT
             l.lecturaid,
             l.acometidaid,
@@ -67,7 +67,8 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
             l.horalectura,
             l.lecturaanterior,
             l.lecturaactual,
-            l.valorlectura
+            l.valorlectura,
+            l.mes_lectura
           FROM (
             SELECT l.*
             FROM lectura l
@@ -79,7 +80,7 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
             ORDER BY l.fechalectura DESC
             LIMIT 5
           ) l
-          ORDER BY l.fechalectura DESC  -- Re-ordenar para ROW_NUMBER()
+          ORDER BY l.fechalectura DESC
         ),
 
         ranked AS (
@@ -90,6 +91,7 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
         ),
 
         periodo AS (
+          -- 2. Período actual de lectura
           SELECT
             COALESCE(sl.fechaInicioPeriodo, CURRENT_DATE - INTERVAL '1 month') AS inicio,
             sl.fechaSiguienteLectura AS fecha_mitad,
@@ -99,20 +101,23 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
         ),
 
         lectura_en_periodo AS (
+          -- 3. Determinar si estamos dentro del período y si ya se tomó una lectura
           SELECT
+            p.inicio,
+            p.fin,
             (CURRENT_DATE BETWEEN p.inicio AND p.fin) AS en_periodo,
             EXISTS (
               SELECT 1
               FROM lectura l2
               WHERE l2.acometidaid = $1
-                AND l2.fechalectura::date BETWEEN p.inicio AND p.fin
+                AND l2.fechalectura::date >= COALESCE(p.fecha_mitad, p.inicio)
                 AND l2.novedad NOT LIKE '%INICIAL AUTOMÁTICA%'
                 AND l2.novedad NOT LIKE '%CAMBIO MEDIDOR%'
-            ) AS ya_tomada
+            ) AS ya_tomada_en_periodo_actual
           FROM periodo p
         )
 
-        -- Consulta final
+        -- 4. Resultado final
         SELECT
           l.lecturaid AS "readingId",
           l.fechalectura AS "previousReadingDate",
@@ -133,10 +138,17 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
           ac.tarifaid AS "rateId",
           t.nombre AS "rateName",
 
-          (l.rn = 1 AND lep.en_periodo AND NOT lep.ya_tomada) AS "hasCurrentReading",
+          -- Solo si está en periodo y no hay lectura actual
+          (l.rn = 1 AND lep.en_periodo AND NOT lep.ya_tomada_en_periodo_actual) AS "hasCurrentReading",
 
+          -- Nuevas columnas:
+          lep.inicio AS "startDatePeriod",
+          lep.fin AS "endDatePeriod",
+
+          -- Datos de depuración
           lep.en_periodo AS "enPeriodoDebug",
-          lep.ya_tomada AS "yaTomadaDebug"
+          lep.ya_tomada_en_periodo_actual AS "yaTomadaDebug",
+          l.mes_lectura AS "monthReading"
 
         FROM ranked l
         CROSS JOIN periodo p
@@ -264,7 +276,8 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
 
         // === 2. CONTROL AVANZADO: REGLAS DE DUPLICADOS ===
         const fechaLecturaInput = readingModel.getReadingDate() ?? new Date();
-        const mesLectura = fechaLecturaInput.toISOString().slice(0, 7);  // '2025-11'
+        //const mesLectura = fechaLecturaInput.toISOString().slice(0, 7);  // '2025-11'
+        const mesLectura = readingModel.getCurrentMonthReading(); // '2025-11'
         const novedadInput = readingModel.getNovelty() ?? 'LECTURA NORMAL';
 
         const isEspecial = novedadInput.includes('INICIAL') || novedadInput.includes('CAMBIO DE MEDIDOR');
@@ -335,8 +348,8 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
         INSERT INTO lectura(
           acometidaid, fechalectura, horalectura, sector, cuenta, clavecatastral,
           valorlectura, tasaalcantarillado, lecturaanterior, lecturaactual,
-          codigoingresorenta, novedad, codigoingreso, tiponovedadlecturaid, lecturaestadoid
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+          codigoingresorenta, novedad, codigoingreso, tiponovedadlecturaid, lecturaestadoid, mes_lectura
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
         RETURNING
           lecturaid as "readingId",
           acometidaid as "connectionId",
@@ -370,7 +383,8 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
           novedadFinal,
           readingModel.getIncomeCode() ?? null,
           readingModel.getTipoNovedadLecturaId() ?? 1,
-          estadoId
+          estadoId,
+          readingModel.getCurrentMonthReading() ?? null
         ];
 
         const insertResult = await client.query<ReadingSQLResult>(insertQuery, params);

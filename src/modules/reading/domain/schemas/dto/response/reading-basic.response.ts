@@ -46,5 +46,8 @@ export interface ReadingInfoResponse {
   meterNumber: string
   rateId: number
   rateName: string,
-  hasCurrentReading: boolean
+  hasCurrentReading: boolean,
+  monthReading: string,
+  startDatePeriod: Date,
+  endDatePeriod: Date
 }

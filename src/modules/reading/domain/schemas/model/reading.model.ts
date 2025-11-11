@@ -14,6 +14,7 @@ export class ReadingModel {
   private novelty: string | null;
   private incomeCode: number | null;
   private tipoNovedadLecturaId: number;
+  private currentMonthReading: string;
 
   public getReadingId(): number {
     return this.readingId;
@@ -133,5 +134,13 @@ export class ReadingModel {
 
   public setTipoNovedadLecturaId(tipoNovedadLecturaId: number): void {
     this.tipoNovedadLecturaId = tipoNovedadLecturaId;
+  }
+
+  public getCurrentMonthReading(): string {
+    return this.currentMonthReading;
+  }
+
+  public setCurrentMonthReading(currentMonthReading: string): void {
+    this.currentMonthReading = currentMonthReading;
   }
 }

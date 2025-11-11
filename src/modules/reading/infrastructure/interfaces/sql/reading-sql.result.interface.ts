@@ -64,4 +64,7 @@ export interface ReadingInfoSQLResult {
   rateId: number
   rateName: string,
   hasCurrentReading: boolean
+  monthReading: string
+  startDatePeriod: Date
+  endDatePeriod: Date
 }
