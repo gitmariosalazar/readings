@@ -1,61 +1,123 @@
-import { CreateReadingRequest } from '../../domain/schemas/dto/request/create-reading.request';
-import { UpdateReadingRequest } from '../../domain/schemas/dto/request/update-reading.request';
+import { CreateReadingRequest } from '../dtos/request/create-reading.request';
+import { UpdateReadingRequest } from '../dtos/request/update-reading.request';
 import { ReadingModel } from '../../domain/schemas/model/reading.model';
+import { ReadingResponse } from '../dtos/response/reading.response';
+import { ReadingHistoryModel } from '../../domain/schemas/model/reading-history.model';
+import { ReadingHistoryResponse } from '../dtos/response/reading-history.response';
+import { ReadingImagesModel } from '../../domain/schemas/model/reading-images.model';
+import { ReadingImagesResponse } from '../dtos/response/reading-images.response';
 
 export class ReadingMapper {
   static fromCreateReadingRequestToReadingModel(
     readingRequest: CreateReadingRequest,
   ): ReadingModel {
-    const readingModel: ReadingModel = new ReadingModel();
-
-    readingModel.setConnectionId(readingRequest.connectionId);
-    readingModel.setCadastralKey(readingRequest.cadastralKey);
-    readingModel.setIncomeCode(readingRequest.incomeCode);
-    readingModel.setAccount(readingRequest.account);
-    readingModel.setSector(readingRequest.sector);
-    readingModel.setPreviousReading(readingRequest.previousReading);
-    readingModel.setSewerRate(readingRequest.sewerRate);
-    readingModel.setCurrentReading(readingRequest.currentReading ?? 0);
-    readingModel.setReadingDate(readingRequest.readingDate);
-    readingModel.setReadingTime(readingRequest.readingTime);
-    readingModel.setReadingValue(0);
-    readingModel.setRentalIncomeCode(readingRequest.rentalIncomeCode ?? 0);
-    readingModel.setNovelty(readingRequest.novelty ?? 'NORMAL');
-    readingModel.setTipoNovedadLecturaId(
-      readingRequest.typeNoveltyReadingId ?? 1,
-    );
-
     const [year, month] = readingRequest.previousMonthReading
       .split('-')
       .map(Number);
-    const nextDate = new Date(year, month - 1 + 1, 1); // o simplemente: month
+    const nextDate = new Date(year, month - 1 + 1, 1);
     const currentMonthReading = `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, '0')}`;
 
-    readingModel.setCurrentMonthReading(currentMonthReading);
-
-    return readingModel;
+    return new ReadingModel(
+      0, // ID
+      readingRequest.connectionId,
+      readingRequest.readingDate,
+      readingRequest.readingTime,
+      readingRequest.sector,
+      readingRequest.account,
+      readingRequest.cadastralKey,
+      0, // readingValue
+      readingRequest.sewerRate,
+      readingRequest.previousReading,
+      readingRequest.currentReading ?? 0,
+      readingRequest.rentalIncomeCode ?? 0,
+      readingRequest.novelty ?? 'NORMAL',
+      readingRequest.incomeCode,
+      readingRequest.typeNoveltyReadingId ?? 1,
+      currentMonthReading,
+    );
   }
 
   static fromUpdateReadingRequestToReadingModel(
     readingRequest: UpdateReadingRequest,
   ): ReadingModel {
-    const readingModel: ReadingModel = new ReadingModel();
-    readingModel.setReadingId(readingRequest.readingId);
-    readingModel.setConnectionId(readingRequest.connectionId);
-    readingModel.setCadastralKey(readingRequest.cadastralKey);
-    readingModel.setIncomeCode(readingRequest.incomeCode ?? 0);
-    readingModel.setRentalIncomeCode(readingRequest.rentalIncomeCode ?? 0);
-    readingModel.setAccount(readingRequest.account);
-    readingModel.setSector(readingRequest.sector);
     const date: Date = new Date();
-    readingModel.setReadingDate(date);
     const hour: string = date.getTime().toLocaleString();
-    readingModel.setReadingTime(hour);
-    readingModel.setCurrentReading(readingRequest.currentReading ?? 0);
-    readingModel.setPreviousReading(readingRequest.previousReading ?? 0);
-    readingModel.setNovelty(readingRequest.novelty ?? 'NORMAL');
-    readingModel.setSewerRate(readingRequest.sewerRate ?? 0);
-    readingModel.setReadingValue(readingRequest.readingValue ?? 0);
-    return readingModel;
+
+    return new ReadingModel(
+      readingRequest.readingId,
+      readingRequest.connectionId,
+      date, // readingDate
+      hour, // readingTime
+      readingRequest.sector,
+      readingRequest.account,
+      readingRequest.cadastralKey,
+      readingRequest.readingValue ?? 0,
+      readingRequest.sewerRate ?? 0,
+      readingRequest.previousReading ?? 0,
+      readingRequest.currentReading ?? 0,
+      readingRequest.rentalIncomeCode ?? 0,
+      readingRequest.novelty ?? 'NORMAL',
+      readingRequest.incomeCode ?? 0,
+      readingRequest.typeNoveltyReadingId ?? 1,
+      '', // currentMonthReading (default or needs to be in request)
+    );
+  }
+  static fromReadingModelToReadingResponse(
+    reading: ReadingModel,
+  ): ReadingResponse {
+    const response: ReadingResponse = {
+      readingId: reading.id,
+      connectionId: reading.connectionId,
+      readingDate: reading.readingDate,
+      readingTime: reading.readingTime,
+      sector: reading.sector,
+      account: reading.account,
+      cadastralKey: reading.cadastralKey,
+      readingValue: reading.readingValue,
+      sewerRate: reading.sewerRate,
+      previousReading: reading.previousReading,
+      currentReading: reading.currentReading,
+      rentalIncomeCode: reading.rentalIncomeCode ?? 0,
+      novelty: reading.novelty ?? '',
+      incomeCode: reading.incomeCode ?? 0,
+    };
+    return response;
+  }
+
+  static fromReadingHistoryModelToReadingHistoryResponse(
+    readingHistory: ReadingHistoryModel,
+  ): ReadingHistoryResponse {
+    const response: ReadingHistoryResponse = {
+      readingId: readingHistory.readingId,
+      connectionId: readingHistory.connectionId,
+      readingYear: readingHistory.readingYear,
+      readingMonth: readingHistory.readingMonth,
+      readingDate: readingHistory.readingDate,
+      readingTime: readingHistory.readingTime,
+      previousReading: readingHistory.previousReading,
+      currentReading: readingHistory.currentReading,
+      consumption: readingHistory.consumption,
+      observation: readingHistory.observation,
+    };
+    return response;
+  }
+
+  static fromReadingImagesModelToReadingImagesResponse(
+    readingImages: ReadingImagesModel,
+  ): ReadingImagesResponse {
+    const response: ReadingImagesResponse = {
+      cadastralKey: readingImages.cadastralKey,
+      readingId: readingImages.readingId,
+      previewsReading: readingImages.previewsReading,
+      currentReading: readingImages.currentReading,
+      images: readingImages.images,
+      readingMonth: readingImages.readingMonth,
+      readingYear: readingImages.readingYear,
+      readingMonthName: readingImages.readingMonthName,
+      novelty: readingImages.novelty,
+      consumption: readingImages.consumption,
+      observation: readingImages.observation,
+    };
+    return response;
   }
 }

@@ -1,28 +1,19 @@
-import { PhotoReadingResponse } from "../../../../domain/schemas/dto/response/photo-reading.response";
-import { PhotoReadingSQLResponse } from "../../../interfaces/sql/photo-reading.sql.response";
+import { PhotoReadingModel } from '../../../../domain/schemas/model/photo-reading.model';
+import { PhotoReadingSQLResponse } from '../../../interfaces/sql/photo-reading.sql.response';
 
 export class PhotoReadingAdapter {
-  static fromPhotoReadingResponseToSQL(photoReading: PhotoReadingResponse): PhotoReadingSQLResponse {
-    return {
-      photoReadingId: photoReading.photoReadingId,
-      readingId: photoReading.readingId,
-      photoUrl: photoReading.photoUrl,
-      cadastralKey: photoReading.cadastralKey,
-      description: photoReading.description,
-      createdAt: photoReading.createdAt,
-      updatedAt: photoReading.updatedAt,
-    };
-  }
-
-  static fromPhotoReadingSQLResponseToPhotoReadingResponse(photoReading: PhotoReadingSQLResponse): PhotoReadingResponse {
-    return {
-      photoReadingId: photoReading.photoReadingId,
-      readingId: photoReading.readingId,
-      photoUrl: photoReading.photoUrl,
-      cadastralKey: photoReading.cadastralKey,
-      description: photoReading.description,
-      createdAt: photoReading.createdAt,
-      updatedAt: photoReading.updatedAt,
-    };
+  static fromPhotoReadingSQLResponseToPhotoReadingModel(
+    photoReading: PhotoReadingSQLResponse,
+  ): PhotoReadingModel {
+    const model = new PhotoReadingModel(
+      photoReading.reading_id,
+      photoReading.photo_url,
+      photoReading.cadastral_key,
+      photoReading.description,
+      photoReading.photo_reading_id,
+      photoReading.created_at,
+      photoReading.updated_at,
+    );
+    return model;
   }
 }

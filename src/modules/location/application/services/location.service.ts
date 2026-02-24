@@ -1,38 +1,51 @@
-import { Inject, Injectable } from "@nestjs/common";
-import { InterfaceLocationUseCase } from "../usecases/location.use-case.interface";
-import { InterfaceLocationRepository } from "../../domain/contracts/location.interface.repository";
-import { CreateLocationRequest } from "../../domain/schemas/dto/request/create.location.request";
-import { LocationResponse } from "../../domain/schemas/dto/response/location.response";
-import { RpcException } from "@nestjs/microservices";
-import { LocationModel } from "../../domain/schemas/model/location.model";
-import { LocationMapper } from "../mappers/location.mapper";
-import { validateFields } from "../../../../shared/validators/fields.validators";
-import { statusCode } from "../../../../settings/environments/status-code";
+import { Inject, Injectable } from '@nestjs/common';
+import { InterfaceLocationUseCase } from '../usecases/location.use-case.interface';
+import { InterfaceLocationRepository } from '../../domain/contracts/location.interface.repository';
+import { CreateLocationRequest } from '../../application/dtos/request/create.location.request';
+import { LocationResponse } from '../../application/dtos/response/location.response';
+import { RpcException } from '@nestjs/microservices';
+import { LocationModel } from '../../domain/schemas/model/location.model';
+import { LocationMapper } from '../mappers/location.mapper';
+import { validateFields } from '../../../../shared/validators/fields.validators';
+import { statusCode } from '../../../../settings/environments/status-code';
 
 @Injectable()
 export class LocationService implements InterfaceLocationUseCase {
   constructor(
     @Inject('LocationRepository')
-    private readonly locationRepository: InterfaceLocationRepository
-  ) { }
+    private readonly locationRepository: InterfaceLocationRepository,
+  ) {}
 
-  async createLocation(location: CreateLocationRequest): Promise<LocationResponse | null> {
+  async createLocation(
+    location: CreateLocationRequest,
+  ): Promise<LocationResponse | null> {
     try {
+      const requiredFields: string[] = [
+        'latitude',
+        'longitude',
+        'connectionId',
+        'metadata',
+      ];
 
-      const requiredFields: string[] = ['latitude', 'longitude', 'connectionId', 'metadata'];
-
-      const missingFieldsMessages: string[] = validateFields(location, requiredFields);
+      const missingFieldsMessages: string[] = validateFields(
+        location,
+        requiredFields,
+      );
 
       if (missingFieldsMessages.length > 0) {
         throw new RpcException({
           statusCode: statusCode.BAD_REQUEST,
-          message: missingFieldsMessages
+          message: missingFieldsMessages,
         });
       }
 
-      const locationModel: LocationModel = LocationMapper.fromCreateLocationRequestToLocationModel(location);
+      const locationModel: LocationModel =
+        LocationMapper.fromCreateLocationRequestToLocationModel(location);
 
-      const existLocation: boolean = await this.locationRepository.verifyLocationByConnectionIdExists(location.connectionId);
+      const existLocation: boolean =
+        await this.locationRepository.verifyLocationByConnectionIdExists(
+          location.connectionId,
+        );
 
       if (existLocation) {
         throw new RpcException({
@@ -41,7 +54,8 @@ export class LocationService implements InterfaceLocationUseCase {
         });
       }
 
-      const createdLocation = await this.locationRepository.createLocation(locationModel);
+      const createdLocation =
+        await this.locationRepository.createLocation(locationModel);
 
       if (!createdLocation) {
         throw new RpcException({
@@ -50,27 +64,37 @@ export class LocationService implements InterfaceLocationUseCase {
         });
       }
 
-      return createdLocation;
+      return LocationMapper.fromLocationModelToLocationResponse(
+        createdLocation,
+      );
     } catch (error) {
       throw error;
     }
   }
 
-  async verifyLocationByConnectionIdExists(connectionId: string): Promise<boolean> {
-    return this.locationRepository.verifyLocationByConnectionIdExists(connectionId);
+  async verifyLocationByConnectionIdExists(
+    connectionId: string,
+  ): Promise<boolean> {
+    return this.locationRepository.verifyLocationByConnectionIdExists(
+      connectionId,
+    );
   }
 
-  async getLocationsByConnectionId(connectionId: string): Promise<LocationResponse[]> {
+  async getLocationsByConnectionId(
+    connectionId: string,
+  ): Promise<LocationResponse[]> {
     try {
-
       if (!connectionId || connectionId.trim() === '') {
         throw new RpcException({
           statusCode: statusCode.BAD_REQUEST,
           message: 'Connection ID is required',
-        })
+        });
       }
 
-      const verifyIfExists: boolean = await this.locationRepository.verifyLocationByConnectionIdExists(connectionId);
+      const verifyIfExists: boolean =
+        await this.locationRepository.verifyLocationByConnectionIdExists(
+          connectionId,
+        );
 
       if (!verifyIfExists) {
         throw new RpcException({
@@ -79,7 +103,12 @@ export class LocationService implements InterfaceLocationUseCase {
         });
       }
 
-      return await this.locationRepository.getLocationsByConnectionId(connectionId);
+      const locationModels =
+        await this.locationRepository.getLocationsByConnectionId(connectionId);
+
+      return locationModels.map((model) =>
+        LocationMapper.fromLocationModelToLocationResponse(model),
+      );
     } catch (error) {
       throw error;
     }
@@ -87,15 +116,20 @@ export class LocationService implements InterfaceLocationUseCase {
 
   async getLocationById(locationId: number): Promise<LocationResponse | null> {
     try {
-
       if (!locationId) {
         throw new RpcException({
           statusCode: statusCode.BAD_REQUEST,
           message: 'Location ID is required',
-        })
+        });
       }
 
-      return await this.locationRepository.getLocationById(locationId);
+      const locationModel =
+        await this.locationRepository.getLocationById(locationId);
+      if (!locationModel) {
+        return null;
+      }
+
+      return LocationMapper.fromLocationModelToLocationResponse(locationModel);
     } catch (error) {
       throw error;
     }

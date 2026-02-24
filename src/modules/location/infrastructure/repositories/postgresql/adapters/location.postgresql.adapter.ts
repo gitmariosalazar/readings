@@ -1,14 +1,18 @@
-import { LocationResponse } from "../../../../domain/schemas/dto/response/location.response";
-import { LocationSqlResult } from "../../../interfaces/sql/location.sql.result";
+import { LocationModel } from '../../../../domain/schemas/model/location.model';
+import { LocationSqlResult } from '../../../interfaces/sql/location.sql.result';
 
 export class LocationAdapter {
-  static fromLocationSqlResultToLocationResponse(locationSqlResult: LocationSqlResult): LocationResponse {
-    return {
-      locationId: locationSqlResult.locationId,
-      coordinates: locationSqlResult.coordinates,
-      metadata: JSON.parse(locationSqlResult.metadata),
-      connectionId: locationSqlResult.connectionId,
-      createdAt: locationSqlResult.createdAt,
-    };
+  static fromLocationSqlResultToLocationModel(
+    locationSqlResult: LocationSqlResult,
+  ): LocationModel {
+    return new LocationModel(
+      locationSqlResult.coordinates,
+      typeof locationSqlResult.metadata === 'string'
+        ? JSON.parse(locationSqlResult.metadata)
+        : locationSqlResult.metadata,
+      locationSqlResult.connectionId,
+      locationSqlResult.locationId,
+      locationSqlResult.createdAt,
+    );
   }
 }

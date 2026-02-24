@@ -1,70 +1,105 @@
 export interface ReadingBasicInfoSQLResult {
-  readingId: number
-  previousReadingDate: Date | null
-  cadastralKey: string
-  cardId: string
-  clientName: string
-  address: string
-  previousReading: number
-  currentReading: number | null
-  sector: number
-  account: number
-  readingValue: number
-  averageConsumption: number
-  meterNumber: string
-  rateId: number
-  rateName: string
+  reading_id: number;
+  previous_reading_date: Date | null;
+  cadastral_key: string;
+  card_id: string;
+  client_name: string;
+  address: string;
+  previous_reading: number;
+  current_reading: number | null;
+  sector: number;
+  account: number;
+  reading_value: number;
+  average_consumption: number;
+  meter_number: string;
+  rate_id: number;
+  rate_name: string;
 }
 
 export interface ReadingSQLResult {
-  readingId: number
-  connectionId: string
-  readingDate: Date | null
-  readingTime: string | null
-  sector: number
-  account: number
-  cadastralKey: string
-  readingValue: number | null
-  sewerRate: number | null
-  previousReading: number | null
-  currentReading: number | null
-  rentalIncomeCode: number | null
-  novelty: string | null
-  incomeCode: number | null
-  averageConsumption: number
+  reading_id: number;
+  connection_id: string;
+  reading_date: Date | null;
+  reading_time: string | null;
+  sector: number;
+  account: number;
+  cadastral_key: string;
+  reading_value: number | null;
+  sewer_rate: number | null;
+  previous_reading: number | null;
+  current_reading: number | null;
+  rental_income_code: number | null;
+  novelty: string | null;
+  income_code: number | null;
+  average_consumption: number;
 }
 
 export interface ClientPhoneSQLResult {
-  telefonoid: number
-  numero: string
+  telefono_id: number;
+  numero: string;
 }
 
 export interface ClientEmailSQLResult {
-  emailid: number
-  email: string
+  correo_electronico_id: number;
+  correo: string;
 }
 
 export interface ReadingInfoSQLResult {
-  readingId: number
-  previousReadingDate: Date | null
-  readingTime: Date | null
-  cadastralKey: string
-  cardId: string
-  clientName: string
-  clientPhones: ClientPhoneSQLResult[]
-  clientEmails: ClientEmailSQLResult[]
-  address: string
-  previousReading: number
-  currentReading: number | null
-  sector: number
-  account: number
-  readingValue: number
-  averageConsumption: number
-  meterNumber: string
-  rateId: number
-  rateName: string,
-  hasCurrentReading: boolean
-  monthReading: string
-  startDatePeriod: Date
-  endDatePeriod: Date
+  reading_id: number;
+  previous_reading_date: Date | null;
+  reading_time: Date | null;
+  cadastral_key: string;
+  card_id: string;
+  client_name: string;
+  client_phones: ClientPhoneSQLResult[];
+  client_emails: ClientEmailSQLResult[];
+  address: string;
+  previous_reading: number;
+  current_reading: number | null;
+  sector: number;
+  account: number;
+  reading_value: number;
+  average_consumption: number;
+  meter_number: string;
+  rate_id: number;
+  rate_name: string;
+  has_current_reading: boolean;
+  month_reading: string;
+  start_date_period: Date;
+  end_date_period: Date;
+}
+
+export interface AdvancedReportReadingsSQLResult {
+  sector: number;
+  total_connections: number;
+  readings_completed: number;
+  missing_readings: number;
+  progress_percentage: number;
+}
+
+export interface ReadingHistorySQLResult {
+  reading_id: number;
+  connection_id: string;
+  reading_year: number;
+  reading_month: string;
+  reading_date: Date;
+  reading_time: string;
+  previous_reading: number;
+  current_reading: number;
+  consumption: number;
+  observation: string;
+}
+
+export class ReadingImagesSQLResult {
+  cadastral_key: string;
+  reading_id: number;
+  previews_reading: number;
+  current_reading: number;
+  images: string[];
+  reading_month: string;
+  reading_year: number;
+  reading_month_name: string;
+  novelty: string;
+  consumption: number;
+  observation: string;
 }

@@ -1,9 +1,9 @@
 export interface PhotoReadingSQLResponse {
-  photoReadingId?: number;
-  readingId: number;
-  photoUrl: string;
-  cadastralKey: string;
+  photo_reading_id?: number;
+  reading_id: number;
+  photo_url: string;
+  cadastral_key: string;
   description?: string;
-  createdAt?: Date;
-  updatedAt?: Date;
+  created_at?: Date;
+  updated_at?: Date;
 }

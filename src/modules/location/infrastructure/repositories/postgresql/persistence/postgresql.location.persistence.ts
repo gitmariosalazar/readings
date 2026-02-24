@@ -1,18 +1,19 @@
-import { Injectable } from "@nestjs/common";
-import { LocationSqlResult } from "../../../interfaces/sql/location.sql.result";
-import { LocationAdapter } from "../adapters/location.postgresql.adapter";
-import { InterfaceLocationRepository } from "../../../../domain/contracts/location.interface.repository";
-import { DatabaseServicePostgreSQL } from "../../../../../../shared/connections/database/postgresql/postgresql.service";
-import { LocationResponse } from "../../../../domain/schemas/dto/response/location.response";
-import { LocationModel } from "../../../../domain/schemas/model/location.model";
+import { Injectable } from '@nestjs/common';
+import { LocationSqlResult } from '../../../interfaces/sql/location.sql.result';
+import { LocationAdapter } from '../adapters/location.postgresql.adapter';
+import { InterfaceLocationRepository } from '../../../../domain/contracts/location.interface.repository';
+import { DatabaseServicePostgreSQL } from '../../../../../../shared/connections/database/postgresql/postgresql.service';
+import { LocationModel } from '../../../../domain/schemas/model/location.model';
 
 @Injectable()
-export class LocationPersistencePostgresql implements InterfaceLocationRepository {
-  constructor(
-    private readonly postgresqlService: DatabaseServicePostgreSQL
-  ) { }
+export class LocationPersistencePostgresql
+  implements InterfaceLocationRepository
+{
+  constructor(private readonly postgresqlService: DatabaseServicePostgreSQL) {}
 
-  async verifyLocationByConnectionIdExists(connectionId: string): Promise<boolean> {
+  async verifyLocationByConnectionIdExists(
+    connectionId: string,
+  ): Promise<boolean> {
     const query = `
       SELECT EXISTS (
         SELECT 1
@@ -21,11 +22,14 @@ export class LocationPersistencePostgresql implements InterfaceLocationRepositor
       ) AS "exists";
     `;
 
-    const result = await this.postgresqlService.query<{ exists: boolean }>(query, [connectionId]);
+    const result = await this.postgresqlService.query<{ exists: boolean }>(
+      query,
+      [connectionId],
+    );
     return result[0]?.exists || false;
   }
 
-  async getLocationById(locationId: number): Promise<LocationResponse | null> {
+  async getLocationById(locationId: number): Promise<LocationModel | null> {
     try {
       const query = `
       SELECT
@@ -38,17 +42,23 @@ export class LocationPersistencePostgresql implements InterfaceLocationRepositor
       WHERE u.ubicacionId = $1;
     `;
 
-      const result = await this.postgresqlService.query<LocationSqlResult>(query, [locationId]);
+      const result = await this.postgresqlService.query<LocationSqlResult>(
+        query,
+        [locationId],
+      );
 
-      const locationResponse = LocationAdapter.fromLocationSqlResultToLocationResponse(result[0]);
+      const locationModel =
+        LocationAdapter.fromLocationSqlResultToLocationModel(result[0]);
 
-      return locationResponse || null;
+      return locationModel || null;
     } catch (error) {
       throw error;
     }
   }
 
-  async getLocationsByConnectionId(connectionId: string): Promise<LocationResponse[]> {
+  async getLocationsByConnectionId(
+    connectionId: string,
+  ): Promise<LocationModel[]> {
     try {
       const query = `
         SELECT
@@ -61,15 +71,18 @@ export class LocationPersistencePostgresql implements InterfaceLocationRepositor
       `;
       const whereClause = `WHERE u.acometidaId = $1;`;
 
-      const result = await this.postgresqlService.query<LocationSqlResult>(query + whereClause, [connectionId]);
+      const result = await this.postgresqlService.query<LocationSqlResult>(
+        query + whereClause,
+        [connectionId],
+      );
 
-      return result.map(LocationAdapter.fromLocationSqlResultToLocationResponse);
+      return result.map(LocationAdapter.fromLocationSqlResultToLocationModel);
     } catch (error) {
       throw error;
     }
   }
 
-  async createLocation(location: LocationModel): Promise<LocationResponse | null> {
+  async createLocation(location: LocationModel): Promise<LocationModel | null> {
     try {
       const query = `
         INSERT INTO Ubicacion (coordenadas, metadata, acometidaId)
@@ -88,10 +101,14 @@ export class LocationPersistencePostgresql implements InterfaceLocationRepositor
         location.getConnectionId(),
       ];
 
-      const result = await this.postgresqlService.query<LocationSqlResult>(query, values);
-      const locationResponse = LocationAdapter.fromLocationSqlResultToLocationResponse(result[0]);
+      const result = await this.postgresqlService.query<LocationSqlResult>(
+        query,
+        values,
+      );
+      const locationModel =
+        LocationAdapter.fromLocationSqlResultToLocationModel(result[0]);
 
-      return locationResponse || null;
+      return locationModel || null;
     } catch (error) {
       throw error;
     }

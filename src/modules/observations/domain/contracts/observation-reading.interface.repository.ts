@@ -1,10 +1,15 @@
-import { ObservationDetailsResponse } from "../schemas/dto/response/observation-dedtails.response";
-import { ObservationReadingResponse } from "../schemas/dto/response/observation-reading.response";
-import { ObservationReadingModel } from "../schemas/model/observation-reading.model";
+import { ObservationReadingModel } from '../schemas/model/observation-reading.model';
+import { ObservationDetailsModel } from '../schemas/model/observation-details.model';
 
 export interface InterfaceObservationReadingRepository {
-  createObservationReading(observation: ObservationReadingModel): Promise<ObservationReadingResponse>;
-  getObservationsByReadingId(readingId: number): Promise<ObservationReadingResponse[]>;
-  getObservationDetailsByCadastralKey(cadastralKey: string): Promise<ObservationDetailsResponse[]>;
-  getObservations(): Promise<ObservationDetailsResponse[]>;
+  createObservationReading(
+    observation: ObservationReadingModel,
+  ): Promise<ObservationReadingModel>;
+  getObservationsByReadingId(
+    readingId: number,
+  ): Promise<ObservationReadingModel[]>;
+  getObservationDetailsByCadastralKey(
+    cadastralKey: string,
+  ): Promise<ObservationDetailsModel[]>;
+  getObservations(): Promise<ObservationDetailsModel[]>;
 }

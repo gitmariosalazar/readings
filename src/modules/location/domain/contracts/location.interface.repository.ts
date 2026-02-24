@@ -1,11 +1,8 @@
-import { LocationResponse } from '../schemas/dto/response/location.response';
 import { LocationModel } from '../schemas/model/location.model';
 
 export interface InterfaceLocationRepository {
-  createLocation(location: LocationModel): Promise<LocationResponse | null>;
-
-  getLocationById(locationId: number): Promise<LocationResponse | null>;
-
-  getLocationsByConnectionId(connectionId: string): Promise<LocationResponse[]>;
+  createLocation(location: LocationModel): Promise<LocationModel | null>;
+  getLocationById(locationId: number): Promise<LocationModel | null>;
+  getLocationsByConnectionId(connectionId: string): Promise<LocationModel[]>;
   verifyLocationByConnectionIdExists(connectionId: string): Promise<boolean>;
 }

@@ -1,13 +1,11 @@
-import { Controller, Get, Post } from "@nestjs/common";
-import { LocationService } from "../../application/services/location.service";
-import { MessagePattern, Payload } from "@nestjs/microservices";
-import { CreateLocationRequest } from "../../domain/schemas/dto/request/create.location.request";
+import { Controller, Get, Post } from '@nestjs/common';
+import { LocationService } from '../../application/services/location.service';
+import { MessagePattern, Payload } from '@nestjs/microservices';
+import { CreateLocationRequest } from '../../application/dtos/request/create.location.request';
 
 @Controller('location')
 export class LocationController {
-  constructor(
-    private readonly locationService: LocationService
-  ) { }
+  constructor(private readonly locationService: LocationService) {}
 
   @Get('get-locations/:connectionId')
   @MessagePattern('location.get-locations-by-connection-id')
@@ -18,7 +16,9 @@ export class LocationController {
   @Get('verify-location/:connectionId')
   @MessagePattern('location.verify-location-by-connection-id')
   async verifyLocation(@Payload() connectionId: string) {
-    return this.locationService.verifyLocationByConnectionIdExists(connectionId);
+    return this.locationService.verifyLocationByConnectionIdExists(
+      connectionId,
+    );
   }
 
   @Post('create-location')
