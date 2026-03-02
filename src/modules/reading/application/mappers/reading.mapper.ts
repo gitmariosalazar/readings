@@ -1,11 +1,13 @@
 import { CreateReadingRequest } from '../dtos/request/create-reading.request';
 import { UpdateReadingRequest } from '../dtos/request/update-reading.request';
 import { ReadingModel } from '../../domain/schemas/model/reading.model';
-import { ReadingResponse } from '../dtos/response/reading.response';
+import { PendingReadingConnectionResponse, ReadingResponse, TakenReadingConnectionResponse } from '../dtos/response/reading.response';
 import { ReadingHistoryModel } from '../../domain/schemas/model/reading-history.model';
 import { ReadingHistoryResponse } from '../dtos/response/reading-history.response';
 import { ReadingImagesModel } from '../../domain/schemas/model/reading-images.model';
 import { ReadingImagesResponse } from '../dtos/response/reading-images.response';
+import { PendingReadingConnectionModel } from '../../domain/schemas/model/pending-reading-connection.model';
+import { TakenReadingConnectionModel } from '../../domain/schemas/model/taken-reading-connection.model';
 
 export class ReadingMapper {
   static fromCreateReadingRequestToReadingModel(
@@ -117,6 +119,49 @@ export class ReadingMapper {
       novelty: readingImages.novelty,
       consumption: readingImages.consumption,
       observation: readingImages.observation,
+    };
+    return response;
+  }
+
+  static fromPendingReadingConnectionModelToPendingReadingConnectionResponse(
+    pendingReadingConnection: PendingReadingConnectionModel,
+  ): PendingReadingConnectionResponse {
+    const response: PendingReadingConnectionResponse = {
+      cadastralKey: pendingReadingConnection.cadastralKey,
+      meterNumber: pendingReadingConnection.meterNumber,
+      address: pendingReadingConnection.address,
+      sector: pendingReadingConnection.sector,
+      account: pendingReadingConnection.account,
+      clientName: pendingReadingConnection.clientName,
+      cardId: pendingReadingConnection.cardId,
+      rateName: pendingReadingConnection.rateName,
+      averageConsumption: pendingReadingConnection.averageConsumption ?? 0,
+    };
+    return response;
+  }
+
+  static fromTakenReadingConnectionModelToTakenReadingConnectionResponse(
+    takenReadingConnection: TakenReadingConnectionModel,
+  ): TakenReadingConnectionResponse {
+    const response: TakenReadingConnectionResponse = {
+      readingId: takenReadingConnection.readingId,
+      readingDate: takenReadingConnection.readingDate ? new Date(takenReadingConnection.readingDate) : new Date(),
+      cadastralKey: takenReadingConnection.cadastralKey,
+      meterNumber: takenReadingConnection.meterNumber,
+      address: takenReadingConnection.address,
+      sector: takenReadingConnection.sector,
+      account: takenReadingConnection.account,
+      clientName: takenReadingConnection.clientName,
+      cardId: takenReadingConnection.cardId,
+      previousReading: takenReadingConnection.previousReading,
+      currentReading: takenReadingConnection.currentReading,
+      readingValue: takenReadingConnection.readingValue,
+      calculatedConsumption: takenReadingConnection.calculatedConsumption,
+      averageConsumption: takenReadingConnection.averageConsumption,
+      rateName: takenReadingConnection.rateName,
+      readingTypeId: takenReadingConnection.readingTypeId,
+      readingTypeName: takenReadingConnection.readingTypeName,
+      novelty: takenReadingConnection.novelty,
     };
     return response;
   }

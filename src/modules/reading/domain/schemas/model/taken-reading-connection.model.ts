@@ -1,0 +1,22 @@
+export class TakenReadingConnectionModel {
+  constructor(
+    public readonly readingId: string,
+    public readonly readingDate: string,
+    public readonly cadastralKey: string,
+    public readonly meterNumber: string,
+    public readonly address: string,
+    public readonly sector: number,
+    public readonly account: number,
+    public readonly clientName: string,
+    public readonly cardId: string,
+    public readonly previousReading: number,
+    public readonly currentReading: number,
+    public readonly readingValue: number,
+    public readonly calculatedConsumption: number,
+    public readonly averageConsumption: number,
+    public readonly rateName: string,
+    public readonly readingTypeId: number,
+    public readonly readingTypeName: string,
+    public readonly novelty?: string,
+  ) {}
+}

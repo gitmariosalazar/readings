@@ -2,11 +2,13 @@ import { InterfaceReadingRepository } from './../../../../domain/contracts/readi
 import { Injectable } from '@nestjs/common';
 import { toZonedTime } from 'date-fns-tz';
 import {
+  PendingReadingConnectionSQLResult,
   ReadingBasicInfoSQLResult,
   ReadingHistorySQLResult,
   ReadingImagesSQLResult,
   ReadingInfoSQLResult,
   ReadingSQLResult,
+  TakenReadingConnectionSQLResult,
 } from '../../../interfaces/sql/reading-sql.result.interface';
 import { ReadingPostgreSQLAdapter } from '../adapters/reading-postgresql.adapter';
 import { DatabaseServicePostgreSQL } from '../../../../../../shared/connections/database/postgresql/postgresql.service';
@@ -18,6 +20,8 @@ import { statusCode } from '../../../../../../settings/environments/status-code'
 import { getTypeCurrentConsumption } from '../../../../../../shared/types/novelty.type';
 import { ReadingHistoryModel } from '../../../../domain/schemas/model/reading-history.model';
 import { ReadingImagesModel } from '../../../../domain/schemas/model/reading-images.model';
+import { PendingReadingConnectionModel } from '../../../../domain/schemas/model/pending-reading-connection.model';
+import { TakenReadingConnectionModel } from '../../../../domain/schemas/model/taken-reading-connection.model';
 
 @Injectable()
 export class ReadingPersistencePostgreSQL
@@ -762,6 +766,231 @@ ORDER BY l.fecha_lectura DESC;
           value,
         ),
       );
+      return response;
+    } catch (error) {
+      throw error;
+    }
+  }
+  async getPendingReadingsByMonth(
+    dateMonth: string,
+    sector?: number | number[] | null,
+  ): Promise<PendingReadingConnectionModel[]> {
+    try {
+      const dateMonthFormatted = dateMonth.replace('/', '-');
+
+      let sectorClause = '';
+      const params: any[] = [dateMonthFormatted];
+
+      if (sector != null) {
+        const sectors = Array.isArray(sector) ? sector : [sector];
+        sectorClause = `AND ac.sector = ANY($${params.length + 1})`;
+        params.push(sectors);
+      }
+
+      const query = `
+        SELECT  
+            ac.acometida_id          AS cadastral_key,  
+            ac.numero_medidor        AS meter_number,  
+            ac.direccion             AS address,  
+            ac.sector,  
+            ac.cuenta                AS account,  
+            ac.tarifa_id             AS rate_id,  
+            ac.estado,  
+            ct.nombre                AS rate_name,  
+            COALESCE(
+              ci.nombres || ' ' || ci.apellidos, 
+              COALESCE(e.razon_social, e.nombre_comercial, 'Sin nombre registrado')
+            )                        AS client_name,  
+            c.cliente_id             AS card_id,  
+            cp.average_consumption   AS average_consumption  
+        FROM acometida ac  
+            LEFT JOIN cliente c ON ac.cliente_id = c.cliente_id  
+            LEFT JOIN ciudadano ci ON ci.ciudadano_id = c.cliente_id  
+            LEFT JOIN empresa e ON e.ruc = c.cliente_id  
+            LEFT JOIN tarifa t ON t.tarifa_id = ac.tarifa_id  
+            LEFT JOIN categoria ct ON t.categoria_id = ct.categoria_id  
+            LEFT JOIN consumo_promedio cp ON cp.acometida_id = ac.acometida_id  
+        WHERE NOT EXISTS (  
+            SELECT 1  
+            FROM lectura l  
+            WHERE l.acometida_id = ac.acometida_id  
+              AND l.mes_lectura = $1
+        )  
+          AND ac.estado IS TRUE
+          ${sectorClause}
+        ORDER BY ac.sector, ac.acometida_id;
+      `;
+
+      const result =
+        await this.postgresqlService.query<PendingReadingConnectionSQLResult>(
+          query,
+          params,
+        );
+
+      if (result.length === 0) {
+        throw new RpcException({
+          statusCode: statusCode.NOT_FOUND,
+          message: `No pending readings found for month: ${dateMonthFormatted}${sector ? ` and sector(s): ${sector}` : ''}`,
+        });
+      }
+
+      const response: PendingReadingConnectionModel[] = result.map((value) =>
+        ReadingPostgreSQLAdapter.fromPendingReadingConnectionPostgreSQLResultToPendingReadingConnectionModel(
+          value,
+        ),
+      );
+
+      return response;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async getTakenReadingEstimatesOrAverage(
+    month: string,
+    sector?: number,
+  ): Promise<TakenReadingConnectionModel[]> {
+    try {
+      const dateMonthFormatted = month.replace('/', '-');
+
+      let sectorClause = '';
+      const params: any[] = [dateMonthFormatted];
+
+      if (sector != null) {
+        const sectors = Array.isArray(sector) ? sector : [sector];
+        sectorClause = `AND ac.sector = ANY($${params.length + 1})`;
+        params.push(sectors);
+      }
+
+      const query: string = `
+        SELECT  
+            l.lectura_id AS reading_id,  
+            l.fecha_lectura AS reading_date,  
+            ac.acometida_id AS cadastral_key,  
+            ac.numero_medidor AS meter_number,  
+            ac.direccion AS address,  
+            ac.sector,  
+            ac.cuenta AS account,  
+            COALESCE(ci.nombres || ' ' || ci.apellidos, COALESCE(e.razon_social, e.nombre_comercial)) AS client_name,  
+            c.cliente_id AS card_id,  
+            l.lectura_anterior AS previous_reading,  
+            l.lectura_actual AS current_reading,  
+            l.valor_lectura AS reading_value,  
+            coalesce(l.lectura_actual - l.lectura_anterior,0) AS calculated_consumption, 
+            cp.average_consumption AS average_consumption,  
+            ct.nombre AS rate_name,  
+            l.tipo_novedad_lectura_id AS reading_type,  
+            tnl.nombre as reading_type_name,  
+            l.novedad AS novelty  
+        FROM lectura l  
+            INNER JOIN acometida ac ON ac.acometida_id = l.acometida_id  
+            LEFT JOIN cliente c ON ac.cliente_id = c.cliente_id  
+            LEFT JOIN ciudadano ci ON ci.ciudadano_id = c.cliente_id  
+            LEFT JOIN empresa e ON e.ruc = c.cliente_id  
+            LEFT JOIN tarifa t ON t.tarifa_id = ac.tarifa_id  
+            LEFT JOIN categoria ct ON t.categoria_id = ct.categoria_id  
+            LEFT JOIN consumo_promedio cp ON cp.acometida_id = ac.acometida_id  
+            LEFT JOIN public.tipo_novedad_lectura tnl on tnl.tipo_novedad_lectura_id = l.tipo_novedad_lectura_id  
+        WHERE l.mes_lectura = $1
+            ${sectorClause}
+            AND l.tipo_novedad_lectura_id = 9
+        ORDER BY l.fecha_lectura DESC;
+      `;
+
+      const result =
+        await this.postgresqlService.query<TakenReadingConnectionSQLResult>(
+          query,
+          params,
+        );
+
+      if (result.length === 0) {
+        throw new RpcException({
+          statusCode: statusCode.NOT_FOUND,
+          message: `No taken readings found for month: ${dateMonthFormatted}${sector ? ` and sector(s): ${sector}` : ''}`,
+        });
+      }
+
+      const response: TakenReadingConnectionModel[] = result.map((value) =>
+        ReadingPostgreSQLAdapter.fromTakenReadingConnectionPostgreSQLResultToTakenReadingConnectionModel(
+          value,
+        ),
+      );
+
+      return response;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async getTakenReadingsByMonth(
+    dateMonth: string,
+    sector?: number,
+  ): Promise<TakenReadingConnectionModel[]> {
+    try {
+      const dateMonthFormatted = dateMonth.replace('/', '-');
+
+      let sectorClause = '';
+      const params: any[] = [dateMonthFormatted];
+
+      if (sector != null) {
+        const sectors = Array.isArray(sector) ? sector : [sector];
+        sectorClause = `AND ac.sector = ANY($${params.length + 1})`;
+        params.push(sectors);
+      }
+
+      const query: string = `
+        SELECT  
+            l.lectura_id AS reading_id,  
+            l.fecha_lectura AS reading_date,  
+            ac.acometida_id AS cadastral_key,  
+            ac.numero_medidor AS meter_number,  
+            ac.direccion AS address,  
+            ac.sector,  
+            ac.cuenta AS account,  
+            COALESCE(ci.nombres || ' ' || ci.apellidos, COALESCE(e.razon_social, e.nombre_comercial)) AS client_name,  
+            c.cliente_id AS card_id,  
+            l.lectura_anterior AS previous_reading,  
+            l.lectura_actual AS current_reading,  
+            l.valor_lectura AS reading_value,  
+            coalesce(l.lectura_actual - l.lectura_anterior,0) AS calculated_consumption,
+            cp.average_consumption AS average_consumption,  
+            ct.nombre AS rate_name,  
+            l.tipo_novedad_lectura_id AS reading_type,  
+            tnl.nombre as reading_type_name,  
+            l.novedad AS novelty  
+        FROM lectura l  
+            INNER JOIN acometida ac ON ac.acometida_id = l.acometida_id  
+            LEFT JOIN cliente c ON ac.cliente_id = c.cliente_id  
+            LEFT JOIN ciudadano ci ON ci.ciudadano_id = c.cliente_id  
+            LEFT JOIN empresa e ON e.ruc = c.cliente_id  
+            LEFT JOIN tarifa t ON t.tarifa_id = ac.tarifa_id  
+            LEFT JOIN categoria ct ON t.categoria_id = ct.categoria_id  
+            LEFT JOIN consumo_promedio cp ON cp.acometida_id = ac.acometida_id  
+            LEFT JOIN public.tipo_novedad_lectura tnl on tnl.tipo_novedad_lectura_id = l.tipo_novedad_lectura_id  
+        WHERE l.mes_lectura = $1
+            ${sectorClause}
+        ORDER BY l.fecha_lectura DESC;
+      `;
+
+      const result =
+        await this.postgresqlService.query<TakenReadingConnectionSQLResult>(
+          query,
+          params,
+        );
+
+      if (result.length === 0) {
+        throw new RpcException({
+          statusCode: statusCode.NOT_FOUND,
+          message: `No taken readings found for month: ${dateMonthFormatted}${sector ? ` and sector(s): ${sector}` : ''}`,
+        });
+      }
+
+      const response: TakenReadingConnectionModel[] = result.map((value) =>
+        ReadingPostgreSQLAdapter.fromTakenReadingConnectionPostgreSQLResultToTakenReadingConnectionModel(
+          value,
+        ),
+      );
+
       return response;
     } catch (error) {
       throw error;

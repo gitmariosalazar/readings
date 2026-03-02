@@ -3,6 +3,8 @@ import { ReadingBasicInfoModel } from '../schemas/model/reading-basic-info.model
 import { ReadingInfoModel } from '../schemas/model/reading-info.model';
 import { ReadingHistoryModel } from '../schemas/model/reading-history.model';
 import { ReadingImagesModel } from '../schemas/model/reading-images.model';
+import { PendingReadingConnectionModel } from '../schemas/model/pending-reading-connection.model';
+import { TakenReadingConnectionModel } from '../schemas/model/taken-reading-connection.model';
 
 export interface InterfaceReadingRepository {
   findReadingBasicInfo(cadastralKey: string): Promise<ReadingBasicInfoModel[]>;
@@ -18,8 +20,19 @@ export interface InterfaceReadingRepository {
     limit: number,
     offset: number,
   ): Promise<ReadingHistoryModel[]>;
-  findReadingsImagesByCadastralKey(
-    cadastralKey: string,
-  ): Promise<ReadingImagesModel[]>;
-  getAllReadingsImages(): Promise<ReadingImagesModel[]>;
+
+  getPendingReadingsByMonth(
+    dateMonth: string,
+    sector?: number,
+  ): Promise<PendingReadingConnectionModel[]>;
+
+  getTakenReadingsByMonth(
+    dateMonth: string,
+    sector?: number,
+  ): Promise<TakenReadingConnectionModel[]>;
+
+  getTakenReadingEstimatesOrAverage(
+    month: string,
+    sector?: number,
+  ): Promise<TakenReadingConnectionModel[]>;
 }

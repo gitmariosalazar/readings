@@ -103,3 +103,37 @@ export class ReadingImagesSQLResult {
   consumption: number;
   observation: string;
 }
+
+
+export interface PendingReadingConnectionSQLResult {
+  cadastral_key: string;
+  meter_number: string;
+  address: string;
+  sector: number;
+  account: number;
+  client_name: string;
+  card_id: string;
+  rate_name: string;
+  average_consumption: number;
+}
+
+export interface TakenReadingConnectionSQLResult {
+  reading_id: string;
+  reading_date: string; // ISO string
+  cadastral_key: string;
+  meter_number: string;
+  address: string;
+  sector: number;
+  account: number;
+  client_name: string;
+  card_id: string;
+  previous_reading: number;
+  current_reading: number;
+  reading_value: number;
+  calculated_consumption: number;
+  average_consumption: number;
+  rate_name: string;
+  reading_type_id: number;
+  reading_type_name: string;
+  novelty: string;
+}

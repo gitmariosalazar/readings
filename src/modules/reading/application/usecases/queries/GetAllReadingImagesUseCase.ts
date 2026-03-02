@@ -1,17 +1,18 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { InterfaceReadingRepository } from '../../../domain/contracts/reading.interface.repository';
+import { InterfaceReadingImagesRepository } from '../../../domain/contracts/reading-images.interface.repository';
 import { ReadingImagesResponse } from '../../dtos/response/reading-images.response';
 import { ReadingMapper } from '../../mappers/reading.mapper';
 
 @Injectable()
 export class GetAllReadingImagesUseCase {
   constructor(
-    @Inject('ReadingRepository')
-    private readonly readingRepository: InterfaceReadingRepository,
+    @Inject('ReadingImagesRepository')
+    private readonly readingImagesRepository: InterfaceReadingImagesRepository,
   ) {}
 
   async execute(): Promise<ReadingImagesResponse[]> {
-    const readingImages = await this.readingRepository.getAllReadingsImages();
+    const readingImages =
+      await this.readingImagesRepository.getAllReadingsImages();
     return readingImages.map(
       ReadingMapper.fromReadingImagesModelToReadingImagesResponse,
     );

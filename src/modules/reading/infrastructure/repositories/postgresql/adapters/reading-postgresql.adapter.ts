@@ -16,16 +16,20 @@ import {
   AdvancedReportReadingsSQLResult,
   ClientEmailSQLResult,
   ClientPhoneSQLResult,
+  PendingReadingConnectionSQLResult,
   ReadingBasicInfoSQLResult,
   ReadingHistorySQLResult,
   ReadingImagesSQLResult,
   ReadingInfoSQLResult,
   ReadingSQLResult,
+  TakenReadingConnectionSQLResult,
 } from '../../../interfaces/sql/reading-sql.result.interface';
 import { AdvancedReportReadingsModel } from '../../../../domain/schemas/model/report/advanced-report-readings.model';
 import { ReadingHistoryModel } from '../../../../domain/schemas/model/reading-history.model';
 import { ReadingImagesResponse } from '../../../../application/dtos/response/reading-images.response';
 import { number, string } from 'joi';
+import { TakenReadingConnectionModel } from '../../../../domain/schemas/model/taken-reading-connection.model';
+import { PendingReadingConnectionModel } from '../../../../domain/schemas/model/pending-reading-connection.model';
 
 export class ReadingPostgreSQLAdapter {
   static fromReadingPostgreSQLResultToReadingBasicInfoModel(
@@ -194,5 +198,46 @@ export class ReadingPostgreSQLAdapter {
       observation: readingResultSQL.observation,
     };
     return response;
+  }
+
+  static fromPendingReadingConnectionPostgreSQLResultToPendingReadingConnectionModel(
+    pendingReadingConnectionResultSQL: PendingReadingConnectionSQLResult,
+  ): PendingReadingConnectionModel {
+    return new PendingReadingConnectionModel(
+      pendingReadingConnectionResultSQL.cadastral_key,
+      pendingReadingConnectionResultSQL.meter_number,
+      pendingReadingConnectionResultSQL.address,
+      pendingReadingConnectionResultSQL.sector,
+      pendingReadingConnectionResultSQL.account,
+      pendingReadingConnectionResultSQL.client_name,
+      pendingReadingConnectionResultSQL.card_id,
+      pendingReadingConnectionResultSQL.rate_name,
+      pendingReadingConnectionResultSQL.average_consumption,
+    );
+  }
+
+  static fromTakenReadingConnectionPostgreSQLResultToTakenReadingConnectionModel(
+    takenReadingConnectionResultSQL: TakenReadingConnectionSQLResult,
+  ): TakenReadingConnectionModel {
+    return new TakenReadingConnectionModel(
+      takenReadingConnectionResultSQL.reading_id,
+      takenReadingConnectionResultSQL.reading_date,
+      takenReadingConnectionResultSQL.cadastral_key,
+      takenReadingConnectionResultSQL.meter_number,
+      takenReadingConnectionResultSQL.address,
+      takenReadingConnectionResultSQL.sector,
+      takenReadingConnectionResultSQL.account,
+      takenReadingConnectionResultSQL.client_name,
+      takenReadingConnectionResultSQL.card_id,
+      takenReadingConnectionResultSQL.previous_reading,
+      takenReadingConnectionResultSQL.current_reading,
+      takenReadingConnectionResultSQL.reading_value,
+      takenReadingConnectionResultSQL.calculated_consumption,
+      takenReadingConnectionResultSQL.average_consumption,
+      takenReadingConnectionResultSQL.rate_name,
+      takenReadingConnectionResultSQL.reading_type_id,
+      takenReadingConnectionResultSQL.reading_type_name,
+      takenReadingConnectionResultSQL.novelty,
+    );
   }
 }

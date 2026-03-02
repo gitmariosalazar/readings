@@ -4,20 +4,18 @@ import { ReadingImagesResponse } from '../../dtos/response/reading-images.respon
 import { ReadingMapper } from '../../mappers/reading.mapper';
 
 @Injectable()
-export class FindReadingImagesByCadastralKeyUseCase {
+export class GetReadingImagesByMonthUseCase {
   constructor(
     @Inject('ReadingImagesRepository')
     private readonly readingImagesRepository: InterfaceReadingImagesRepository,
   ) {}
 
-  async execute(cadastralKey: string): Promise<ReadingImagesResponse[]> {
-    if (!cadastralKey) {
-      throw new BadRequestException('Cadastral key is required');
+  async execute(month: string): Promise<ReadingImagesResponse[]> {
+    if (!month) {
+      throw new BadRequestException('Month is required');
     }
     const readingImages =
-      await this.readingImagesRepository.findReadingImagesByCadastralKey(
-        cadastralKey,
-      );
+      await this.readingImagesRepository.findReadingImagesByMonth(month);
     return readingImages.map(
       ReadingMapper.fromReadingImagesModelToReadingImagesResponse,
     );

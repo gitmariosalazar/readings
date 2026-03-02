@@ -7,8 +7,9 @@ import { UpdateReadingUseCase } from '../../application/usecases/commands/Update
 import { FindReadingUseCase } from '../../application/usecases/queries/FindReadingUseCase';
 import { FindBasicReadingUseCase } from '../../application/usecases/queries/FindBasicReadingUseCase';
 import { FindReadingHistoryByCadastralKeyUseCase } from '../../application/usecases/queries/FindReadingHistoryByCadastralKeyUseCase';
-import { GetAllReadingImagesUseCase } from '../../application/usecases/queries/GetAllReadingImagesUseCase';
-import { FindReadingImagesByCadastralKeyUseCase } from '../../application/usecases/queries/FindReadingImagesByCadastralKeyUseCase';
+import { GetPendingReadingsByMonthUseCase } from '../../application/usecases/queries/GetPendingReadingsByMonthUseCase';
+import { GetTakenReadingsByMonthUseCase } from '../../application/usecases/queries/GetTakenReadingsByMonthUseCase';
+import { GetTakenReadingEstimatesOrAverageUseCase } from '../../application/usecases/queries/GetTakenReadingEstimatesOrAverageUseCase';
 
 @Controller('Readings')
 export class ReadingController {
@@ -18,8 +19,9 @@ export class ReadingController {
     private readonly findReadingUseCase: FindReadingUseCase,
     private readonly findBasicReadingUseCase: FindBasicReadingUseCase,
     private readonly findReadingHistoryUseCase: FindReadingHistoryByCadastralKeyUseCase,
-    private readonly findAllReadingImagesUseCase: GetAllReadingImagesUseCase,
-    private readonly findReadingImagesByCadastralKeyUseCase: FindReadingImagesByCadastralKeyUseCase,
+    private readonly getPendingReadingsByMonthUseCase: GetPendingReadingsByMonthUseCase,
+    private readonly getTakenReadingEstimatesOrAverageUseCase: GetTakenReadingEstimatesOrAverageUseCase,
+    private readonly getTakenReadingsByMonthUseCase: GetTakenReadingsByMonthUseCase,
   ) {}
 
   @Get('find-basic-reading/:catastralCode')
@@ -72,15 +74,33 @@ export class ReadingController {
     );
   }
 
-  @Get('find-reading-images/:cadastralKey')
-  @MessagePattern('reading.find-readings-image-by-cadastral-key')
-  async findReadingImagesByCadastralKey(@Payload() cadastralKey: string) {
-    return this.findReadingImagesByCadastralKeyUseCase.execute(cadastralKey);
+  @Get('get-pending-readings-by-month')
+  @MessagePattern('reading.get-pending-readings-by-month')
+  async getPendingReadingsByMonth(
+    @Payload() data: { month: string; sector?: number },
+  ) {
+    return this.getPendingReadingsByMonthUseCase.execute(
+      data.month,
+      data.sector,
+    );
   }
 
-  @Get('find-all-reading-images')
-  @MessagePattern('reading.find-all-reading-images')
-  async findAllReadingImages() {
-    return this.findAllReadingImagesUseCase.execute();
+  @Get('get-taken-reading-estimates-or-average')
+  @MessagePattern('reading.get-taken-reading-estimates-or-average')
+  async getTakenReadingEstimatesOrAverage(
+    @Payload() data: { month: string; sector?: number },
+  ) {
+    return this.getTakenReadingEstimatesOrAverageUseCase.execute(
+      data.month,
+      data.sector,
+    );
+  }
+
+  @Get('get-taken-readings-by-month')
+  @MessagePattern('reading.get-taken-readings-by-month')
+  async getTakenReadingsByMonth(
+    @Payload() data: { month: string; sector?: number },
+  ) {
+    return this.getTakenReadingsByMonthUseCase.execute(data.month, data.sector);
   }
 }

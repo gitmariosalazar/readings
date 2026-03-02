@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { ReadingController } from '../../controllers/readings.controller';
 import { ReadingPersistencePostgreSQL } from '../../repositories/postgresql/persistence/reading-postgresql.persistence';
+import { ReadingImagesPersistencePostgreSQL } from '../../repositories/postgresql/persistence/reading-images-postgresql.persistence';
 import { environments } from '../../../../../settings/environments/environments';
 import { DatabaseServicePostgreSQL } from '../../../../../shared/connections/database/postgresql/postgresql.service';
 import { ObservationReadingPostgreSQLPersistence } from '../../../../observations/infrastructure/repositories/postgresql/persistence/postgresql.observation-reading.persistence';
@@ -12,6 +13,7 @@ import { FindReadingUseCase } from '../../../application/usecases/queries/FindRe
 import { FindBasicReadingUseCase } from '../../../application/usecases/queries/FindBasicReadingUseCase';
 
 import { ReadingReportController } from '../../controllers/reading-report.controller';
+import { ReadingImagesController } from '../../controllers/reading-images.controller';
 import { ReadingReportPostgreSQLPersistence } from '../../repositories/postgresql/persistence/reading-report-postgresql.persistence';
 import { GetConnectionLastReadingsReportUseCase } from '../../../application/usecases/reports/GetConnectionLastReadingsReportUseCase';
 import { GetDailyReadingsReportUseCase } from '../../../application/usecases/reports/GetDailyReadingsReportUseCase';
@@ -25,6 +27,11 @@ import { GetAdvancedReportReadingsUseCase } from '../../../application/usecases/
 import { FindReadingHistoryByCadastralKeyUseCase } from '../../../application/usecases/queries/FindReadingHistoryByCadastralKeyUseCase';
 import { GetAllReadingImagesUseCase } from '../../../application/usecases/queries/GetAllReadingImagesUseCase';
 import { FindReadingImagesByCadastralKeyUseCase } from '../../../application/usecases/queries/FindReadingImagesByCadastralKeyUseCase';
+import { GetTakenReadingEstimatesOrAverageUseCase } from '../../../application/usecases/queries/GetTakenReadingEstimatesOrAverageUseCase';
+import { GetPendingReadingsByMonthUseCase } from '../../../application/usecases/queries/GetPendingReadingsByMonthUseCase';
+import { GetTakenReadingsByMonthUseCase } from '../../../application/usecases/queries/GetTakenReadingsByMonthUseCase';
+import { GetReadingImagesByMonthUseCase } from '../../../application/usecases/queries/GetReadingImagesByMonthUseCase';
+import { GetReadingImagesByMonthAndSectorUseCase } from '../../../application/usecases/queries/GetReadingImagesByMonthAndSectorUseCase';
 
 @Module({
   imports: [
@@ -44,7 +51,11 @@ import { FindReadingImagesByCadastralKeyUseCase } from '../../../application/use
       },
     ]),
   ],
-  controllers: [ReadingController, ReadingReportController],
+  controllers: [
+    ReadingController,
+    ReadingReportController,
+    ReadingImagesController,
+  ],
   providers: [
     DatabaseServicePostgreSQL,
     CreateReadingUseCase,
@@ -63,6 +74,11 @@ import { FindReadingImagesByCadastralKeyUseCase } from '../../../application/use
     FindReadingHistoryByCadastralKeyUseCase,
     GetAllReadingImagesUseCase,
     FindReadingImagesByCadastralKeyUseCase,
+    GetTakenReadingEstimatesOrAverageUseCase,
+    GetPendingReadingsByMonthUseCase,
+    GetTakenReadingsByMonthUseCase,
+    GetReadingImagesByMonthUseCase,
+    GetReadingImagesByMonthAndSectorUseCase,
 
     {
       provide: 'ReadingRepository',
@@ -75,6 +91,10 @@ import { FindReadingImagesByCadastralKeyUseCase } from '../../../application/use
     {
       provide: 'ReadingReportRepository',
       useClass: ReadingReportPostgreSQLPersistence,
+    },
+    {
+      provide: 'ReadingImagesRepository',
+      useClass: ReadingImagesPersistencePostgreSQL,
     },
   ],
   exports: [],
