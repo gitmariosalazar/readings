@@ -1,13 +1,19 @@
 import { CreateReadingRequest } from '../dtos/request/create-reading.request';
 import { UpdateReadingRequest } from '../dtos/request/update-reading.request';
 import { ReadingModel } from '../../domain/schemas/model/reading.model';
-import { PendingReadingConnectionResponse, ReadingResponse, TakenReadingConnectionResponse } from '../dtos/response/reading.response';
+import {
+  MonthlySummaryResponse,
+  PendingReadingConnectionResponse,
+  ReadingResponse,
+  TakenReadingConnectionResponse,
+} from '../dtos/response/reading.response';
 import { ReadingHistoryModel } from '../../domain/schemas/model/reading-history.model';
 import { ReadingHistoryResponse } from '../dtos/response/reading-history.response';
 import { ReadingImagesModel } from '../../domain/schemas/model/reading-images.model';
 import { ReadingImagesResponse } from '../dtos/response/reading-images.response';
 import { PendingReadingConnectionModel } from '../../domain/schemas/model/pending-reading-connection.model';
 import { TakenReadingConnectionModel } from '../../domain/schemas/model/taken-reading-connection.model';
+import { MonthlySummaryModel } from '../../domain/schemas/model/report/monthly-summary.model';
 
 export class ReadingMapper {
   static fromCreateReadingRequestToReadingModel(
@@ -145,7 +151,9 @@ export class ReadingMapper {
   ): TakenReadingConnectionResponse {
     const response: TakenReadingConnectionResponse = {
       readingId: takenReadingConnection.readingId,
-      readingDate: takenReadingConnection.readingDate ? new Date(takenReadingConnection.readingDate) : new Date(),
+      readingDate: takenReadingConnection.readingDate
+        ? new Date(takenReadingConnection.readingDate)
+        : new Date(),
       cadastralKey: takenReadingConnection.cadastralKey,
       meterNumber: takenReadingConnection.meterNumber,
       address: takenReadingConnection.address,
@@ -162,6 +170,22 @@ export class ReadingMapper {
       readingTypeId: takenReadingConnection.readingTypeId,
       readingTypeName: takenReadingConnection.readingTypeName,
       novelty: takenReadingConnection.novelty,
+    };
+    return response;
+  }
+
+  static fromMonthlySummaryModelToMonthlySummaryResponse(
+    monthlySummary: MonthlySummaryModel,
+  ): MonthlySummaryResponse {
+    const response: MonthlySummaryResponse = {
+      month: monthlySummary.month,
+      totalReadings: monthlySummary.totalReadings,
+      totalConsumption: monthlySummary.totalConsumption,
+      averageConsumption: monthlySummary.averageConsumption,
+      maxConsumption: monthlySummary.maxConsumption,
+      minConsumption: monthlySummary.minConsumption,
+      incidentCount: monthlySummary.incidentCount,
+      incidentRatePercentage: monthlySummary.incidentRatePercentage,
     };
     return response;
   }

@@ -47,3 +47,14 @@ export interface TakenReadingConnectionResponse {
   readingTypeName: string;
   novelty?: string;
 }
+
+export interface MonthlySummaryResponse {
+  month: string;
+  totalReadings: number;
+  totalConsumption: number;
+  averageConsumption: number;
+  maxConsumption: number;
+  minConsumption: number;
+  incidentCount: number;
+  incidentRatePercentage: number;
+}

@@ -161,9 +161,14 @@ export class ReadingReportMapper {
       totalReadings: model.totalReadings,
       averageConsumption: model.averageConsumption,
       monthlySummaries: model.monthlySummaries.map((m) => ({
-        month: Number(m.month), // Cast to number if it's a string from Model
+        month: m.month,
         totalReadings: m.totalReadings,
-        averageConsumption: m.totalConsumption, // Adjusting based on pure models
+        totalConsumption: m.totalConsumption,
+        averageConsumption: m.averageConsumption,
+        maxConsumption: m.maxConsumption,
+        minConsumption: m.minConsumption,
+        incidentCount: m.incidentCount,
+        incidentRatePercentage: m.incidentRatePercentage,
       })),
     };
   }

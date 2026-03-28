@@ -104,7 +104,6 @@ export class ReadingImagesSQLResult {
   observation: string;
 }
 
-
 export interface PendingReadingConnectionSQLResult {
   cadastral_key: string;
   meter_number: string;
@@ -136,4 +135,15 @@ export interface TakenReadingConnectionSQLResult {
   reading_type_id: number;
   reading_type_name: string;
   novelty: string;
+}
+
+export interface MonthlySummarySQLResult {
+  month: string;
+  total_readings: number;
+  total_consumption: number;
+  average_consumption: number;
+  max_consumption: number;
+  min_consumption: number;
+  incident_count: number;
+  incident_rate_percentage: number;
 }

@@ -16,6 +16,7 @@ import {
   AdvancedReportReadingsSQLResult,
   ClientEmailSQLResult,
   ClientPhoneSQLResult,
+  MonthlySummarySQLResult,
   PendingReadingConnectionSQLResult,
   ReadingBasicInfoSQLResult,
   ReadingHistorySQLResult,
@@ -30,6 +31,7 @@ import { ReadingImagesResponse } from '../../../../application/dtos/response/rea
 import { number, string } from 'joi';
 import { TakenReadingConnectionModel } from '../../../../domain/schemas/model/taken-reading-connection.model';
 import { PendingReadingConnectionModel } from '../../../../domain/schemas/model/pending-reading-connection.model';
+import { MonthlySummaryModel } from '../../../../domain/schemas/model/report/monthly-summary.model';
 
 export class ReadingPostgreSQLAdapter {
   static fromReadingPostgreSQLResultToReadingBasicInfoModel(
@@ -238,6 +240,21 @@ export class ReadingPostgreSQLAdapter {
       takenReadingConnectionResultSQL.reading_type_id,
       takenReadingConnectionResultSQL.reading_type_name,
       takenReadingConnectionResultSQL.novelty,
+    );
+  }
+
+  static fromMonthlySummarySQLResultToMonthlySummaryModel(
+    monthlySummaryResultSQL: MonthlySummarySQLResult,
+  ): MonthlySummaryModel {
+    return new MonthlySummaryModel(
+      monthlySummaryResultSQL.month,
+      monthlySummaryResultSQL.total_readings,
+      monthlySummaryResultSQL.total_consumption,
+      monthlySummaryResultSQL.average_consumption,
+      monthlySummaryResultSQL.max_consumption,
+      monthlySummaryResultSQL.min_consumption,
+      monthlySummaryResultSQL.incident_count,
+      monthlySummaryResultSQL.incident_rate_percentage,
     );
   }
 }

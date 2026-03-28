@@ -10,7 +10,10 @@ import { SectorStatsReportModel } from '../../../../domain/schemas/model/report/
 import { NoveltyStatsReportModel } from '../../../../domain/schemas/model/report/novelty-stats.model';
 import { AdvancedReportReadingsModel } from '../../../../domain/schemas/model/report/advanced-report-readings.model';
 import { DatabaseServicePostgreSQL } from '../../../../../../shared/connections/database/postgresql/postgresql.service';
-import { AdvancedReportReadingsSQLResult } from '../../../interfaces/sql/reading-sql.result.interface';
+import {
+  AdvancedReportReadingsSQLResult,
+  MonthlySummarySQLResult,
+} from '../../../interfaces/sql/reading-sql.result.interface';
 import { ReadingPostgreSQLAdapter } from '../adapters/reading-postgresql.adapter';
 
 @Injectable()
@@ -145,30 +148,65 @@ export class ReadingReportPostgreSQLPersistence
 
   async findYearlyReport(year: number): Promise<YearlyReadingsReportModel> {
     const query = `
-      SELECT
-        TO_CHAR(fecha_lectura, 'YYYY-MM') as "month",
-        COUNT(*) as "totalReadings",
-        COALESCE(SUM(lectura_actual - lectura_anterior), 0) as "totalConsumption"
-      FROM lectura
-      WHERE EXTRACT(YEAR FROM fecha_lectura) = $1
-      GROUP BY TO_CHAR(fecha_lectura, 'YYYY-MM')
-      ORDER BY "month" ASC;
+      WITH YearlyData AS (
+          SELECT
+              mes_lectura AS month_period,
+              lectura_id,
+              (lectura_actual - lectura_anterior) AS consumption,
+              novedad AS status_note
+          FROM lectura
+          -- More efficient than LIKE for index usage
+          WHERE mes_lectura >= ($1 || '-01') 
+            AND mes_lectura <= ($1 || '-12')
+      ),
+      MonthlyMetrics AS (
+          SELECT
+              month_period,
+              COUNT(lectura_id) AS total_readings,
+              COALESCE(SUM(consumption), 0) AS total_consumption,
+              ROUND(AVG(consumption)::numeric, 2) AS avg_consumption,
+              MAX(consumption) AS max_consumption,
+              MIN(consumption) AS min_consumption,
+              -- PostgreSQL native aggregate filter
+              COUNT(*) FILTER (WHERE status_note != 'NORMAL') AS incident_count
+          FROM YearlyData
+          GROUP BY month_period
+      )
+      SELECT 
+          month_period AS "month",
+          total_readings AS "total_readings",
+          total_consumption AS "total_consumption",
+          avg_consumption AS "average_consumption",
+          max_consumption AS "max_consumption",
+          min_consumption AS "min_consumption",
+          incident_count AS "incident_count",
+          CASE 
+              WHEN total_readings > 0 
+              -- Casting to numeric for precise percentage calculation
+              THEN ROUND((incident_count::numeric / total_readings) * 100, 2) 
+              ELSE 0 
+          END AS "incident_rate_percentage"
+      FROM MonthlyMetrics
+      ORDER BY month_period ASC;
     `;
 
-    const result = await this.postgresqlService.query<any>(query, [year]);
+    const result = await this.postgresqlService.query<MonthlySummarySQLResult>(
+      query,
+      [year],
+    );
 
-    const monthlySummaries = result.map((row) => ({
-      month: row.month,
-      totalReadings: parseInt(row.totalReadings),
-      totalConsumption: parseFloat(row.totalConsumption),
-    }));
+    const monthlySummaries = result.map((row) =>
+      ReadingPostgreSQLAdapter.fromMonthlySummarySQLResultToMonthlySummaryModel(
+        row,
+      ),
+    );
 
     const totalReadings = monthlySummaries.reduce(
-      (sum, m) => sum + m.totalReadings,
+      (sum, m) => sum + Number(m.totalReadings),
       0,
     );
     const totalConsumption = monthlySummaries.reduce(
-      (sum, m) => sum + m.totalConsumption,
+      (sum, m) => sum + Number(m.totalConsumption),
       0,
     );
 
