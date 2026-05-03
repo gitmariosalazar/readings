@@ -16,6 +16,7 @@ import { ObservationReadingModel } from '../../../../observations/domain/schemas
 import { ObservationReadingMapper } from '../../../../observations/application/mappers/observation-reading.mapper';
 import { INovelty } from '../../../domain/schemas/model/novelty.model';
 import { getTypeCurrentConsumption } from '../../../../../shared/types/novelty.type';
+import { UUID } from 'crypto';
 
 @Injectable()
 export class CreateReadingUseCase {
@@ -28,6 +29,7 @@ export class CreateReadingUseCase {
 
   async execute(
     readingRequest: CreateReadingRequest,
+    creatorUserId: UUID,
   ): Promise<ReadingResponse | null> {
     try {
       const camposRequeridos: string[] = [
@@ -110,7 +112,7 @@ export class CreateReadingUseCase {
       const paraCrear: ReadingModel =
         ReadingMapper.fromCreateReadingRequestToReadingModel(readingRequest);
       const creadoEntity: ReadingModel | null =
-        await this.readingRepository.createReading(paraCrear);
+        await this.readingRepository.createReading(paraCrear, creatorUserId);
 
       if (creadoEntity === null) {
         throw new RpcException({

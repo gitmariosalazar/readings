@@ -14,5 +14,8 @@ export class ConnectionLastReadingsReportModel {
     public readonly previewReading?: number,
     public readonly currentReading?: number,
     public readonly clientId?: number,
+    // Current connection state from cat_estados_acometida
+    public readonly connectionStatus?: string,
+    public readonly isReadable?: boolean,
   ) {}
 }

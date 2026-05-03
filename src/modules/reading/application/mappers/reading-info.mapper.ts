@@ -64,6 +64,10 @@ export class ReadingInfoMapper {
       monthReading: domainModel.monthReading,
       startDatePeriod: domainModel.startDatePeriod,
       endDatePeriod: domainModel.endDatePeriod,
+      connectionStateId: domainModel.connectionStateId,
+      connectionStateName: domainModel.connectionStateName,
+      connectionStateDescription: domainModel.connectionStateDescription,
+      permitReading: domainModel.permitReading,
     };
   }
 

@@ -132,7 +132,7 @@ export class ReadingImagesPersistencePostgreSQL
             l.observacion,
             consumption
         ORDER BY
-            fl.clave_catastral;
+            fl.clave_catastral DESC, l.mes_lectura DESC;
       `;
 
       const result = await this.postgresqlService.query<ReadingImagesSQLResult>(
@@ -191,7 +191,10 @@ export class ReadingImagesPersistencePostgreSQL
         INNER JOIN lectura l
             ON l.clave_catastral = fl.clave_catastral
             AND l.lectura_id     = fl.lectura_id
+        -- Double filter: mes_lectura + real fecha_lectura range (guards against mis-tagged legacy rows)
         WHERE l.mes_lectura = $1
+          AND l.fecha_lectura >= date_trunc('month', ($1::text || '-01')::date)
+          AND l.fecha_lectura  < date_trunc('month', ($1::text || '-01')::date) + interval '1 month'
         GROUP BY
             fl.clave_catastral,
             fl.lectura_id,
@@ -258,7 +261,11 @@ export class ReadingImagesPersistencePostgreSQL
         INNER JOIN lectura l
             ON l.clave_catastral = fl.clave_catastral
             AND l.lectura_id     = fl.lectura_id
-        WHERE l.mes_lectura = $1 AND l.sector = $2
+        -- Double filter: mes_lectura + real fecha_lectura range (guards against mis-tagged legacy rows)
+        WHERE l.mes_lectura = $1
+          AND l.sector = $2
+          AND l.fecha_lectura >= date_trunc('month', ($1::text || '-01')::date)
+          AND l.fecha_lectura  < date_trunc('month', ($1::text || '-01')::date) + interval '1 month'
         GROUP BY
             fl.clave_catastral,
             fl.lectura_id,

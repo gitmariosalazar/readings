@@ -32,5 +32,9 @@ export class ReadingInfoModel {
     public readonly monthReading: string,
     public readonly startDatePeriod: Date,
     public readonly endDatePeriod: Date,
+    public readonly connectionStateId: number,
+    public readonly connectionStateName: string,
+    public readonly connectionStateDescription: string,
+    public readonly permitReading: boolean,
   ) {}
 }

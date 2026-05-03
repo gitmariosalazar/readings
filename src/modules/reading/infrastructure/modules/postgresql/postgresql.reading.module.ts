@@ -32,6 +32,12 @@ import { GetPendingReadingsByMonthUseCase } from '../../../application/usecases/
 import { GetTakenReadingsByMonthUseCase } from '../../../application/usecases/queries/GetTakenReadingsByMonthUseCase';
 import { GetReadingImagesByMonthUseCase } from '../../../application/usecases/queries/GetReadingImagesByMonthUseCase';
 import { GetReadingImagesByMonthAndSectorUseCase } from '../../../application/usecases/queries/GetReadingImagesByMonthAndSectorUseCase';
+import { ReadingAuditController } from '../../controllers/reading-audit.controller';
+import { InitializeMonthlyAuditUseCase } from '../../../application/usecases/audit/InitializeMonthlyAuditUseCase';
+import { GetAuditByMonthUseCase } from '../../../application/usecases/audit/GetAuditByMonthUseCase';
+import { GetAuditBySectorAndMonthUseCase } from '../../../application/usecases/audit/GetAuditBySectorAndMonthUseCase';
+import { CloseAuditSectorUseCase } from '../../../application/usecases/audit/CloseAuditSectorUseCase';
+import { GetAuditHistoryBySectorUseCase } from '../../../application/usecases/audit/GetAuditHistoryBySectorUseCase';
 
 @Module({
   imports: [
@@ -55,6 +61,7 @@ import { GetReadingImagesByMonthAndSectorUseCase } from '../../../application/us
     ReadingController,
     ReadingReportController,
     ReadingImagesController,
+    ReadingAuditController,
   ],
   providers: [
     DatabaseServicePostgreSQL,
@@ -79,6 +86,12 @@ import { GetReadingImagesByMonthAndSectorUseCase } from '../../../application/us
     GetTakenReadingsByMonthUseCase,
     GetReadingImagesByMonthUseCase,
     GetReadingImagesByMonthAndSectorUseCase,
+    // Audit use cases
+    InitializeMonthlyAuditUseCase,
+    GetAuditByMonthUseCase,
+    GetAuditBySectorAndMonthUseCase,
+    CloseAuditSectorUseCase,
+    GetAuditHistoryBySectorUseCase,
 
     {
       provide: 'ReadingRepository',

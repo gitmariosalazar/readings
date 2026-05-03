@@ -22,6 +22,7 @@ import { ReadingHistoryModel } from '../../../../domain/schemas/model/reading-hi
 import { ReadingImagesModel } from '../../../../domain/schemas/model/reading-images.model';
 import { PendingReadingConnectionModel } from '../../../../domain/schemas/model/pending-reading-connection.model';
 import { TakenReadingConnectionModel } from '../../../../domain/schemas/model/taken-reading-connection.model';
+import { UUID } from 'crypto';
 
 @Injectable()
 export class ReadingPersistencePostgreSQL
@@ -82,161 +83,166 @@ export class ReadingPersistencePostgreSQL
   async findReadingInfo(cadastralKey: string): Promise<ReadingInfoModel[]> {
     try {
       const query: string = `
-WITH ultima_lectura_valida AS (
-  -- 1. Últimas 5 lecturas válidas
-  SELECT
-    l.lectura_id,
-    l.acometida_id,
-    l.fecha_lectura,
-    l.hora_lectura,
-    l.lectura_anterior,
-    l.lectura_actual,
-    l.valor_lectura,
-    l.mes_lectura
-  FROM (
-    SELECT l.*
-    FROM lectura l
-    WHERE l.acometida_id = $1
-      AND l.fecha_lectura IS NOT NULL
-      AND l.novedad IS NOT NULL
-      AND l.novedad NOT LIKE '%INICIAL AUTOMÁTICA%'
-      AND l.novedad NOT LIKE '%CAMBIO MEDIDOR%'
-    ORDER BY l.fecha_lectura DESC
-    LIMIT 5
-  ) l
-  ORDER BY l.fecha_lectura DESC
-),
+        WITH ultima_lectura_valida AS (
+          -- 1. Últimas 5 lecturas válidas
+          SELECT
+            l.lectura_id,
+            l.acometida_id,
+            l.fecha_lectura,
+            l.hora_lectura,
+            l.lectura_anterior,
+            l.lectura_actual,
+            l.valor_lectura,
+            l.mes_lectura
+          FROM (
+            SELECT l.*
+            FROM lectura l
+            WHERE l.acometida_id = $1
+              AND l.fecha_lectura IS NOT NULL
+              AND l.novedad IS NOT NULL
+              AND l.novedad NOT LIKE '%INICIAL AUTOMÁTICA%'
+              AND l.novedad NOT LIKE '%CAMBIO MEDIDOR%'
+            ORDER BY l.fecha_lectura DESC
+            LIMIT 5
+          ) l
+          ORDER BY l.fecha_lectura DESC
+        ),
 
-ranked AS (
-  SELECT
-    *,
-    ROW_NUMBER() OVER (PARTITION BY acometida_id ORDER BY fecha_lectura DESC) AS rn,
-    date_trunc('month', fecha_lectura)::date AS mes_lectura_trunc
-  FROM ultima_lectura_valida
-),
+        ranked AS (
+          SELECT
+            *,
+            ROW_NUMBER() OVER (PARTITION BY acometida_id ORDER BY fecha_lectura DESC) AS rn,
+            date_trunc('month', fecha_lectura)::date AS mes_lectura_trunc
+          FROM ultima_lectura_valida
+        ),
 
-mes_actual AS (
-  SELECT date_trunc('month', CURRENT_DATE)::date AS mes_hoy
-),
+        mes_actual AS (
+          SELECT date_trunc('month', CURRENT_DATE)::date AS mes_hoy
+        ),
 
--- ¿Ya existe una lectura tomada en el mes actual?
-lectura_mes_actual_existe AS (
-  SELECT
-    EXISTS (
-      SELECT 1
-      FROM lectura l
-      WHERE l.acometida_id = $1
-        AND date_trunc('month', l.fecha_lectura)::date = date_trunc('month', CURRENT_DATE)::date
-        AND l.novedad NOT LIKE '%INICIAL AUTOMÁTICA%'
-        AND l.novedad NOT LIKE '%CAMBIO MEDIDOR%'
-    ) AS ya_tomada_mes_actual
-),
+        -- ¿Ya existe una lectura tomada en el mes actual?
+        lectura_mes_actual_existe AS (
+          SELECT
+            EXISTS (
+              SELECT 1
+              FROM lectura l
+              WHERE l.acometida_id = $1
+                AND date_trunc('month', l.fecha_lectura)::date = date_trunc('month', CURRENT_DATE)::date
+                AND l.novedad NOT LIKE '%INICIAL AUTOMÁTICA%'
+                AND l.novedad NOT LIKE '%CAMBIO MEDIDOR%'
+            ) AS ya_tomada_mes_actual
+        ),
 
--- Próximo mes que debería tener lectura
-proximo_mes_esperado AS (
-  SELECT
-    COALESCE(
-      date_trunc('month', MAX(l.fecha_lectura)) + INTERVAL '1 month',
-      date_trunc('month', CURRENT_DATE)
-    )::date AS mes_que_toca
-  FROM lectura l
-  WHERE l.acometida_id = $1
-    AND l.fecha_lectura IS NOT NULL
-    AND l.novedad NOT LIKE '%INICIAL AUTOMÁTICA%'
-    AND l.novedad NOT LIKE '%CAMBIO MEDIDOR%'
-),
+        -- Próximo mes que debería tener lectura
+        proximo_mes_esperado AS (
+          SELECT
+            COALESCE(
+              date_trunc('month', MAX(l.fecha_lectura)) + INTERVAL '1 month',
+              date_trunc('month', CURRENT_DATE)
+            )::date AS mes_que_toca
+          FROM lectura l
+          WHERE l.acometida_id = $1
+            AND l.fecha_lectura IS NOT NULL
+            AND l.novedad NOT LIKE '%INICIAL AUTOMÁTICA%'
+            AND l.novedad NOT LIKE '%CAMBIO MEDIDOR%'
+        ),
 
-periodo AS (
-  SELECT
-    COALESCE(sl.fecha_inicio_periodo, CURRENT_DATE - INTERVAL '1 month') AS inicio,
-    sl.fecha_siguiente_lectura AS fecha_mitad,
-    COALESCE(sl.fecha_fin_periodo, CURRENT_DATE + INTERVAL '1 month') AS fin
-  FROM siguiente_lectura sl
-  WHERE sl.acometida_id = $1
-),
+        periodo AS (
+          SELECT
+            COALESCE(sl.fecha_inicio_periodo, CURRENT_DATE - INTERVAL '1 month') AS inicio,
+            sl.fecha_siguiente_lectura AS fecha_mitad,
+            COALESCE(sl.fecha_fin_periodo, CURRENT_DATE + INTERVAL '1 month') AS fin
+          FROM siguiente_lectura sl
+          WHERE sl.acometida_id = $1
+        ),
 
-lectura_en_periodo AS (
-  SELECT
-    p.inicio,
-    p.fin,
-    (CURRENT_DATE BETWEEN p.inicio AND p.fin) AS en_periodo,
-    EXISTS (
-      SELECT 1
-      FROM lectura l2
-      WHERE l2.acometida_id = $1
-        AND l2.fecha_lectura::date >= COALESCE(p.fecha_mitad, p.inicio)
-        AND l2.novedad NOT LIKE '%INICIAL AUTOMÁTICA%'
-        AND l2.novedad NOT LIKE '%CAMBIO MEDIDOR%'
-    ) AS ya_tomada_en_periodo_actual
-  FROM periodo p
-)
+        lectura_en_periodo AS (
+          SELECT
+            p.inicio,
+            p.fin,
+            (CURRENT_DATE BETWEEN p.inicio AND p.fin) AS en_periodo,
+            EXISTS (
+              SELECT 1
+              FROM lectura l2
+              WHERE l2.acometida_id = $1
+                AND l2.fecha_lectura::date >= COALESCE(p.fecha_mitad, p.inicio)
+                AND l2.novedad NOT LIKE '%INICIAL AUTOMÁTICA%'
+                AND l2.novedad NOT LIKE '%CAMBIO MEDIDOR%'
+            ) AS ya_tomada_en_periodo_actual
+          FROM periodo p
+        )
 
--- Resultado final
-SELECT
-  l.lectura_id AS "reading_id",
-  l.fecha_lectura AS "previous_reading_date",
-  l.hora_lectura AS "reading_time",
-  ac.acometida_id AS "cadastral_key",
-  c.cliente_id AS "card_id",
-  COALESCE(ci.nombres || ' ' || ci.apellidos, e.razon_social) AS "client_name",
-  cc.phones AS "client_phones",
-  cc.correos AS "client_emails",
-  ac.direccion AS address,
-  l.lectura_anterior AS "previous_reading",
-  l.lectura_actual AS "current_reading",
-  l.valor_lectura AS "reading_value",
-  ac.sector,
-  ac.cuenta AS account,
-  cp.average_consumption AS "average_consumption",
-  ac.numero_medidor AS "meter_number",
-  ac.tarifa_id AS "rate_id",
-  ct.nombre AS "rate_name",
+        -- Resultado final
+        SELECT
+          l.lectura_id AS "reading_id",
+          l.fecha_lectura AS "previous_reading_date",
+          l.hora_lectura AS "reading_time",
+          ac.acometida_id AS "cadastral_key",
+          c.cliente_id AS "card_id",
+          COALESCE(ci.nombres || ' ' || ci.apellidos, e.razon_social) AS "client_name",
+          cc.phones AS "client_phones",
+          cc.correos AS "client_emails",
+          ac.direccion AS address,
+          l.lectura_anterior AS "previous_reading",
+          l.lectura_actual AS "current_reading",
+          l.valor_lectura AS "reading_value",
+          ac.sector,
+          ac.cuenta AS account,
+          cp.average_consumption AS "average_consumption",
+          ac.numero_medidor AS "meter_number",
+          ac.tarifa_id AS "rate_id",
+          ct.nombre AS "rate_name",
 
-  -- LÓGICA FINAL CORRECTA
-  CASE
-    -- Solo habilitamos edición si:
-    -- - Estamos en el mes actual
-    -- - Y aún NO se ha tomado la lectura de este mes
-    -- - Y esta es la fila más reciente (rn=1)
-    WHEN l.rn = 1
-     AND pme.mes_que_toca = ma.mes_hoy
-     AND NOT lmae.ya_tomada_mes_actual
-    THEN true
+          -- LÓGICA FINAL CORRECTA
+          CASE
+            -- Solo habilitamos edición si:
+            -- - Estamos en el mes actual
+            -- - Y aún NO se ha tomado la lectura de este mes
+            -- - Y esta es la fila más reciente (rn=1)
+            WHEN l.rn = 1
+            AND pme.mes_que_toca = ma.mes_hoy
+            AND NOT lmae.ya_tomada_mes_actual
+            THEN true
 
-    -- La lectura anterior siempre como referencia
-    WHEN l.rn = 2 THEN true
+            -- La lectura anterior siempre como referencia
+            WHEN l.rn = 2 THEN true
 
-    -- Cualquier otro caso: false
-    ELSE false
-  END AS "has_current_reading",
+            -- Cualquier otro caso: false
+            ELSE false
+          END AS "has_current_reading",
 
-  -- Debug muy útil
-  pme.mes_que_toca AS "next_month_to_take_debug",
-  ma.mes_hoy AS "current_month_debug",
-  lmae.ya_tomada_mes_actual AS "already_taken_current_month_debug",
-  l.mes_lectura_trunc AS "reading_month_debug",
-  lep.inicio AS "start_date_period",
-  lep.fin AS "end_date_period",
-  lep.en_periodo AS "in_period_debug",
-  l.mes_lectura AS "month_reading"
+          -- Debug muy útil
+          pme.mes_que_toca AS "next_month_to_take_debug",
+          ma.mes_hoy AS "current_month_debug",
+          lmae.ya_tomada_mes_actual AS "already_taken_current_month_debug",
+          l.mes_lectura_trunc AS "reading_month_debug",
+          lep.inicio AS "start_date_period",
+          lep.fin AS "end_date_period",
+          lep.en_periodo AS "in_period_debug",
+          l.mes_lectura AS "month_reading",
+          est.id_estado AS "connection_state_id",
+          est.nombre AS "connection_state_name",
+          est.descripcion AS "connection_state_description",
+          est.permite_lectura AS "permit_reading"
 
-FROM ranked l
-CROSS JOIN proximo_mes_esperado pme
-CROSS JOIN mes_actual ma
-CROSS JOIN lectura_mes_actual_existe lmae
-CROSS JOIN periodo p
-CROSS JOIN lectura_en_periodo lep
-JOIN acometida ac ON ac.acometida_id = l.acometida_id
-LEFT JOIN cliente c ON c.cliente_id = ac.cliente_id
-LEFT JOIN ciudadano ci ON ci.ciudadano_id = c.cliente_id
-LEFT JOIN empresa e ON e.ruc = c.cliente_id
-INNER JOIN tarifa t ON t.tarifa_id = ac.tarifa_id
-LEFT JOIN categoria ct ON ct.categoria_id = t.categoria_id
-LEFT JOIN consumo_promedio cp ON cp.acometida_id = ac.acometida_id
-LEFT JOIN cliente_contacto cc ON cc.cliente_id = c.cliente_id
+        FROM ranked l
+        CROSS JOIN proximo_mes_esperado pme
+        CROSS JOIN mes_actual ma
+        CROSS JOIN lectura_mes_actual_existe lmae
+        CROSS JOIN periodo p
+        CROSS JOIN lectura_en_periodo lep
+        JOIN acometida ac ON ac.acometida_id = l.acometida_id
+        JOIN cat_estados_acometida est ON ac.estado_id = est.id_estado  -- validate readable state
+        LEFT JOIN cliente c ON c.cliente_id = ac.cliente_id
+        LEFT JOIN ciudadano ci ON ci.ciudadano_id = c.cliente_id
+        LEFT JOIN empresa e ON e.ruc = c.cliente_id
+        INNER JOIN tarifa t ON t.tarifa_id = ac.tarifa_id
+        LEFT JOIN categoria ct ON ct.categoria_id = t.categoria_id
+        LEFT JOIN consumo_promedio cp ON cp.acometida_id = ac.acometida_id
+        LEFT JOIN cliente_contacto cc ON cc.cliente_id = c.cliente_id
 
-WHERE l.rn <= 2
-ORDER BY l.fecha_lectura DESC;
+        WHERE l.rn <= 2
+        ORDER BY l.fecha_lectura DESC;
       `;
 
       const params: string[] = [cadastralKey];
@@ -279,6 +285,7 @@ ORDER BY l.fecha_lectura DESC;
   async updateCurrentReading(
     readingId: number,
     reading: ReadingModel,
+    updateUserId: UUID,
   ): Promise<ReadingModel | null> {
     try {
       const query: string = `
@@ -327,6 +334,13 @@ ORDER BY l.fecha_lectura DESC;
       if (result.length === 0) {
         return null;
       }
+
+      // === Registrar auditoría de usuario (UPDATE = action_type_id 2) ===
+      await this.postgresqlService.query(
+        `INSERT INTO usuario_lectura(usuario_id, lectura_id, action_type_id) VALUES ($1, $2, 2)`,
+        [updateUserId, readingId],
+      );
+
       return ReadingPostgreSQLAdapter.fromReadingSQLResultToReadingModel(
         result[0],
       );
@@ -335,21 +349,49 @@ ORDER BY l.fecha_lectura DESC;
     }
   }
 
-  async createReading(reading: ReadingModel): Promise<ReadingModel | null> {
+  async createReading(
+    reading: ReadingModel,
+    creatorUserId: UUID,
+  ): Promise<ReadingModel | null> {
     try {
       const acometidaId = reading.connectionId;
 
       // === TRANSACCIÓN CON CONTROL AVANZADO DE DUPLICADOS ===
       const result = await this.postgresqlService.transaction(
         async (client) => {
-          // === 1. Obtener IDs de estados ===
+          // === 1. Obtener IDs de estados de lectura ===
           const pendQuery = `SELECT lectura_estado_id FROM lectura_estado WHERE codigo = 'PEND' LIMIT 1;`;
           const fuerQuery = `SELECT lectura_estado_id FROM lectura_estado WHERE codigo = 'FUER' LIMIT 1;`;
 
-          const [pendResult, fuerResult] = await Promise.all([
-            client.query(pendQuery),
-            client.query(fuerQuery),
-          ]);
+          // === 1.1 Validar que la acometida permita lectura según cat_estados_acometida ===
+          const estadoAcometidaQuery = `
+            SELECT est.permite_lectura, est.nombre AS estado_nombre
+            FROM acometida ac
+            JOIN cat_estados_acometida est ON ac.estado_id = est.id_estado
+            WHERE ac.acometida_id = $1
+            LIMIT 1;
+          `;
+
+          const [pendResult, fuerResult, estadoAcometidaResult] =
+            await Promise.all([
+              client.query(pendQuery),
+              client.query(fuerQuery),
+              client.query(estadoAcometidaQuery, [acometidaId]),
+            ]);
+
+          // Block reading if connection state doesn't allow it
+          if (estadoAcometidaResult.rowCount === 0) {
+            throw new RpcException({
+              statusCode: statusCode.NOT_FOUND,
+              message: `La acometida ${acometidaId} no existe o no tiene estado registrado.`,
+            });
+          }
+          if (!estadoAcometidaResult.rows[0].permite_lectura) {
+            throw new RpcException({
+              statusCode: statusCode.FORBIDDEN ?? 403,
+              message: `La acometida ${acometidaId} tiene estado "${estadoAcometidaResult.rows[0].estado_nombre}" y no permite el ingreso de lecturas.`,
+            });
+          }
 
           const pendId =
             pendResult.rowCount > 0
@@ -546,6 +588,13 @@ ORDER BY l.fecha_lectura DESC;
             });
           }
 
+          // === 5. Registrar auditoría de usuario (CREATE = action_type_id 1) ===
+          const newReadingId = insertResult.rows[0].reading_id;
+          await client.query(
+            `INSERT INTO usuario_lectura(usuario_id, lectura_id, action_type_id) VALUES ($1, $2, 1)`,
+            [creatorUserId, newReadingId],
+          );
+
           return insertResult.rows[0];
         },
       );
@@ -559,8 +608,8 @@ ORDER BY l.fecha_lectura DESC;
     }
   }
 
-  async save(reading: ReadingModel): Promise<ReadingModel> {
-    return this.createReading(reading) as Promise<ReadingModel>;
+  async save(reading: ReadingModel, creatorUserId: UUID): Promise<ReadingModel> {
+    return this.createReading(reading, creatorUserId) as Promise<ReadingModel>;
   }
 
   async findReadingHistoryByCadastralKey(
@@ -809,14 +858,16 @@ ORDER BY l.fecha_lectura DESC;
             LEFT JOIN empresa e ON e.ruc = c.cliente_id  
             LEFT JOIN tarifa t ON t.tarifa_id = ac.tarifa_id  
             LEFT JOIN categoria ct ON t.categoria_id = ct.categoria_id  
-            LEFT JOIN consumo_promedio cp ON cp.acometida_id = ac.acometida_id  
+            LEFT JOIN consumo_promedio cp ON cp.acometida_id = ac.acometida_id
+            -- Use cat_estados_acometida to determine readability (replaces legacy ac.estado boolean)
+            JOIN cat_estados_acometida est ON ac.estado_id = est.id_estado
         WHERE NOT EXISTS (  
             SELECT 1  
             FROM lectura l  
             WHERE l.acometida_id = ac.acometida_id  
               AND l.mes_lectura = $1
         )  
-          AND ac.estado IS TRUE
+          AND est.permite_lectura = TRUE
           ${sectorClause}
         ORDER BY ac.sector, ac.acometida_id;
       `;

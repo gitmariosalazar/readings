@@ -67,6 +67,10 @@ export interface ReadingInfoSQLResult {
   month_reading: string;
   start_date_period: Date;
   end_date_period: Date;
+  connection_state_id: number;
+  connection_state_name: string;
+  connection_state_description: string;
+  permit_reading: boolean;
 }
 
 export interface AdvancedReportReadingsSQLResult {
@@ -75,6 +79,17 @@ export interface AdvancedReportReadingsSQLResult {
   readings_completed: number;
   missing_readings: number;
   progress_percentage: number;
+
+  pure_active_units: number;
+  suspended_or_arrears_with_reading: number;
+  data_discrepancy: number;
+  total_visit_efficiency: number;
+
+  // Cross-validation columns from auditoria_lectura_sector (0 if not yet generated)
+  audit_total_esperado: number;
+  audit_total_completadas: number;
+  audit_avance_porcentaje: number;
+  audit_completo: boolean;
 }
 
 export interface ReadingHistorySQLResult {
@@ -90,7 +105,7 @@ export interface ReadingHistorySQLResult {
   observation: string;
 }
 
-export class ReadingImagesSQLResult {
+export interface ReadingImagesSQLResult {
   cadastral_key: string;
   reading_id: number;
   previews_reading: number;

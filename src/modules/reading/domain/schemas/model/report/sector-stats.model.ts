@@ -7,5 +7,8 @@ export class SectorStatsReportModel {
     public readonly averageSewerRate: number,
     public readonly averageConsumption: number,
     public readonly activeDays: number,
+    // Cross-validation from auditoria_lectura_sector (0 if not generated)
+    public readonly expectedConnections: number = 0,
+    public readonly auditProgress: number = 0,
   ) {}
 }

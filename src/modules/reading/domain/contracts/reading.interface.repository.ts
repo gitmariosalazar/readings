@@ -5,15 +5,20 @@ import { ReadingHistoryModel } from '../schemas/model/reading-history.model';
 import { ReadingImagesModel } from '../schemas/model/reading-images.model';
 import { PendingReadingConnectionModel } from '../schemas/model/pending-reading-connection.model';
 import { TakenReadingConnectionModel } from '../schemas/model/taken-reading-connection.model';
+import { UUID } from 'crypto';
 
 export interface InterfaceReadingRepository {
   findReadingBasicInfo(cadastralKey: string): Promise<ReadingBasicInfoModel[]>;
   updateCurrentReading(
     readingId: number,
     readingModel: ReadingModel,
+    updateUserId: UUID,
   ): Promise<ReadingModel | null>;
   verifyReadingIfExist(readingId: number): Promise<boolean>;
-  createReading(readingModel: ReadingModel): Promise<ReadingModel | null>;
+  createReading(
+    readingModel: ReadingModel,
+    creatorUserId: UUID,
+  ): Promise<ReadingModel | null>;
   findReadingInfo(cadastralKey: string): Promise<ReadingInfoModel[]>;
   findReadingHistoryByCadastralKey(
     cadastralKey: string,

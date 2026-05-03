@@ -149,19 +149,33 @@ export class ReadingPostgreSQLAdapter {
       readingResultSQL.month_reading,
       readingResultSQL.start_date_period,
       readingResultSQL.end_date_period,
+      readingResultSQL.connection_state_id,
+      readingResultSQL.connection_state_name,
+      readingResultSQL.connection_state_description,
+      readingResultSQL.permit_reading,
     );
   }
 
   static fromReadingPostgreSQLResultToAdvancedReportReadingsModel(
     readingResultSQL: AdvancedReportReadingsSQLResult,
   ): AdvancedReportReadingsModel {
-    const response: AdvancedReportReadingsModel = {
-      sector: readingResultSQL.sector,
-      totalConnections: readingResultSQL.total_connections,
-      readingsCompleted: readingResultSQL.readings_completed,
-      missingReadings: readingResultSQL.missing_readings,
-      progressPercentage: readingResultSQL.progress_percentage,
-    };
+    const response: AdvancedReportReadingsModel =
+      new AdvancedReportReadingsModel(
+        readingResultSQL.sector,
+        readingResultSQL.total_connections,
+        readingResultSQL.readings_completed,
+        readingResultSQL.missing_readings,
+        readingResultSQL.progress_percentage,
+        readingResultSQL.pure_active_units,
+        readingResultSQL.suspended_or_arrears_with_reading,
+        readingResultSQL.data_discrepancy,
+        readingResultSQL.total_visit_efficiency,
+        // Audit cross-validation fields
+        readingResultSQL.audit_total_esperado,
+        readingResultSQL.audit_total_completadas,
+        readingResultSQL.audit_avance_porcentaje,
+        readingResultSQL.audit_completo,
+      );
     return response;
   }
 

@@ -10,6 +10,7 @@ import { validateFields } from '../../../../../shared/validators/fields.validato
 import { statusCode } from '../../../../../settings/environments/status-code';
 import { INovelty } from '../../../domain/schemas/model/novelty.model';
 import { getTypeCurrentConsumption } from '../../../../../shared/types/novelty.type';
+import { UUID } from 'crypto';
 
 @Injectable()
 export class UpdateReadingUseCase {
@@ -21,6 +22,7 @@ export class UpdateReadingUseCase {
   async execute(
     readingId: number,
     readinRequest: UpdateReadingRequest,
+    updateUserId: UUID,
   ): Promise<ReadingResponse | null> {
     try {
       const requiredFields: string[] = [
@@ -146,6 +148,7 @@ export class UpdateReadingUseCase {
         await this.readingRepository.updateCurrentReading(
           readingId,
           updatedReading,
+          updateUserId,
         );
 
       if (updatedReadingEntity !== null) {

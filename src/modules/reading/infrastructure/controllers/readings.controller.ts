@@ -10,6 +10,7 @@ import { FindReadingHistoryByCadastralKeyUseCase } from '../../application/useca
 import { GetPendingReadingsByMonthUseCase } from '../../application/usecases/queries/GetPendingReadingsByMonthUseCase';
 import { GetTakenReadingsByMonthUseCase } from '../../application/usecases/queries/GetTakenReadingsByMonthUseCase';
 import { GetTakenReadingEstimatesOrAverageUseCase } from '../../application/usecases/queries/GetTakenReadingEstimatesOrAverageUseCase';
+import { UUID } from 'crypto';
 
 @Controller('Readings')
 export class ReadingController {
@@ -37,18 +38,23 @@ export class ReadingController {
     data: {
       readingId: number;
       readingRequest: UpdateReadingRequest;
+      updateUserId: UUID;
     },
   ) {
     return this.updateReadingUseCase.execute(
       data.readingId,
       data.readingRequest,
+      data.updateUserId,
     );
   }
 
   @Post('create-reading')
   @MessagePattern('reading.create-reading')
-  async createReading(@Payload() readingRequest: CreateReadingRequest) {
-    return this.createReadingUseCase.execute(readingRequest);
+  async createReading(
+    @Payload() payload: CreateReadingRequest & { creatorUserId: UUID },
+  ) {
+    const { creatorUserId, ...readingRequest } = payload;
+    return this.createReadingUseCase.execute(readingRequest, creatorUserId);
   }
 
   @Get('find-reading-info/:cadastralKey')

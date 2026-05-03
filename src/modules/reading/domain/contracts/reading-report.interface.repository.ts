@@ -7,6 +7,12 @@ import { DailyStatsReportModel } from '../schemas/model/report/daily-stats.model
 import { SectorStatsReportModel } from '../schemas/model/report/sector-stats.model';
 import { NoveltyStatsReportModel } from '../schemas/model/report/novelty-stats.model';
 import { AdvancedReportReadingsModel } from '../schemas/model/report/advanced-report-readings.model';
+import {
+  AuditSectorHistoryModel,
+  AuditSectorModel,
+  CloseAuditSectorModel,
+  InitializeAuditModel,
+} from '../schemas/model/report/audit-sector.model';
 
 export interface InterfaceReadingReportRepository {
   findLastReadingsByConnection(
@@ -23,4 +29,22 @@ export interface InterfaceReadingReportRepository {
   findAdvancedReportReadings(
     month: string,
   ): Promise<AdvancedReportReadingsModel[]>;
+
+  // ── Audit ─────────────────────────────────────────────────────────────────────
+  initializeMonthlyAudit(month: string): Promise<InitializeAuditModel>;
+  getAuditByMonth(month: string): Promise<AuditSectorModel[]>;
+  getAuditBySectorAndMonth(
+    sector: number,
+    month: string,
+  ): Promise<AuditSectorModel | null>;
+  closeAuditSector(
+    sector: number,
+    month: string,
+    supervisorId: string,
+    observaciones?: string,
+  ): Promise<CloseAuditSectorModel>;
+  getAuditHistoryBySector(
+    sector: number,
+    months?: number,
+  ): Promise<AuditSectorHistoryModel[]>;
 }

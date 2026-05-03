@@ -28,6 +28,10 @@ export class ReadingReportMapper {
       readingsCompleted: model.readingsCompleted,
       missingReadings: model.missingReadings,
       progressPercentage: model.progressPercentage,
+      pureActiveUnits: model.pureActiveUnits,
+      suspendedOrArrearsWithReading: model.suspendedOrArrearsWithReading,
+      dataDiscrepancy: model.dataDiscrepancy,
+      totalVisitEfficiency: model.totalVisitEfficiency,
     }));
   }
 
