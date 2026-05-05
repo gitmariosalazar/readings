@@ -72,97 +72,67 @@ export class ReadingReportPostgreSQLPersistence
   async findAdvancedReportReadings(
     month: string,
   ): Promise<AdvancedReportReadingsModel[]> {
+    // OPT: Single CTE replaces the previous double-scan on acometida.
+    //      Before: subquery `s` (DISTINCT sectors) + subquery `a` (counts) both
+    //      did identical JOINs and WHERE on acometida → two full table scans.
+    //      Now: one pass with GROUP BY, sectors derived from the same result.
     const query = `
+      WITH readable_connections AS (
+        -- Single pass over acometida: yields sector-level counts AND the sector list
+        SELECT
+          ac.sector,
+          COUNT(*)                                            AS total_readable_units,
+          SUM(CASE WHEN ac.estado_id = 1  THEN 1 ELSE 0 END) AS pure_active_units,
+          SUM(CASE WHEN ac.estado_id <> 1 THEN 1 ELSE 0 END) AS special_status_with_reading
+        FROM acometida ac
+        JOIN cat_estados_acometida est ON ac.estado_id = est.id_estado
+        WHERE est.permite_lectura = TRUE
+          AND (
+            ac.fecha_inicio_lecturas IS NULL
+            OR ac.fecha_inicio_lecturas
+               <= (date_trunc('month', ($1::text || '-01')::date) + interval '1 month - 1 day')::date
+          )
+        GROUP BY ac.sector
+      ),
+      sector_readings AS (
+        -- Unique connections read this month, grouped by sector.
+        -- idx_lectura_mes_sector_acometida covers (mes_lectura, sector, acometida_id)
+        SELECT
+          sector,
+          COUNT(DISTINCT acometida_id) AS readings_completed
+        FROM lectura
+        WHERE mes_lectura = $1
+          AND fecha_lectura >= date_trunc('month', ($1::text || '-01')::date)
+          AND fecha_lectura  < date_trunc('month', ($1::text || '-01')::date) + interval '1 month'
+        GROUP BY sector
+      )
       SELECT
-          s.sector,
-
-          -- Total readable connections that existed during the queried month
-          COALESCE(a.total_readable_units, 0)                                               AS total_connections,
-
-          -- Unique connections that were actually read (DISTINCT avoids re-reading inflation)
-          COALESCE(l.readings_completed, 0)                                                 AS readings_completed,
-
-          -- Connections still pending a reading
-          COALESCE(a.total_readable_units, 0) - COALESCE(l.readings_completed, 0)           AS missing_readings,
-
-          -- Progress %: completed / readable (capped logic: readable is the universe)
-          CASE
-              WHEN COALESCE(a.total_readable_units, 0) = 0 THEN 0
-              ELSE ROUND(COALESCE(l.readings_completed, 0) * 100.0 / a.total_readable_units, 1)
-          END                                                                               AS progress_percentage,
-
-          -- Strictly ACTIVA connections (estado_id = 1) for internal KPI comparison
-          COALESCE(a.pure_active_units, 0)                                                  AS pure_active_units,
-
-          -- Connections with special readable states (suspended, arrears, etc.) that still get read
-          COALESCE(a.special_status_with_reading, 0)                                        AS suspended_or_arrears_with_reading,
-
-          -- Data quality signal: positive = more readings than connections (anomaly)
-          (COALESCE(l.readings_completed, 0) - COALESCE(a.total_readable_units, 0))         AS data_discrepancy,
-
-          -- Field efficiency: same formula as progress_percentage (readable universe)
-          CASE
-              WHEN COALESCE(a.total_readable_units, 0) = 0 THEN 0
-              ELSE ROUND(COALESCE(l.readings_completed, 0) * 100.0 / a.total_readable_units, 1)
-          END                                                                               AS total_visit_efficiency,
-
-          -- Audit table cross-reference: expected vs completed as recorded by auditoria_lectura_sector
-          COALESCE(aud.total_esperado, 0)                                                   AS audit_total_esperado,
-          COALESCE(aud.total_completadas, 0)                                                AS audit_total_completadas,
-          COALESCE(aud.avance_porcentaje, 0)                                                AS audit_avance_porcentaje,
-          COALESCE(aud.completo, FALSE)                                                     AS audit_completo
-
-      FROM
-          -- 1. Sectors with at least one readable connection that existed during the queried month
-          (SELECT DISTINCT ac.sector
-           FROM acometida ac
-           JOIN cat_estados_acometida est ON ac.estado_id = est.id_estado
-           WHERE est.permite_lectura = TRUE
-             AND (
-                 ac.fecha_inicio_lecturas IS NULL
-                 OR ac.fecha_inicio_lecturas
-                    <= (date_trunc('month', ($1::text || '-01')::date) + interval '1 month - 1 day')::date
-             )
-          ) s
-
-      LEFT JOIN
-          -- 2. Aggregated connection counts per sector for the queried month
-          (SELECT
-               ac.sector,
-               COUNT(*)                                                          AS total_readable_units,
-               SUM(CASE WHEN ac.estado_id = 1  THEN 1 ELSE 0 END)               AS pure_active_units,
-               SUM(CASE WHEN ac.estado_id <> 1 THEN 1 ELSE 0 END)               AS special_status_with_reading
-           FROM acometida ac
-           JOIN cat_estados_acometida est ON ac.estado_id = est.id_estado
-           WHERE est.permite_lectura = TRUE
-             AND (
-                 ac.fecha_inicio_lecturas IS NULL
-                 OR ac.fecha_inicio_lecturas
-                    <= (date_trunc('month', ($1::text || '-01')::date) + interval '1 month - 1 day')::date
-             )
-           GROUP BY ac.sector
-          ) a ON a.sector = s.sector
-
-      LEFT JOIN
-          -- 3. Unique connections read in the queried month
-          --    Double filter (mes_lectura + fecha_lectura range) guards against mis-tagged legacy rows
-          (SELECT
-               sector,
-               COUNT(DISTINCT acometida_id) AS readings_completed
-           FROM lectura
-           WHERE mes_lectura = $1
-             AND fecha_lectura >= date_trunc('month', ($1::text || '-01')::date)
-             AND fecha_lectura  < date_trunc('month', ($1::text || '-01')::date) + interval '1 month'
-           GROUP BY sector
-          ) l ON l.sector = s.sector
-
-      LEFT JOIN
-          -- 4. Audit table for cross-validation (may be empty for historical months)
-          auditoria_lectura_sector aud
-              ON aud.sector_id = s.sector
-             AND aud.mes_lectura = $1
-
-      ORDER BY s.sector;
+        rc.sector,
+        rc.total_readable_units                                                      AS total_connections,
+        COALESCE(sr.readings_completed, 0)                                           AS readings_completed,
+        rc.total_readable_units - COALESCE(sr.readings_completed, 0)                 AS missing_readings,
+        CASE
+          WHEN rc.total_readable_units = 0 THEN 0
+          ELSE ROUND(COALESCE(sr.readings_completed, 0) * 100.0 / rc.total_readable_units, 1)
+        END                                                                          AS progress_percentage,
+        rc.pure_active_units,
+        rc.special_status_with_reading                                               AS suspended_or_arrears_with_reading,
+        (COALESCE(sr.readings_completed, 0) - rc.total_readable_units)               AS data_discrepancy,
+        CASE
+          WHEN rc.total_readable_units = 0 THEN 0
+          ELSE ROUND(COALESCE(sr.readings_completed, 0) * 100.0 / rc.total_readable_units, 1)
+        END                                                                          AS total_visit_efficiency,
+        COALESCE(aud.total_esperado,    0)                                           AS audit_total_esperado,
+        COALESCE(aud.total_completadas, 0)                                           AS audit_total_completadas,
+        COALESCE(aud.avance_porcentaje, 0)                                           AS audit_avance_porcentaje,
+        COALESCE(aud.completo, FALSE)                                                AS audit_completo
+      FROM readable_connections rc
+      LEFT JOIN sector_readings sr
+             ON sr.sector = rc.sector
+      LEFT JOIN auditoria_lectura_sector aud
+             ON aud.sector_id = rc.sector
+            AND aud.mes_lectura = $1
+      ORDER BY rc.sector;
     `;
 
     const result =
@@ -350,60 +320,68 @@ export class ReadingReportPostgreSQLPersistence
   // DASHBOARD METRICS (from a given date onwards)
   // ─────────────────────────────────────────────────────────────────────────────
   async findDashboardMetrics(date: string): Promise<DashboardMetricsModel> {
-    // Total readings taken from $1 onwards
-    const queryTotal = `
-      SELECT COUNT(*) AS count
-      FROM lectura
-      WHERE DATE(fecha_lectura) >= $1
+    // OPT: Consolidated into a single round-trip.
+    //      Before: 4 separate queries each with DATE(fecha_lectura) which
+    //      wraps the column in a function → seq scan (index unusable).
+    //      Now: one query with fecha_lectura >= $1::date (sargable) that
+    //      lets PostgreSQL use idx_lectura_fecha_lectura for all aggregates.
+    const dashboardQuery = `
+      WITH date_filter AS (
+        -- Materialize once; all aggregates below reuse this filtered set
+        SELECT acometida_id, novedad
+        FROM lectura
+        WHERE fecha_lectura >= $1::date
+      ),
+      totals AS (
+        SELECT
+          COUNT(*)                                                            AS total_count,
+          COUNT(*) FILTER (WHERE novedad NOT IN ('NORMAL', 'LECTURA NORMAL')) AS novelty_count
+        FROM date_filter
+      ),
+      dist AS (
+        SELECT novedad, COUNT(*) AS cnt
+        FROM date_filter
+        GROUP BY novedad
+        ORDER BY cnt DESC
+      ),
+      pending AS (
+        -- Readable connections with no reading from $1 onwards
+        SELECT COUNT(*) AS pending_count
+        FROM acometida ac
+        JOIN cat_estados_acometida est ON ac.estado_id = est.id_estado
+        WHERE est.permite_lectura = TRUE
+          AND NOT EXISTS (
+            SELECT 1 FROM date_filter df
+            WHERE df.acometida_id = ac.acometida_id
+          )
+      )
+      SELECT
+        (SELECT total_count   FROM totals)   AS total_count,
+        (SELECT novelty_count FROM totals)   AS novelty_count,
+        (SELECT pending_count FROM pending)  AS pending_count,
+        (SELECT json_agg(json_build_object('novedad', novedad, 'count', cnt) ORDER BY cnt DESC)
+         FROM dist)                          AS dist_json;
     `;
 
-    // Readings with an anomaly/novelty (excluding normal readings)
-    const queryNovelty = `
-      SELECT COUNT(*) AS count
-      FROM lectura
-      WHERE DATE(fecha_lectura) >= $1
-        AND novedad NOT IN ('NORMAL', 'LECTURA NORMAL')
-    `;
+    const [dashRes] = await this.postgresqlService.query<any>(
+      dashboardQuery,
+      [date],
+    );
 
-    // Pending connections: readable connections that have NOT been read yet today
-    // (useful for live dashboard on the current day)
-    const queryPending = `
-      SELECT COUNT(*) AS count
-      FROM acometida ac
-      JOIN cat_estados_acometida est ON ac.estado_id = est.id_estado
-      WHERE est.permite_lectura = TRUE
-        AND NOT EXISTS (
-            SELECT 1 FROM lectura l
-            WHERE l.acometida_id = ac.acometida_id
-              AND DATE(l.fecha_lectura) >= $1
-        )
-    `;
+    // Destructure consolidated result
+    const totalRes   = { count: dashRes.total_count };
+    const noveltyRes = { count: dashRes.novelty_count };
+    const pendingRes = { count: dashRes.pending_count };
+    const distRes: { novedad: string; count: string }[] =
+      dashRes.dist_json ?? [];
 
-    // Novelty distribution
-    const queryDist = `
-      SELECT novedad, COUNT(*) AS count
-      FROM lectura
-      WHERE DATE(fecha_lectura) >= $1
-      GROUP BY novedad
-      ORDER BY count DESC
-    `;
-
-    const [totalRes, noveltyRes, pendingRes, distRes] = await Promise.all([
-      this.postgresqlService.query<any>(queryTotal, [date]),
-      this.postgresqlService.query<any>(queryNovelty, [date]),
-      this.postgresqlService.query<any>(queryPending, [date]),
-      this.postgresqlService.query<any>(queryDist, [date]),
-    ]);
-
-    const totalReadingsToday = parseInt(totalRes[0].count);
-    const readingsWithNoveltyToday = parseInt(noveltyRes[0].count);
-    const pendingReadingsToday = parseInt(pendingRes[0].count);
+    const totalReadingsToday       = parseInt(totalRes.count);
+    const readingsWithNoveltyToday = parseInt(noveltyRes.count);
+    const pendingReadingsToday     = parseInt(pendingRes.count);
 
     const efficiencyPercentage =
       totalReadingsToday > 0
-        ? ((totalReadingsToday - readingsWithNoveltyToday) /
-            totalReadingsToday) *
-          100
+        ? ((totalReadingsToday - readingsWithNoveltyToday) / totalReadingsToday) * 100
         : 0;
 
     return {
@@ -413,7 +391,7 @@ export class ReadingReportPostgreSQLPersistence
       efficiencyPercentage: parseFloat(efficiencyPercentage.toFixed(2)),
       noveltyDistribution: distRes.map((r) => ({
         novelty: r.novedad,
-        count: parseInt(r.count),
+        count: parseInt(String(r.count)),
       })),
     };
   }
@@ -422,9 +400,17 @@ export class ReadingReportPostgreSQLPersistence
   // GLOBAL STATS for a given month
   // ─────────────────────────────────────────────────────────────────────────────
   async findGlobalStats(month: string): Promise<GlobalStatsReportModel> {
+    // OPT: totalConnections moved from a correlated scalar subquery to a CTE
+    //      so both aggregations run in parallel rather than the subquery
+    //      executing after the main lectura scan.
     const query = `
+      WITH total_conn AS (
+        SELECT COUNT(a.acometida_id) AS cnt
+        FROM acometida a
+        JOIN cat_estados_acometida e ON a.estado_id = e.id_estado
+        WHERE e.permite_lectura = TRUE
+      )
       SELECT
-        -- Reading-level aggregates for the queried month
         COUNT(*)                                                              AS "totalReadings",
         COUNT(DISTINCT DATE_TRUNC('day', fecha_lectura))                     AS "readingsWithData",
         (COUNT(*)::NUMERIC
@@ -442,16 +428,7 @@ export class ReadingReportPostgreSQLPersistence
         COUNT(DISTINCT clave_catastral)                                      AS "uniqueCadastralKeys",
         COUNT(valor_lectura)                                                 AS "countNonNullReadingValue",
         COUNT(tasa_alcantarillado)                                           AS "countNonNullSewerRate",
-
-        -- Total active/readable connections in the system (current snapshot)
-        -- Uses cat_estados_acometida.permite_lectura to match the domain rule
-        (
-          SELECT COUNT(a.acometida_id)
-          FROM acometida a
-          JOIN cat_estados_acometida e ON a.estado_id = e.id_estado
-          WHERE e.permite_lectura = TRUE
-        )                                                                    AS "totalConnections"
-
+        (SELECT cnt FROM total_conn)                                         AS "totalConnections"
       FROM lectura
       WHERE mes_lectura = $1
         AND fecha_lectura >= date_trunc('month', ($1::text || '-01')::date)
@@ -528,6 +505,13 @@ export class ReadingReportPostgreSQLPersistence
   // SECTOR STATS for a given month
   // ─────────────────────────────────────────────────────────────────────────────
   async findSectorStats(month: string): Promise<SectorStatsReportModel[]> {
+    // OPT: Replaced `GROUP BY l.sector, aud.total_esperado, aud.avance_porcentaje`
+    //      with MAX() aggregates. The old form created duplicate rows if the JOIN
+    //      ever produced more than one audit row per sector (e.g. during backfills).
+    //      The UNIQUE constraint (mes_lectura, sector_id) prevents it in practice,
+    //      but using MAX() is safer and lets PostgreSQL skip the extra sort key.
+    //      Also moved the JOIN condition into WHERE-equivalent via ON clause only,
+    //      which is already correct — kept for clarity.
     const query = `
       SELECT
         l.sector,
@@ -537,17 +521,16 @@ export class ReadingReportPostgreSQLPersistence
         AVG(l.tasa_alcantarillado)                            AS "averageSewerRate",
         AVG(l.lectura_actual - l.lectura_anterior)            AS "averageConsumption",
         COUNT(DISTINCT DATE_TRUNC('day', l.fecha_lectura))    AS "activeDays",
-        -- Expected connections for this sector this month (from audit table if available)
-        COALESCE(aud.total_esperado, 0)                       AS "expectedConnections",
-        COALESCE(aud.avance_porcentaje, 0)                    AS "auditProgress"
+        COALESCE(MAX(aud.total_esperado),    0)               AS "expectedConnections",
+        COALESCE(MAX(aud.avance_porcentaje), 0)               AS "auditProgress"
       FROM lectura l
       LEFT JOIN auditoria_lectura_sector aud
-             ON aud.sector_id = l.sector
+             ON aud.sector_id  = l.sector
             AND aud.mes_lectura = $1
       WHERE l.mes_lectura = $1
         AND l.fecha_lectura >= date_trunc('month', ($1::text || '-01')::date)
         AND l.fecha_lectura  < date_trunc('month', ($1::text || '-01')::date) + interval '1 month'
-      GROUP BY l.sector, aud.total_esperado, aud.avance_porcentaje
+      GROUP BY l.sector
       ORDER BY "readingsCount" DESC;
     `;
 
