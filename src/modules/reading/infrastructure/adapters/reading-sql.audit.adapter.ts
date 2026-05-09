@@ -3,13 +3,13 @@ import {
   AuditSectorModel,
   CloseAuditSectorModel,
   InitializeAuditModel,
-} from '../../../../domain/schemas/model/report/audit-sector.model';
+} from '../../domain/schemas/model/report/audit-sector.model';
 import {
   AuditSectorHistorySqlResult,
   AuditSectorSqlResult,
   CloseAuditSectorSqlResult,
   InitializeAuditSqlResult,
-} from '../../../interfaces/sql/reading-sql.audit.interface';
+} from '../interfaces/sql/reading-sql.audit.interface';
 
 export class ReadingAuditMapper {
   static toAuditSectorModel(
@@ -23,7 +23,7 @@ export class ReadingAuditMapper {
       domainModel.completed_total,
       domainModel.pending_total,
       domainModel.progress_percentage,
-      domainModel.is_complete,
+      domainModel.is_complete === true || domainModel.is_complete === 1, // Convert to boolean if it's a number
       domainModel.closure_date,
       domainModel.supervisor_id,
       domainModel.observations,
@@ -41,7 +41,7 @@ export class ReadingAuditMapper {
       domainModel.expected_total,
       domainModel.completed_total,
       domainModel.progress_percentage,
-      domainModel.is_complete,
+      domainModel.is_complete === true || domainModel.is_complete === 1, // Convert to boolean if it's a number
       domainModel.closure_date,
       domainModel.supervisor_id,
       domainModel.observations,
@@ -56,7 +56,7 @@ export class ReadingAuditMapper {
       sqlResult.audit_id,
       sqlResult.sector_id,
       sqlResult.reading_month,
-      sqlResult.is_complete,
+      sqlResult.is_complete === true || sqlResult.is_complete === 1, // Convert to boolean if it's a number
       sqlResult.closure_date,
       sqlResult.supervisor_id,
       sqlResult.observations,

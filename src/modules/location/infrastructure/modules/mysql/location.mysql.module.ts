@@ -1,9 +1,9 @@
 import { Module } from "@nestjs/common";
 import { ClientsModule, Transport } from "@nestjs/microservices";
 import { LocationController } from "../../controllers/location.controller";
-import { LocationPersistencePostgresql } from "../../repositories/postgresql/persistence/postgresql.location.persistence";
 import { environments } from "../../../../../settings/environments/environments";
 import { LocationService } from "../../../application/services/location.service";
+import { LocationPersistenceMySQL } from "../../repositories/mysql/persistence/mysql.location.persistence";
 
 @Module({
   imports: [
@@ -29,9 +29,9 @@ import { LocationService } from "../../../application/services/location.service"
     LocationService,
     {
       provide: 'LocationRepository',
-      useClass: LocationPersistencePostgresql
+      useClass: LocationPersistenceMySQL
     }
   ],
   exports: []
 })
-export class LocationModuleUsingPostgreSQL { }
+export class LocationModuleUsingMySQL {}

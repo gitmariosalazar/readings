@@ -8,7 +8,7 @@ import { statusCode } from '../../../../../../settings/environments/status-code'
 import { DatabaseAbstract } from '../../../../../../shared/connections/database/abstract/abstract.database';
 
 @Injectable()
-export class PhotoReadingPostgreSQLPersistence
+export class PhotoReadingMySQLPersistence
   implements InterfacePhotoReadingRepository
 {
   constructor(private readonly databaseService: DatabaseAbstract) {}
@@ -18,14 +18,7 @@ export class PhotoReadingPostgreSQLPersistence
   ): Promise<PhotoReadingModel | null> {
     const query = `
       INSERT INTO foto_lectura (lectura_id, imagen_url, clave_catastral, descripcion)
-      VALUES ($1, $2, $3, $4)
-      RETURNING foto_lectura_id AS "photo_reading_id",
-                lectura_id AS "reading_id",
-                imagen_url AS "photo_url",
-                clave_catastral AS "cadastral_key",
-                descripcion AS "description",
-                created_at AS "created_at",
-                updated_at AS "updated_at";
+      VALUES (?, ?, ?, ?);
     `;
 
     const params = [
@@ -35,15 +28,21 @@ export class PhotoReadingPostgreSQLPersistence
       photoReading.getDescription() || null,
     ];
 
-    const result = await this.databaseService.query<PhotoReadingSQLResponse>(
-      query,
-      params,
-    );
-    if (result.length === 0) return null;
+    const { insertId } = await this.databaseService.execute(query, params);
+    
+    const selectResult = await this.databaseService.query<PhotoReadingSQLResponse>(`
+      SELECT foto_lectura_id AS "photo_reading_id",
+              lectura_id AS "reading_id",
+              imagen_url AS "photo_url",
+              clave_catastral AS "cadastral_key",
+              descripcion AS "description",
+              created_at AS "created_at",
+              updated_at AS "updated_at"
+      FROM foto_lectura WHERE foto_lectura_id = ?`, [insertId]);
+    
+    if (selectResult.length === 0) return null;
 
-    return PhotoReadingAdapter.fromPhotoReadingSQLResponseToPhotoReadingModel(
-      result[0],
-    );
+    return PhotoReadingAdapter.fromPhotoReadingSQLResponseToPhotoReadingModel(selectResult[0]);
   }
 
   async getPhotoReadingsByReadingId(
@@ -59,13 +58,10 @@ export class PhotoReadingPostgreSQLPersistence
         created_at AS "created_at",
         updated_at AS "updated_at"
       FROM foto_lectura
-      WHERE lectura_id = $1;
+      WHERE lectura_id = ?;
     `;
 
-    const result: PhotoReadingSQLResponse[] =
-      await this.databaseService.query<PhotoReadingSQLResponse>(query, [
-        readingId,
-      ]);
+    const result = await this.databaseService.query<PhotoReadingSQLResponse>(query, [readingId]);
 
     if (result.length === 0) {
       throw new RpcException({
@@ -74,9 +70,7 @@ export class PhotoReadingPostgreSQLPersistence
       });
     }
 
-    return result.map(
-      PhotoReadingAdapter.fromPhotoReadingSQLResponseToPhotoReadingModel,
-    );
+    return result.map(PhotoReadingAdapter.fromPhotoReadingSQLResponseToPhotoReadingModel);
   }
 
   async getPhotoReadingsByCadastralKey(
@@ -92,13 +86,10 @@ export class PhotoReadingPostgreSQLPersistence
         created_at AS "created_at",
         updated_at AS "updated_at"
       FROM foto_lectura
-      WHERE clave_catastral = $1;
+      WHERE clave_catastral = ?;
     `;
 
-    const result: PhotoReadingSQLResponse[] =
-      await this.databaseService.query<PhotoReadingSQLResponse>(query, [
-        cadastralKey,
-      ]);
+    const result = await this.databaseService.query<PhotoReadingSQLResponse>(query, [cadastralKey]);
 
     if (result.length === 0) {
       throw new RpcException({
@@ -107,8 +98,6 @@ export class PhotoReadingPostgreSQLPersistence
       });
     }
 
-    return result.map(
-      PhotoReadingAdapter.fromPhotoReadingSQLResponseToPhotoReadingModel,
-    );
+    return result.map(PhotoReadingAdapter.fromPhotoReadingSQLResponseToPhotoReadingModel);
   }
 }

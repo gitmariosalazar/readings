@@ -1,5 +1,5 @@
-import { LocationModel } from '../../../../domain/schemas/model/location.model';
-import { LocationSqlResult } from '../../../interfaces/sql/location.sql.result';
+import { LocationModel } from '../../domain/schemas/model/location.model';
+import { LocationSqlResult } from '../interfaces/sql/location.sql.result';
 
 export class LocationAdapter {
   static fromLocationSqlResultToLocationModel(

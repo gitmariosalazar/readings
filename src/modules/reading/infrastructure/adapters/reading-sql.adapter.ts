@@ -3,15 +3,18 @@ import {
   phones,
   ReadingBasicInfoResponse,
   ReadingInfoResponse,
-} from '../../../../application/dtos/response/reading-basic.response';
-import { ReadingModel } from '../../../../domain/schemas/model/reading.model';
-import { ReadingBasicInfoModel } from '../../../../domain/schemas/model/reading-basic-info.model';
+} from '../../application/dtos/response/reading-basic.response';
+import {
+  ReadingModel,
+  ReadingNoveltyModel,
+} from '../../domain/schemas/model/reading.model';
+import { ReadingBasicInfoModel } from '../../domain/schemas/model/reading-basic-info.model';
 import {
   ReadingInfoModel,
   ClientPhoneModel,
   ClientEmailModel,
-} from '../../../../domain/schemas/model/reading-info.model';
-import { ReadingResponse } from '../../../../application/dtos/response/reading.response';
+} from '../../domain/schemas/model/reading-info.model';
+import { ReadingResponse } from '../../application/dtos/response/reading.response';
 import {
   AdvancedReportReadingsSQLResult,
   ClientEmailSQLResult,
@@ -22,18 +25,20 @@ import {
   ReadingHistorySQLResult,
   ReadingImagesSQLResult,
   ReadingInfoSQLResult,
+  ReadingNoveltySQLResult,
   ReadingSQLResult,
   TakenReadingConnectionSQLResult,
-} from '../../../interfaces/sql/reading-sql.result.interface';
-import { AdvancedReportReadingsModel } from '../../../../domain/schemas/model/report/advanced-report-readings.model';
-import { ReadingHistoryModel } from '../../../../domain/schemas/model/reading-history.model';
-import { ReadingImagesResponse } from '../../../../application/dtos/response/reading-images.response';
+} from '../interfaces/sql/reading-sql.result.interface';
+import { AdvancedReportReadingsModel } from '../../domain/schemas/model/report/advanced-report-readings.model';
+import { ReadingHistoryModel } from '../../domain/schemas/model/reading-history.model';
+import { ReadingImagesResponse } from '../../application/dtos/response/reading-images.response';
 import { number, string } from 'joi';
-import { TakenReadingConnectionModel } from '../../../../domain/schemas/model/taken-reading-connection.model';
-import { PendingReadingConnectionModel } from '../../../../domain/schemas/model/pending-reading-connection.model';
-import { MonthlySummaryModel } from '../../../../domain/schemas/model/report/monthly-summary.model';
+import { TakenReadingConnectionModel } from '../../domain/schemas/model/taken-reading-connection.model';
+import { PendingReadingConnectionModel } from '../../domain/schemas/model/pending-reading-connection.model';
+import { MonthlySummaryModel } from '../../domain/schemas/model/report/monthly-summary.model';
+import { ReadingImagesModel } from '../../domain/schemas/model/reading-images.model';
 
-export class ReadingPostgreSQLAdapter {
+export class ReadingSQLAdapter {
   static fromReadingPostgreSQLResultToReadingBasicInfoModel(
     readingResultSQL: ReadingBasicInfoSQLResult,
   ): ReadingBasicInfoModel {
@@ -145,14 +150,16 @@ export class ReadingPostgreSQLAdapter {
       readingResultSQL.meter_number,
       readingResultSQL.rate_id,
       readingResultSQL.rate_name,
-      readingResultSQL.has_current_reading,
+      readingResultSQL.has_current_reading === true ||
+        readingResultSQL.has_current_reading === 1, // Convert to boolean if it's a number
       readingResultSQL.month_reading,
       readingResultSQL.start_date_period,
       readingResultSQL.end_date_period,
       readingResultSQL.connection_state_id,
       readingResultSQL.connection_state_name,
       readingResultSQL.connection_state_description,
-      readingResultSQL.permit_reading,
+      readingResultSQL.permit_reading === true ||
+        readingResultSQL.permit_reading === 1, // Convert to boolean if it's a number
     );
   }
 
@@ -199,8 +206,8 @@ export class ReadingPostgreSQLAdapter {
 
   static fromReadingPostgreSQLResultToReadingImagesModel(
     readingResultSQL: ReadingImagesSQLResult,
-  ): ReadingImagesResponse {
-    const response: ReadingImagesResponse = {
+  ): ReadingImagesModel {
+    const response: ReadingImagesModel = {
       cadastralKey: readingResultSQL.cadastral_key,
       readingId: readingResultSQL.reading_id,
       previewsReading: readingResultSQL.previews_reading,
@@ -270,5 +277,37 @@ export class ReadingPostgreSQLAdapter {
       monthlySummaryResultSQL.incident_count,
       monthlySummaryResultSQL.incident_rate_percentage,
     );
+  }
+
+  static fromReadingNoveltySQLResultToReadingNoveltyModel(
+    readingNoveltyResultSQL: ReadingNoveltySQLResult,
+  ): ReadingNoveltyModel {
+    const response: ReadingNoveltyModel = {
+      readingId: readingNoveltyResultSQL.reading_id,
+      readingDate: readingNoveltyResultSQL.reading_date,
+      readingMonth: readingNoveltyResultSQL.reading_month,
+      readingTime: readingNoveltyResultSQL.reading_time,
+      cadastralKey: readingNoveltyResultSQL.cadastral_key,
+      meterNumber: readingNoveltyResultSQL.meter_number,
+      address: readingNoveltyResultSQL.address,
+      sector: readingNoveltyResultSQL.sector,
+      account: readingNoveltyResultSQL.account,
+      clientName: readingNoveltyResultSQL.client_name,
+      cardId: readingNoveltyResultSQL.card_id,
+      previousReading: readingNoveltyResultSQL.previous_reading,
+      currentReading: readingNoveltyResultSQL.current_reading,
+      readingValue: readingNoveltyResultSQL.reading_value,
+      calculatedConsumption: readingNoveltyResultSQL.calculated_consumption,
+      averageConsumption: readingNoveltyResultSQL.average_consumption,
+      rateName: readingNoveltyResultSQL.rate_name,
+      readingTypeId: readingNoveltyResultSQL.reading_type_id,
+      readingTypeName: readingNoveltyResultSQL.reading_type_name,
+      novelty: readingNoveltyResultSQL.novelty,
+      noveltyTypeId: readingNoveltyResultSQL.novelty_type_id,
+      noveltyTypeName: readingNoveltyResultSQL.novelty_type_name,
+      noveltyTypeDescription: readingNoveltyResultSQL.novelty_type_description,
+      images: readingNoveltyResultSQL.images,
+    };
+    return response;
   }
 }

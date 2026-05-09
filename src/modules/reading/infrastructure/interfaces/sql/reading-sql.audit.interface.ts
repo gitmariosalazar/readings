@@ -6,7 +6,7 @@ export interface AuditSectorSqlResult {
   completed_total: number; // totalCompletadas
   pending_total: number; // totalPendientes
   progress_percentage: number; // avancePorcentaje
-  is_complete: boolean; // completo
+  is_complete: boolean | null | number; // completo
   closure_date: Date | null; // fechaCierre
   supervisor_id: string | null;
   observations: string | null; // observaciones
@@ -20,7 +20,7 @@ export interface AuditSectorHistorySqlResult {
   expected_total: number;
   completed_total: number;
   progress_percentage: number;
-  is_complete: boolean;
+  is_complete: boolean | null | number;
   closure_date: Date | null;
   supervisor_id: string | null;
   observations: string | null;
@@ -31,7 +31,7 @@ export interface CloseAuditSectorSqlResult {
   audit_id: number;
   sector_id: number;
   reading_month: Date;
-  is_complete: boolean;
+  is_complete: boolean | null | number;
   closure_date: Date;
   supervisor_id: string;
   observations: string | null;

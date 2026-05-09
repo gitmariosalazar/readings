@@ -9,13 +9,12 @@ import { DailyStatsReportModel } from '../../../../domain/schemas/model/report/d
 import { SectorStatsReportModel } from '../../../../domain/schemas/model/report/sector-stats.model';
 import { NoveltyStatsReportModel } from '../../../../domain/schemas/model/report/novelty-stats.model';
 import { AdvancedReportReadingsModel } from '../../../../domain/schemas/model/report/advanced-report-readings.model';
-import { DatabaseServicePostgreSQL } from '../../../../../../shared/connections/database/postgresql/postgresql.service';
 import {
   AdvancedReportReadingsSQLResult,
   MonthlySummarySQLResult,
 } from '../../../interfaces/sql/reading-sql.result.interface';
-import { ReadingPostgreSQLAdapter } from '../adapters/reading-postgresql.adapter';
-import { ReadingAuditMapper } from '../adapters/reading-postgresql.audit.adapter';
+import { ReadingSQLAdapter } from '../../../adapters/reading-sql.adapter';
+import { ReadingAuditMapper } from '../../../adapters/reading-sql.audit.adapter';
 import {
   AuditSectorHistoryModel,
   AuditSectorModel,
@@ -29,134 +28,76 @@ import {
 } from '../../../interfaces/sql/reading-sql.audit.interface';
 import { RpcException } from '@nestjs/microservices';
 import { statusCode } from '../../../../../../settings/environments/status-code';
+import {
+  DatabaseAbstract,
+  IDatabaseClient,
+} from '../../../../../../shared/connections/database/abstract/abstract.database';
 
 @Injectable()
 export class ReadingReportPostgreSQLPersistence
   implements InterfaceReadingReportRepository
 {
-  constructor(private readonly postgresqlService: DatabaseServicePostgreSQL) {}
+  constructor(private readonly databaseService: DatabaseAbstract) {}
 
-  /**
-   * Helper: SQL fragment for the "connection existed in this month" rule.
-   *
-   * Business rule:
-   *  - Migrated connections (fecha_inicio_lecturas IS NULL) → always included.
-   *  - New connections → included only when fecha_inicio_lecturas <= last day of queried month.
-   *
-   * param placeholder  The $N positional parameter that holds the YYYY-MM string.
-   */
-  private readonly periodFilter = (placeholder: string) => `
-    (
-      ac.fecha_inicio_lecturas IS NULL
-      OR ac.fecha_inicio_lecturas
-         <= (date_trunc('month', (${placeholder}::text || '-01')::date) + interval '1 month - 1 day')::date
-    )
-  `;
-
-  /**
-   * Helper: SQL fragment for reliable reading date range.
-   * Double-filters on mes_lectura AND the real fecha_lectura range to guard
-   * against historically mis-tagged rows imported from legacy systems.
-   *
-   * param placeholder  The $N positional parameter that holds the YYYY-MM string.
-   */
-  private readonly lecturaMonthFilter = (placeholder: string) => `
-    mes_lectura = ${placeholder}
-    AND fecha_lectura >= date_trunc('month', (${placeholder}::text || '-01')::date)
-    AND fecha_lectura  < date_trunc('month', (${placeholder}::text || '-01')::date) + interval '1 month'
-  `;
-
-  // ─────────────────────────────────────────────────────────────────────────────
-  // ADVANCED REPORT: sector-level reading progress for a given month
-  // ─────────────────────────────────────────────────────────────────────────────
   async findAdvancedReportReadings(
     month: string,
   ): Promise<AdvancedReportReadingsModel[]> {
-    // OPT: Single CTE replaces the previous double-scan on acometida.
-    //      Before: subquery `s` (DISTINCT sectors) + subquery `a` (counts) both
-    //      did identical JOINs and WHERE on acometida → two full table scans.
-    //      Now: one pass with GROUP BY, sectors derived from the same result.
     const query = `
       WITH readable_connections AS (
-        -- Single pass over acometida: yields sector-level counts AND the sector list
         SELECT
           ac.sector,
-          COUNT(*)                                            AS total_readable_units,
-          SUM(CASE WHEN ac.estado_id = 1  THEN 1 ELSE 0 END) AS pure_active_units,
+          COUNT(*) AS total_readable_units,
+          SUM(CASE WHEN ac.estado_id = 1 THEN 1 ELSE 0 END) AS pure_active_units,
           SUM(CASE WHEN ac.estado_id <> 1 THEN 1 ELSE 0 END) AS special_status_with_reading
         FROM acometida ac
         JOIN cat_estados_acometida est ON ac.estado_id = est.id_estado
         WHERE est.permite_lectura = TRUE
-          AND (
-            ac.fecha_inicio_lecturas IS NULL
-            OR ac.fecha_inicio_lecturas
-               <= (date_trunc('month', ($1::text || '-01')::date) + interval '1 month - 1 day')::date
-          )
         GROUP BY ac.sector
       ),
       sector_readings AS (
-        -- Unique connections read this month, grouped by sector.
-        -- idx_lectura_mes_sector_acometida covers (mes_lectura, sector, acometida_id)
         SELECT
           sector,
           COUNT(DISTINCT acometida_id) AS readings_completed
         FROM lectura
         WHERE mes_lectura = $1
-          AND fecha_lectura >= date_trunc('month', ($1::text || '-01')::date)
-          AND fecha_lectura  < date_trunc('month', ($1::text || '-01')::date) + interval '1 month'
         GROUP BY sector
       )
       SELECT
         rc.sector,
-        rc.total_readable_units                                                      AS total_connections,
-        COALESCE(sr.readings_completed, 0)                                           AS readings_completed,
-        rc.total_readable_units - COALESCE(sr.readings_completed, 0)                 AS missing_readings,
+        rc.total_readable_units AS total_connections,
+        COALESCE(sr.readings_completed, 0) AS readings_completed,
+        rc.total_readable_units - COALESCE(sr.readings_completed, 0) AS missing_readings,
         CASE
           WHEN rc.total_readable_units = 0 THEN 0
           ELSE ROUND(COALESCE(sr.readings_completed, 0) * 100.0 / rc.total_readable_units, 1)
-        END                                                                          AS progress_percentage,
+        END AS progress_percentage,
         rc.pure_active_units,
-        rc.special_status_with_reading                                               AS suspended_or_arrears_with_reading,
-        (COALESCE(sr.readings_completed, 0) - rc.total_readable_units)               AS data_discrepancy,
+        rc.special_status_with_reading AS suspended_or_arrears_with_reading,
+        (COALESCE(sr.readings_completed, 0) - rc.total_readable_units) AS data_discrepancy,
         CASE
           WHEN rc.total_readable_units = 0 THEN 0
           ELSE ROUND(COALESCE(sr.readings_completed, 0) * 100.0 / rc.total_readable_units, 1)
-        END                                                                          AS total_visit_efficiency,
-        COALESCE(aud.total_esperado,    0)                                           AS audit_total_esperado,
-        COALESCE(aud.total_completadas, 0)                                           AS audit_total_completadas,
-        COALESCE(aud.avance_porcentaje, 0)                                           AS audit_avance_porcentaje,
-        COALESCE(aud.completo, FALSE)                                                AS audit_completo
+        END AS total_visit_efficiency,
+        COALESCE(aud.total_esperado, 0) AS audit_total_esperado,
+        COALESCE(aud.total_completadas, 0) AS audit_total_completadas,
+        COALESCE(aud.avance_porcentaje, 0) AS audit_avance_porcentaje,
+        COALESCE(aud.completo, FALSE) AS audit_completo
       FROM readable_connections rc
-      LEFT JOIN sector_readings sr
-             ON sr.sector = rc.sector
-      LEFT JOIN auditoria_lectura_sector aud
-             ON aud.sector_id = rc.sector
-            AND aud.mes_lectura = $1
+      LEFT JOIN sector_readings sr ON sr.sector = rc.sector
+      LEFT JOIN auditoria_lectura_sector aud ON aud.sector_id = rc.sector AND aud.mes_lectura = $1
       ORDER BY rc.sector;
     `;
 
     const result =
-      await this.postgresqlService.query<AdvancedReportReadingsSQLResult>(
-        query,
-        [month],
-      );
-
-    if (result.length === 0) {
-      throw new Error('No se encontraron lecturas');
-    }
-
-    const response: AdvancedReportReadingsModel[] = result.map((row) =>
-      ReadingPostgreSQLAdapter.fromReadingPostgreSQLResultToAdvancedReportReadingsModel(
-        row,
-      ),
+      await this.databaseService.query<AdvancedReportReadingsSQLResult>(query, [
+        month,
+      ]);
+    if (result.length === 0) throw new Error('No se encontraron lecturas');
+    return result.map(
+      ReadingSQLAdapter.fromReadingPostgreSQLResultToAdvancedReportReadingsModel,
     );
-
-    return response;
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // LAST READINGS BY CONNECTION (cadastral key)
-  // ─────────────────────────────────────────────────────────────────────────────
   async findLastReadingsByConnection(
     cadastralKey: string,
     limit: number,
@@ -190,25 +131,19 @@ export class ReadingReportPostgreSQLPersistence
       ORDER BY l.fecha_lectura DESC
       LIMIT $2;
     `;
-
-    const result = await this.postgresqlService.query<any>(query, [
+    const result = await this.databaseService.query<any>(query, [
       cadastralKey,
       limit,
     ]);
-
     return result.map((row) => ({
       ...row,
       readingDate: new Date(row.readingDate),
     }));
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // DAILY READINGS (by specific date)
-  // ─────────────────────────────────────────────────────────────────────────────
   async findReadingsByDate(date: string): Promise<DailyReadingsReportModel[]> {
     const startOfDay = `${date} 00:00:00`;
     const endOfDay = `${date} 23:59:59.999`;
-
     const query = `
       SELECT
         l.lectura_id                                                          AS "readingId",
@@ -231,17 +166,12 @@ export class ReadingReportPostgreSQLPersistence
       WHERE l.fecha_lectura >= $1::timestamp
         AND l.fecha_lectura  < $2::timestamp
     `;
-
-    const result = await this.postgresqlService.query<DailyReadingsReportModel>(
-      query,
-      [startOfDay, endOfDay],
-    );
-    return result;
+    return this.databaseService.query<DailyReadingsReportModel>(query, [
+      startOfDay,
+      endOfDay,
+    ]);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // YEARLY REPORT (monthly summaries for a given year)
-  // ─────────────────────────────────────────────────────────────────────────────
   async findYearlyReport(year: number): Promise<YearlyReadingsReportModel> {
     const query = `
       WITH YearlyData AS (
@@ -286,18 +216,13 @@ export class ReadingReportPostgreSQLPersistence
       FROM MonthlyMetrics
       ORDER BY month_period ASC;
     `;
-
-    const result = await this.postgresqlService.query<MonthlySummarySQLResult>(
+    const result = await this.databaseService.query<MonthlySummarySQLResult>(
       query,
       [year],
     );
-
-    const monthlySummaries = result.map((row) =>
-      ReadingPostgreSQLAdapter.fromMonthlySummarySQLResultToMonthlySummaryModel(
-        row,
-      ),
+    const monthlySummaries = result.map(
+      ReadingSQLAdapter.fromMonthlySummarySQLResultToMonthlySummaryModel,
     );
-
     const totalReadings = monthlySummaries.reduce(
       (sum, m) => sum + Number(m.totalReadings),
       0,
@@ -306,7 +231,6 @@ export class ReadingReportPostgreSQLPersistence
       (sum, m) => sum + Number(m.totalConsumption),
       0,
     );
-
     return {
       year,
       totalReadings,
@@ -316,15 +240,7 @@ export class ReadingReportPostgreSQLPersistence
     };
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // DASHBOARD METRICS (from a given date onwards)
-  // ─────────────────────────────────────────────────────────────────────────────
   async findDashboardMetrics(date: string): Promise<DashboardMetricsModel> {
-    // OPT: Consolidated into a single round-trip.
-    //      Before: 4 separate queries each with DATE(fecha_lectura) which
-    //      wraps the column in a function → seq scan (index unusable).
-    //      Now: one query with fecha_lectura >= $1::date (sargable) that
-    //      lets PostgreSQL use idx_lectura_fecha_lectura for all aggregates.
     const dashboardQuery = `
       WITH date_filter AS (
         -- Materialize once; all aggregates below reuse this filtered set
@@ -362,26 +278,20 @@ export class ReadingReportPostgreSQLPersistence
         (SELECT json_agg(json_build_object('novedad', novedad, 'count', cnt) ORDER BY cnt DESC)
          FROM dist)                          AS dist_json;
     `;
+    const [dashRes] = await this.databaseService.query<any>(dashboardQuery, [
+      date,
+    ]);
 
-    const [dashRes] = await this.postgresqlService.query<any>(
-      dashboardQuery,
-      [date],
-    );
-
-    // Destructure consolidated result
-    const totalRes   = { count: dashRes.total_count };
-    const noveltyRes = { count: dashRes.novelty_count };
-    const pendingRes = { count: dashRes.pending_count };
-    const distRes: { novedad: string; count: string }[] =
-      dashRes.dist_json ?? [];
-
-    const totalReadingsToday       = parseInt(totalRes.count);
-    const readingsWithNoveltyToday = parseInt(noveltyRes.count);
-    const pendingReadingsToday     = parseInt(pendingRes.count);
+    const totalReadingsToday = parseInt(dashRes.total_count);
+    const readingsWithNoveltyToday = parseInt(dashRes.novelty_count);
+    const pendingReadingsToday = parseInt(dashRes.pending_count);
+    const distRes = dashRes.dist_json ?? [];
 
     const efficiencyPercentage =
       totalReadingsToday > 0
-        ? ((totalReadingsToday - readingsWithNoveltyToday) / totalReadingsToday) * 100
+        ? ((totalReadingsToday - readingsWithNoveltyToday) /
+            totalReadingsToday) *
+          100
         : 0;
 
     return {
@@ -396,13 +306,7 @@ export class ReadingReportPostgreSQLPersistence
     };
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // GLOBAL STATS for a given month
-  // ─────────────────────────────────────────────────────────────────────────────
   async findGlobalStats(month: string): Promise<GlobalStatsReportModel> {
-    // OPT: totalConnections moved from a correlated scalar subquery to a CTE
-    //      so both aggregations run in parallel rather than the subquery
-    //      executing after the main lectura scan.
     const query = `
       WITH total_conn AS (
         SELECT COUNT(a.acometida_id) AS cnt
@@ -430,16 +334,12 @@ export class ReadingReportPostgreSQLPersistence
         COUNT(tasa_alcantarillado)                                           AS "countNonNullSewerRate",
         (SELECT cnt FROM total_conn)                                         AS "totalConnections"
       FROM lectura
-      WHERE mes_lectura = $1
-        AND fecha_lectura >= date_trunc('month', ($1::text || '-01')::date)
-        AND fecha_lectura  < date_trunc('month', ($1::text || '-01')::date) + interval '1 month';
+      WHERE mes_lectura = $1;
     `;
-
-    const result = await this.postgresqlService.query<GlobalStatsReportModel>(
+    const result = await this.databaseService.query<GlobalStatsReportModel>(
       query,
       [month],
     );
-
     const row = result[0];
     return {
       totalReadings: Number(row.totalReadings),
@@ -462,9 +362,6 @@ export class ReadingReportPostgreSQLPersistence
     };
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // DAILY STATS grouped by day within a month
-  // ─────────────────────────────────────────────────────────────────────────────
   async findDailyStats(month: string): Promise<DailyStatsReportModel[]> {
     const query = `
       SELECT
@@ -480,13 +377,10 @@ export class ReadingReportPostgreSQLPersistence
         COUNT(DISTINCT acometida_id)            AS "uniqueConnections"
       FROM lectura
       WHERE mes_lectura = $1
-        AND fecha_lectura >= date_trunc('month', ($1::text || '-01')::date)
-        AND fecha_lectura  < date_trunc('month', ($1::text || '-01')::date) + interval '1 month'
       GROUP BY DATE_TRUNC('day', fecha_lectura)
       ORDER BY "date";
     `;
-
-    const result = await this.postgresqlService.query<any>(query, [month]);
+    const result = await this.databaseService.query<any>(query, [month]);
     return result.map((row) => ({
       date: row.date,
       readingsCount: Number(row.readingsCount),
@@ -501,17 +395,7 @@ export class ReadingReportPostgreSQLPersistence
     }));
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // SECTOR STATS for a given month
-  // ─────────────────────────────────────────────────────────────────────────────
   async findSectorStats(month: string): Promise<SectorStatsReportModel[]> {
-    // OPT: Replaced `GROUP BY l.sector, aud.total_esperado, aud.avance_porcentaje`
-    //      with MAX() aggregates. The old form created duplicate rows if the JOIN
-    //      ever produced more than one audit row per sector (e.g. during backfills).
-    //      The UNIQUE constraint (mes_lectura, sector_id) prevents it in practice,
-    //      but using MAX() is safer and lets PostgreSQL skip the extra sort key.
-    //      Also moved the JOIN condition into WHERE-equivalent via ON clause only,
-    //      which is already correct — kept for clarity.
     const query = `
       SELECT
         l.sector,
@@ -525,16 +409,13 @@ export class ReadingReportPostgreSQLPersistence
         COALESCE(MAX(aud.avance_porcentaje), 0)               AS "auditProgress"
       FROM lectura l
       LEFT JOIN auditoria_lectura_sector aud
-             ON aud.sector_id  = l.sector
+            ON aud.sector_id  = l.sector
             AND aud.mes_lectura = $1
       WHERE l.mes_lectura = $1
-        AND l.fecha_lectura >= date_trunc('month', ($1::text || '-01')::date)
-        AND l.fecha_lectura  < date_trunc('month', ($1::text || '-01')::date) + interval '1 month'
       GROUP BY l.sector
       ORDER BY "readingsCount" DESC;
     `;
-
-    const result = await this.postgresqlService.query<any>(query, [month]);
+    const result = await this.databaseService.query<any>(query, [month]);
     return result.map((row) => ({
       sector: Number(row.sector),
       readingsCount: Number(row.readingsCount),
@@ -548,9 +429,6 @@ export class ReadingReportPostgreSQLPersistence
     }));
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // NOVELTY STATS for a given month
-  // ─────────────────────────────────────────────────────────────────────────────
   async findNoveltyStats(month: string): Promise<NoveltyStatsReportModel[]> {
     const query = `
       SELECT
@@ -561,13 +439,10 @@ export class ReadingReportPostgreSQLPersistence
         SUM(valor_lectura)                                   AS "totalReadingValue"
       FROM lectura
       WHERE mes_lectura = $1
-        AND fecha_lectura >= date_trunc('month', ($1::text || '-01')::date)
-        AND fecha_lectura  < date_trunc('month', ($1::text || '-01')::date) + interval '1 month'
       GROUP BY novedad
       ORDER BY "count" DESC;
     `;
-
-    const result = await this.postgresqlService.query<any>(query, [month]);
+    const result = await this.databaseService.query<any>(query, [month]);
     return result.map((row) => ({
       novelty: row.novelty,
       count: Number(row.count),
@@ -576,30 +451,19 @@ export class ReadingReportPostgreSQLPersistence
       totalReadingValue: Number(row.totalReadingValue),
     }));
   }
-  // ═══════════════════════════════════════════════════════════════════════════
-  // AUDIT LECTURAS POR SECTOR
-  // ═══════════════════════════════════════════════════════════════════════════
 
-  /**
-   * Llama al procedimiento almacenado que genera las metas de auditoría
-   * para todos los sectores del mes dado, usando acometidas con permite_lectura = TRUE.
-   */
   async initializeMonthlyAudit(month: string): Promise<InitializeAuditModel> {
     try {
-      await this.postgresqlService.query(
+      await this.databaseService.query(
         `CALL pr_generar_auditoria_mensual($1::char)`,
         [month],
       );
-
-      const summary = await this.postgresqlService.query<{
+      const summary = await this.databaseService.query<{
         sectors_generated: string;
       }>(
-        `SELECT COUNT(*) AS sectors_generated
-         FROM auditoria_lectura_sector
-         WHERE mes_lectura = $1`,
+        `SELECT COUNT(*) AS sectors_generated FROM auditoria_lectura_sector WHERE mes_lectura = $1`,
         [month],
       );
-
       return ReadingAuditMapper.fromInitializeAuditSqlResultToModel({
         message: `Auditoría inicializada correctamente para el periodo ${month}`,
         period: month,
@@ -613,13 +477,8 @@ export class ReadingReportPostgreSQLPersistence
     }
   }
 
-  /**
-   * Retorna el estado de auditoría de todos los sectores para un mes dado.
-   * Incluye avance, pendientes y si el sector fue cerrado.
-   */
   async getAuditByMonth(month: string): Promise<AuditSectorModel[]> {
-    try {
-      const query = `
+    const query = `
         SELECT
           als.audit_id                    AS audit_idd,
           als.mes_lectura                 AS reading_month,
@@ -637,31 +496,19 @@ export class ReadingReportPostgreSQLPersistence
         FROM public.auditoria_lectura_sector als
         WHERE als.mes_lectura = $1
         ORDER BY als.sector_id;
-      `;
-
-      const result = await this.postgresqlService.query<AuditSectorSqlResult>(
-        query,
-        [month],
-      );
-      return ReadingAuditMapper.toListOfAuditSectorModels(result);
-    } catch (error) {
-      throw new RpcException({
-        statusCode: statusCode.INTERNAL_SERVER_ERROR,
-        message: `Error al obtener auditoría del mes ${month}`,
-      });
-    }
+    `;
+    const result = await this.databaseService.query<AuditSectorSqlResult>(
+      query,
+      [month],
+    );
+    return ReadingAuditMapper.toListOfAuditSectorModels(result);
   }
 
-  /**
-   * Retorna el estado de auditoría de un sector específico para un mes.
-   * Usado por el supervisor de zona para ver el detalle de su área.
-   */
   async getAuditBySectorAndMonth(
     sector: number,
     month: string,
   ): Promise<AuditSectorModel | null> {
-    try {
-      const query = `
+    const query = `
         SELECT
           als.audit_id                    AS audit_idd,
           als.mes_lectura                 AS reading_month,
@@ -680,37 +527,22 @@ export class ReadingReportPostgreSQLPersistence
         WHERE als.sector_id = $1
           AND als.mes_lectura = $2
         LIMIT 1;
-      `;
-
-      const result = await this.postgresqlService.query<AuditSectorSqlResult>(
-        query,
-        [sector, month],
-      );
-
-      return result[0]
-        ? ReadingAuditMapper.toAuditSectorModel(result[0])
-        : null;
-    } catch (error) {
-      throw new RpcException({
-        statusCode: statusCode.INTERNAL_SERVER_ERROR,
-        message: `Error al obtener auditoría del sector ${sector}`,
-      });
-    }
+    `;
+    const result = await this.databaseService.query<AuditSectorSqlResult>(
+      query,
+      [sector, month],
+    );
+    return result[0] ? ReadingAuditMapper.toAuditSectorModel(result[0]) : null;
   }
 
-  /**
-   * Cierre supervisado de la auditoría de un sector.
-   * Solo un supervisor (usuario_supervisor_id) puede cerrar manualmente.
-   * Una vez cerrado con supervisor, el trigger impide reapertura automática.
-   */
   async closeAuditSector(
     sector: number,
     month: string,
     supervisorId: string,
     observaciones?: string,
   ): Promise<CloseAuditSectorModel> {
-    try {
-      const query = `
+    return this.databaseService.transaction(async (client: IDatabaseClient) => {
+      const updateQuery = `
         UPDATE public.auditoria_lectura_sector
         SET
           completo              = TRUE,
@@ -729,39 +561,27 @@ export class ReadingReportPostgreSQLPersistence
           usuario_supervisor_id::text AS supervisor_id,
           observaciones               AS observations,
           created_at                  AS created_at;
-      `;
-
-      const result =
-        await this.postgresqlService.query<CloseAuditSectorSqlResult>(query, [
-          sector,
-          month,
-          supervisorId,
-          observaciones ?? null,
-        ]);
-
-      if (result.length === 0) {
+          `;
+      const rows = await client.query<CloseAuditSectorSqlResult>(updateQuery, [
+        sector,
+        month,
+        supervisorId,
+        observaciones ?? null,
+      ]);
+      if (rows.length === 0)
         throw new RpcException({
           statusCode: statusCode.NOT_FOUND,
-          message: `No se encontró la auditoría del sector ${sector} para el mes ${month}`,
+          message: `No se encontró la auditoría del sector ${sector}`,
         });
-      }
-
-      return ReadingAuditMapper.fromCloseAuditSectorSqlResultToModel(result[0]);
-    } catch (error) {
-      throw error;
-    }
+      return ReadingAuditMapper.fromCloseAuditSectorSqlResultToModel(rows[0]);
+    });
   }
 
-  /**
-   * Histórico de avances de un sector a lo largo de los últimos N meses.
-   * Ideal para gráficas de tendencia de eficiencia del lector de zona.
-   */
   async getAuditHistoryBySector(
     sector: number,
     months: number = 12,
   ): Promise<AuditSectorHistoryModel[]> {
-    try {
-      const query = `
+    const query = `
         SELECT
           als.mes_lectura       AS reading_month,
           als.sector_id         AS sector_id,
@@ -777,20 +597,12 @@ export class ReadingReportPostgreSQLPersistence
         WHERE als.sector_id = $1
         ORDER BY als.mes_lectura DESC
         LIMIT $2;
-      `;
-
-      const result =
-        await this.postgresqlService.query<AuditSectorHistorySqlResult>(query, [
-          sector,
-          months,
-        ]);
-
-      return ReadingAuditMapper.toListOfAuditSectorHistoryModels(result);
-    } catch (error) {
-      throw new RpcException({
-        statusCode: statusCode.INTERNAL_SERVER_ERROR,
-        message: `Error al obtener histórico de auditoría del sector ${sector}`,
-      });
-    }
+    `;
+    const result =
+      await this.databaseService.query<AuditSectorHistorySqlResult>(query, [
+        sector,
+        months,
+      ]);
+    return ReadingAuditMapper.toListOfAuditSectorHistoryModels(result);
   }
 }

@@ -1,7 +1,7 @@
-import { ObservationReadingModel } from '../../../../domain/schemas/model/observation-reading.model';
-import { ObservationModel } from '../../../../domain/schemas/model/observation.model';
-import { ObservationDetailsModel } from '../../../../domain/schemas/model/observation-details.model';
-import { ObservationReadingSQLResponse } from '../../../interfaces/sql/observatio-reading.sql.response';
+import { ObservationReadingModel } from '../../domain/schemas/model/observation-reading.model';
+import { ObservationModel } from '../../domain/schemas/model/observation.model';
+import { ObservationDetailsModel } from '../../domain/schemas/model/observation-details.model';
+import { ObservationReadingSQLResponse } from '../interfaces/sql/observatio-reading.sql.response';
 
 export class ObservationReadingSQLAdapter {
   static toObservationReadingModel(

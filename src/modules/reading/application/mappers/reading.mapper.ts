@@ -1,9 +1,13 @@
 import { CreateReadingRequest } from '../dtos/request/create-reading.request';
 import { UpdateReadingRequest } from '../dtos/request/update-reading.request';
-import { ReadingModel } from '../../domain/schemas/model/reading.model';
+import {
+  ReadingModel,
+  ReadingNoveltyModel,
+} from '../../domain/schemas/model/reading.model';
 import {
   MonthlySummaryResponse,
   PendingReadingConnectionResponse,
+  ReadingNoveltyResponse,
   ReadingResponse,
   TakenReadingConnectionResponse,
 } from '../dtos/response/reading.response';
@@ -186,6 +190,38 @@ export class ReadingMapper {
       minConsumption: monthlySummary.minConsumption,
       incidentCount: monthlySummary.incidentCount,
       incidentRatePercentage: monthlySummary.incidentRatePercentage,
+    };
+    return response;
+  }
+
+  static fromReadingNoveltyModelToReadingNoveltyResponse(
+    readingNovelty: ReadingNoveltyModel,
+  ): ReadingNoveltyResponse {
+    const response: ReadingNoveltyResponse = {
+      readingId: readingNovelty.readingId,
+      readingDate: readingNovelty.readingDate,
+      readingMonth: readingNovelty.readingMonth,
+      readingTime: readingNovelty.readingTime,
+      cadastralKey: readingNovelty.cadastralKey,
+      meterNumber: readingNovelty.meterNumber,
+      address: readingNovelty.address,
+      sector: readingNovelty.sector,
+      account: readingNovelty.account,
+      clientName: readingNovelty.clientName,
+      cardId: readingNovelty.cardId,
+      previousReading: readingNovelty.previousReading,
+      currentReading: readingNovelty.currentReading,
+      readingValue: readingNovelty.readingValue,
+      calculatedConsumption: readingNovelty.calculatedConsumption,
+      averageConsumption: readingNovelty.averageConsumption,
+      rateName: readingNovelty.rateName,
+      readingTypeId: readingNovelty.readingTypeId,
+      readingTypeName: readingNovelty.readingTypeName,
+      novelty: readingNovelty.novelty,
+      noveltyTypeId: readingNovelty.noveltyTypeId,
+      noveltyTypeName: readingNovelty.noveltyTypeName,
+      noveltyTypeDescription: readingNovelty.noveltyTypeDescription,
+      images: readingNovelty.images,
     };
     return response;
   }

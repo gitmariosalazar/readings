@@ -1,19 +1,11 @@
 import { Get, Module } from '@nestjs/common';
-import { ClientsModule, Transport } from '@nestjs/microservices';
 import { ReadingController } from '../../controllers/readings.controller';
-import { ReadingPersistencePostgreSQL } from '../../repositories/postgresql/persistence/reading-postgresql.persistence';
-import { ReadingImagesPersistencePostgreSQL } from '../../repositories/postgresql/persistence/reading-images-postgresql.persistence';
-import { environments } from '../../../../../settings/environments/environments';
-import { ObservationReadingPostgreSQLPersistence } from '../../../../observations/infrastructure/repositories/postgresql/persistence/postgresql.observation-reading.persistence';
-
 import { CreateReadingUseCase } from '../../../application/usecases/commands/CreateReadingUseCase';
 import { UpdateReadingUseCase } from '../../../application/usecases/commands/UpdateReadingUseCase';
 import { FindReadingUseCase } from '../../../application/usecases/queries/FindReadingUseCase';
 import { FindBasicReadingUseCase } from '../../../application/usecases/queries/FindBasicReadingUseCase';
-
 import { ReadingReportController } from '../../controllers/reading-report.controller';
 import { ReadingImagesController } from '../../controllers/reading-images.controller';
-import { ReadingReportPostgreSQLPersistence } from '../../repositories/postgresql/persistence/reading-report-postgresql.persistence';
 import { GetConnectionLastReadingsReportUseCase } from '../../../application/usecases/reports/GetConnectionLastReadingsReportUseCase';
 import { GetDailyReadingsReportUseCase } from '../../../application/usecases/reports/GetDailyReadingsReportUseCase';
 import { GetYearlyReadingsReportUseCase } from '../../../application/usecases/reports/GetYearlyReadingsReportUseCase';
@@ -37,6 +29,10 @@ import { GetAuditByMonthUseCase } from '../../../application/usecases/audit/GetA
 import { GetAuditBySectorAndMonthUseCase } from '../../../application/usecases/audit/GetAuditBySectorAndMonthUseCase';
 import { CloseAuditSectorUseCase } from '../../../application/usecases/audit/CloseAuditSectorUseCase';
 import { GetAuditHistoryBySectorUseCase } from '../../../application/usecases/audit/GetAuditHistoryBySectorUseCase';
+import { ObservationReadingMySQLPersistence } from '../../../../observations/infrastructure/repositories/mysql/persistence/mysql.observation-reading.persistence';
+import { ReadingPersistenceMySQL } from '../../repositories/mysql/persistence/reading-mysql.persistence';
+import { ReadingReportMySQLPersistence } from '../../repositories/mysql/persistence/reading-report-mysql.persistence';
+import { ReadingImagesPersistenceMySQL } from '../../repositories/mysql/persistence/reading-images-mysql.persistence';
 import { GetReadingByNoveltyUseCase } from '../../../application/usecases/queries/GetReadingByNoveltyUseCase';
 
 @Module({
@@ -78,21 +74,21 @@ import { GetReadingByNoveltyUseCase } from '../../../application/usecases/querie
 
     {
       provide: 'ReadingRepository',
-      useClass: ReadingPersistencePostgreSQL,
+      useClass: ReadingPersistenceMySQL,
     },
     {
       provide: 'ObservationReadingRepository',
-      useClass: ObservationReadingPostgreSQLPersistence,
+      useClass: ObservationReadingMySQLPersistence,
     },
     {
       provide: 'ReadingReportRepository',
-      useClass: ReadingReportPostgreSQLPersistence,
+      useClass: ReadingReportMySQLPersistence,
     },
     {
       provide: 'ReadingImagesRepository',
-      useClass: ReadingImagesPersistencePostgreSQL,
+      useClass: ReadingImagesPersistenceMySQL,
     },
   ],
   exports: [],
 })
-export class ReadingModuleUsingPostgreSQL {}
+export class ReadingModuleUsingMySQL {}

@@ -1,4 +1,7 @@
-import { ReadingModel } from '../schemas/model/reading.model';
+import {
+  ReadingModel,
+  ReadingNoveltyModel,
+} from '../schemas/model/reading.model';
 import { ReadingBasicInfoModel } from '../schemas/model/reading-basic-info.model';
 import { ReadingInfoModel } from '../schemas/model/reading-info.model';
 import { ReadingHistoryModel } from '../schemas/model/reading-history.model';
@@ -40,4 +43,10 @@ export interface InterfaceReadingRepository {
     month: string,
     sector?: number,
   ): Promise<TakenReadingConnectionModel[]>;
+
+  getReadingByNovelty(
+    dateMonth: string,
+    novelty?: string,
+    sector?: number,
+  ): Promise<ReadingNoveltyModel[]>;
 }

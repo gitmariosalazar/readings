@@ -3,7 +3,6 @@ import { ClientsModule, Transport } from "@nestjs/microservices";
 import { PhotoReadingController } from "../../controllers/photo-reading.controller";
 import { PhotoReadingPostgreSQLPersistence } from "../../repositories/postgresql/persistence/postgresql.photo-reading.persistence";
 import { environments } from "../../../../../settings/environments/environments";
-import { DatabaseServicePostgreSQL } from "../../../../../shared/connections/database/postgresql/postgresql.service";
 import { PhotoReadingService } from "../../../application/services/photo-reading.service";
 
 @Module({
@@ -28,7 +27,6 @@ import { PhotoReadingService } from "../../../application/services/photo-reading
     PhotoReadingController
   ],
   providers: [
-    DatabaseServicePostgreSQL,
     PhotoReadingService,
     {
       provide: 'PhotoReadingRepository',

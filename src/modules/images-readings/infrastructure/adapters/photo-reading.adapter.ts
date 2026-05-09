@@ -1,5 +1,5 @@
-import { PhotoReadingModel } from '../../../../domain/schemas/model/photo-reading.model';
-import { PhotoReadingSQLResponse } from '../../../interfaces/sql/photo-reading.sql.response';
+import { PhotoReadingModel } from '../../domain/schemas/model/photo-reading.model';
+import { PhotoReadingSQLResponse } from '../interfaces/sql/photo-reading.sql.response';
 
 export class PhotoReadingAdapter {
   static fromPhotoReadingSQLResponseToPhotoReadingModel(

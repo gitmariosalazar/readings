@@ -4,7 +4,6 @@ import { ObservationReadingPostgreSQLPersistence } from "../../repositories/post
 import { ClientsModule, Transport } from "@nestjs/microservices";
 import { environments } from "../../../../../settings/environments/environments";
 import { ObservationReadingService } from "../../../application/services/observation-reading.service";
-import { DatabaseServicePostgreSQL } from "../../../../../shared/connections/database/postgresql/postgresql.service";
 
 @Module({
   imports: [
@@ -28,7 +27,6 @@ import { DatabaseServicePostgreSQL } from "../../../../../shared/connections/dat
     ObservationReadingController
   ],
   providers: [
-    DatabaseServicePostgreSQL,
     ObservationReadingService,
     {
       provide: 'ObservationReadingRepository',

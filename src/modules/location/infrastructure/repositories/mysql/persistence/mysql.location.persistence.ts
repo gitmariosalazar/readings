@@ -6,9 +6,7 @@ import { DatabaseAbstract } from '../../../../../../shared/connections/database/
 import { LocationModel } from '../../../../domain/schemas/model/location.model';
 
 @Injectable()
-export class LocationPersistencePostgresql
-  implements InterfaceLocationRepository
-{
+export class LocationPersistenceMySQL implements InterfaceLocationRepository {
   constructor(private readonly databaseService: DatabaseAbstract) {}
 
   async verifyLocationByConnectionIdExists(
@@ -18,15 +16,14 @@ export class LocationPersistencePostgresql
       SELECT EXISTS (
         SELECT 1
         FROM Ubicacion
-        WHERE acometidaId = $1
+        WHERE acometidaId = ?
       ) AS "exists";
     `;
 
-    const result = await this.databaseService.query<{ exists: boolean }>(
-      query,
-      [connectionId],
-    );
-    return result[0]?.exists || false;
+    const result = await this.databaseService.query<{ exists: number }>(query, [
+      connectionId,
+    ]);
+    return result[0]?.exists === 1;
   }
 
   async getLocationById(locationId: number): Promise<LocationModel | null> {
@@ -35,10 +32,10 @@ export class LocationPersistencePostgresql
         u.ubicacionId AS "locationId",
         u.acometidaId AS "connectionId",
         ST_AsText(u.coordenadas) AS "coordinates",
-        CAST(u.metadata AS TEXT) AS "metadata",
+        u.metadata AS "metadata",
         u.fechaRegistro AS "createdAt"
         FROM Ubicacion u
-      WHERE u.ubicacionId = $1;
+      WHERE u.ubicacionId = ?;
     `;
 
     const result = await this.databaseService.query<LocationSqlResult>(query, [
@@ -58,31 +55,20 @@ export class LocationPersistencePostgresql
         u.ubicacionId AS "locationId",
         u.acometidaId AS "connectionId",
         ST_AsText(u.coordenadas) AS "coordinates",
-        u.metadata::text AS "metadata",
+        u.metadata AS "metadata",
         u.fechaRegistro AS "createdAt"
       FROM Ubicacion u
-      WHERE u.acometidaId = $1;
+      WHERE u.acometidaId = ?;
     `;
 
-    const result = await this.databaseService.query<LocationSqlResult>(query, [
-      connectionId,
-    ]);
-
-    return result.map((r) =>
-      LocationAdapter.fromLocationSqlResultToLocationModel(r),
-    );
+    const result = await this.databaseService.query<LocationSqlResult>(query, [connectionId]);
+    return result.map((r) => LocationAdapter.fromLocationSqlResultToLocationModel(r));
   }
 
   async createLocation(location: LocationModel): Promise<LocationModel | null> {
     const query = `
-        INSERT INTO Ubicacion (coordenadas, metadata, acometidaId)
-          VALUES (ST_GeomFromText($1, 4326), $2::jsonb, $3)
-          RETURNING
-        ubicacionId AS "locationId",
-        acometidaId AS "connectionId",
-        ST_AsText(coordenadas) AS "coordinates",
-        metadata::text AS "metadata",
-        fechaRegistro AS "createdAt";
+      INSERT INTO Ubicacion (coordenadas, metadata, acometidaId)
+        VALUES (ST_GeomFromText(?, 4326), ?, ?);
     `;
 
     const values = [
@@ -91,13 +77,15 @@ export class LocationPersistencePostgresql
       location.getConnectionId(),
     ];
 
-    const result: LocationSqlResult[] =
-      await this.databaseService.query<LocationSqlResult>(query, values);
-    if (result.length === 0) return null;
-    const locationModel = LocationAdapter.fromLocationSqlResultToLocationModel(
-      result[0],
+    const { insertId } = await this.databaseService.execute(query, values);
+    
+    const selectResult = await this.databaseService.query<LocationSqlResult>(
+      `SELECT ubicacionId AS "locationId", acometidaId AS "connectionId", ST_AsText(coordenadas) AS "coordinates", metadata AS "metadata", fechaRegistro AS "createdAt" FROM Ubicacion WHERE ubicacionId = ?`, 
+      [insertId]
     );
 
-    return locationModel;
+    if (selectResult.length === 0) return null;
+
+    return LocationAdapter.fromLocationSqlResultToLocationModel(selectResult[0]);
   }
 }

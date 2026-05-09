@@ -11,6 +11,7 @@ import { GetPendingReadingsByMonthUseCase } from '../../application/usecases/que
 import { GetTakenReadingsByMonthUseCase } from '../../application/usecases/queries/GetTakenReadingsByMonthUseCase';
 import { GetTakenReadingEstimatesOrAverageUseCase } from '../../application/usecases/queries/GetTakenReadingEstimatesOrAverageUseCase';
 import { UUID } from 'crypto';
+import { GetReadingByNoveltyUseCase } from '../../application/usecases/queries/GetReadingByNoveltyUseCase';
 
 @Controller('Readings')
 export class ReadingController {
@@ -23,6 +24,7 @@ export class ReadingController {
     private readonly getPendingReadingsByMonthUseCase: GetPendingReadingsByMonthUseCase,
     private readonly getTakenReadingEstimatesOrAverageUseCase: GetTakenReadingEstimatesOrAverageUseCase,
     private readonly getTakenReadingsByMonthUseCase: GetTakenReadingsByMonthUseCase,
+    private readonly getReadingByNoveltyUseCase: GetReadingByNoveltyUseCase,
   ) {}
 
   @Get('find-basic-reading/:catastralCode')
@@ -108,5 +110,14 @@ export class ReadingController {
     @Payload() data: { month: string; sector?: number },
   ) {
     return this.getTakenReadingsByMonthUseCase.execute(data.month, data.sector);
+  }
+
+  @Get('get-reading-by-novelty')
+  @MessagePattern('reading.get-reading-by-novelty')
+  async getReadingByNovelty(
+    @Payload() data: { month: string; novelty?: string; sector?: number },
+  ) {
+    const { month, novelty, sector } = data;
+    return this.getReadingByNoveltyUseCase.execute(month, novelty, sector);
   }
 }

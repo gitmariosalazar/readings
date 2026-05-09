@@ -15,6 +15,7 @@ interface EnvironmentsVariables {
   DATABASE_USER: string;
   DATABASE_PASSWORD: string;
   DATABASE_NAME: string;
+  DATABASE_TYPE: 'mysql' | 'postgres';
   DEBUG: boolean;
   ALLOWED_HOSTS: string;
   SECRET_KEY: string;
@@ -45,6 +46,7 @@ const environmentsSchema = Joi.object<EnvironmentsVariables>({
   DATABASE_USER: Joi.string().required(),
   DATABASE_PASSWORD: Joi.string().required(),
   DATABASE_NAME: Joi.string().required(),
+  DATABASE_TYPE: Joi.string().valid('mysql', 'postgres').default('postgres'),
   DEBUG: Joi.boolean().default(false),
   ALLOWED_HOSTS: Joi.string().required(),
   SECRET_KEY: Joi.string().required(),
@@ -79,6 +81,7 @@ export const environments: EnvironmentsVariables = {
   DATABASE_USER: envVars.DATABASE_USER,
   DATABASE_PASSWORD: envVars.DATABASE_PASSWORD,
   DATABASE_NAME: envVars.DATABASE_NAME,
+  DATABASE_TYPE: envVars.DATABASE_TYPE,
   DEBUG: envVars.DEBUG === true,
   ALLOWED_HOSTS: envVars.ALLOWED_HOSTS,
   SECRET_KEY: envVars.SECRET_KEY,

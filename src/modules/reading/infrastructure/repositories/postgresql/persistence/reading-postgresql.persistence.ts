@@ -7,14 +7,21 @@ import {
   ReadingHistorySQLResult,
   ReadingImagesSQLResult,
   ReadingInfoSQLResult,
+  ReadingNoveltySQLResult,
   ReadingSQLResult,
   TakenReadingConnectionSQLResult,
 } from '../../../interfaces/sql/reading-sql.result.interface';
-import { ReadingPostgreSQLAdapter } from '../adapters/reading-postgresql.adapter';
-import { DatabaseServicePostgreSQL } from '../../../../../../shared/connections/database/postgresql/postgresql.service';
+import { ReadingSQLAdapter } from '../../../adapters/reading-sql.adapter';
+import {
+  DatabaseAbstract,
+  IDatabaseClient,
+} from '../../../../../../shared/connections/database/abstract/abstract.database';
 import { ReadingBasicInfoModel } from '../../../../domain/schemas/model/reading-basic-info.model';
 import { ReadingInfoModel } from '../../../../domain/schemas/model/reading-info.model';
-import { ReadingModel } from '../../../../domain/schemas/model/reading.model';
+import {
+  ReadingModel,
+  ReadingNoveltyModel,
+} from '../../../../domain/schemas/model/reading.model';
 import { RpcException } from '@nestjs/microservices';
 import { statusCode } from '../../../../../../settings/environments/status-code';
 import { getTypeCurrentConsumption } from '../../../../../../shared/types/novelty.type';
@@ -25,16 +32,13 @@ import { TakenReadingConnectionModel } from '../../../../domain/schemas/model/ta
 import { UUID } from 'crypto';
 
 @Injectable()
-export class ReadingPersistencePostgreSQL
-  implements InterfaceReadingRepository
-{
-  constructor(private readonly postgresqlService: DatabaseServicePostgreSQL) {}
+export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository {
+  constructor(private readonly databaseService: DatabaseAbstract) {}
 
   async findReadingBasicInfo(
     cadastralKey: string,
   ): Promise<ReadingBasicInfoModel[]> {
-    try {
-      const query: string = `
+    const query: string = `
         SELECT
             l.lectura_id AS "reading_id",
             l.fecha_lectura AS "previous_reading_date",
@@ -61,28 +65,18 @@ export class ReadingPersistencePostgreSQL
             LEFT JOIN consumo_promedio cp ON cp.acometida_id = ac.acometida_id
             WHERE ac.acometida_id = $1 AND l.fecha_lectura IS NOT NULL
             ORDER BY l.fecha_lectura  DESC LIMIT 2;
-      `;
-      const params: string[] = [cadastralKey];
-
-      const result =
-        await this.postgresqlService.query<ReadingBasicInfoSQLResult>(
-          query,
-          params,
-        );
-      const response: ReadingBasicInfoModel[] = result.map((value) =>
-        ReadingPostgreSQLAdapter.fromReadingPostgreSQLResultToReadingBasicInfoModel(
-          value,
-        ),
-      );
-      return response;
-    } catch (error) {
-      throw error;
-    }
+    `;
+    const result = await this.databaseService.query<ReadingBasicInfoSQLResult>(
+      query,
+      [cadastralKey],
+    );
+    return result.map((r) =>
+      ReadingSQLAdapter.fromReadingPostgreSQLResultToReadingBasicInfoModel(r),
+    );
   }
 
   async findReadingInfo(cadastralKey: string): Promise<ReadingInfoModel[]> {
-    try {
-      const query: string = `
+    const query: string = `
         WITH ultima_lectura_valida AS (
           -- 1. Últimas 5 lecturas válidas
           SELECT
@@ -243,43 +237,29 @@ export class ReadingPersistencePostgreSQL
 
         WHERE l.rn <= 2
         ORDER BY l.fecha_lectura DESC;
-      `;
+    `;
 
-      const params: string[] = [cadastralKey];
-
-      const result = await this.postgresqlService.query<ReadingInfoSQLResult>(
-        query,
-        params,
-      );
-
-      const response: ReadingInfoModel[] = result.map((value) =>
-        ReadingPostgreSQLAdapter.fromReadingPostgreSQLResultToReadingInfoModel(
-          value,
-        ),
-      );
-
-      if (response.length === 0) {
-        throw new RpcException({
-          statusCode: statusCode.NOT_FOUND,
-          message: `No readings found for cadastral key: ${cadastralKey}`,
-        });
-      }
-
-      return response;
-    } catch (error) {
-      throw error;
+    const result = await this.databaseService.query<ReadingInfoSQLResult>(
+      query,
+      [cadastralKey],
+    );
+    if (result.length === 0) {
+      throw new RpcException({
+        statusCode: statusCode.NOT_FOUND,
+        message: `No readings found for cadastral key: ${cadastralKey}`,
+      });
     }
+    return result.map((r) =>
+      ReadingSQLAdapter.fromReadingPostgreSQLResultToReadingInfoModel(r),
+    );
   }
 
   async verifyReadingIfExist(readingId: number): Promise<boolean> {
-    try {
-      const query: string = `SELECT EXISTS (SELECT 1 FROM lectura l WHERE l.lectura_id = $1)`;
-      const params: number[] = [readingId];
-      const result = await this.postgresqlService.query<boolean>(query, params);
-      return result[0];
-    } catch (error) {
-      throw error;
-    }
+    const query: string = `SELECT EXISTS (SELECT 1 FROM lectura WHERE lectura_id = $1)`;
+    const result = await this.databaseService.query<boolean[]>(query, [
+      readingId,
+    ]);
+    return result[0] as unknown as boolean;
   }
 
   async updateCurrentReading(
@@ -287,8 +267,8 @@ export class ReadingPersistencePostgreSQL
     reading: ReadingModel,
     updateUserId: UUID,
   ): Promise<ReadingModel | null> {
-    try {
-      const query: string = `
+    return this.databaseService.transaction(async (client: IDatabaseClient) => {
+      const updateQuery: string = `
         UPDATE lectura
         SET
             valor_lectura = $1,
@@ -315,38 +295,28 @@ export class ReadingPersistencePostgreSQL
           novedad as "novelty",
           codigo_ingreso as "income_code";
       `;
-
-      const params = [
+      const updateParams = [
         reading.readingValue ?? 0,
         reading.sewerRate ?? 0,
         reading.currentReading ?? 0,
-        //reading.rentalIncomeCode ?? 0,
         reading.novelty ?? 'NO NOVELTY',
-        //reading.incomeCode ?? 0,
         reading.typeNoveltyReadingId ?? 1,
         readingId,
       ];
 
-      const result = await this.postgresqlService.query<ReadingSQLResult>(
-        query,
-        params,
+      const rows = await client.query<ReadingSQLResult>(
+        updateQuery,
+        updateParams,
       );
-      if (result.length === 0) {
-        return null;
-      }
+      if (rows.length === 0) return null;
 
-      // === Registrar auditoría de usuario (UPDATE = action_type_id 2) ===
-      await this.postgresqlService.query(
+      await client.query(
         `INSERT INTO usuario_lectura(usuario_id, lectura_id, action_type_id) VALUES ($1, $2, 2)`,
         [updateUserId, readingId],
       );
 
-      return ReadingPostgreSQLAdapter.fromReadingSQLResultToReadingModel(
-        result[0],
-      );
-    } catch (error) {
-      throw error;
-    }
+      return ReadingSQLAdapter.fromReadingSQLResultToReadingModel(rows[0]);
+    });
   }
 
   async createReading(
@@ -356,207 +326,149 @@ export class ReadingPersistencePostgreSQL
     try {
       const acometidaId = reading.connectionId;
 
-      // === TRANSACCIÓN CON CONTROL AVANZADO DE DUPLICADOS ===
-      const result = await this.postgresqlService.transaction(
-        async (client) => {
-          // === 1. Obtener IDs de estados de lectura ===
-          const pendQuery = `SELECT lectura_estado_id FROM lectura_estado WHERE codigo = 'PEND' LIMIT 1;`;
-          const fuerQuery = `SELECT lectura_estado_id FROM lectura_estado WHERE codigo = 'FUER' LIMIT 1;`;
+      const result = await this.databaseService.transaction(
+        async (client: IDatabaseClient) => {
+          // 1. Obtener IDs de estados
+          const [pendRows, fuerRows, estadoAcometidaRows] = await Promise.all([
+            client.query<any>(
+              `SELECT lectura_estado_id FROM lectura_estado WHERE codigo = 'PEND' LIMIT 1;`,
+            ),
+            client.query<any>(
+              `SELECT lectura_estado_id FROM lectura_estado WHERE codigo = 'FUER' LIMIT 1;`,
+            ),
+            client.query<any>(
+              `
+              SELECT est.permite_lectura, est.nombre AS estado_nombre
+              FROM acometida ac
+              JOIN cat_estados_acometida est ON ac.estado_id = est.id_estado
+              WHERE ac.acometida_id = $1 LIMIT 1;
+            `,
+              [acometidaId],
+            ),
+          ]);
 
-          // === 1.1 Validar que la acometida permita lectura según cat_estados_acometida ===
-          const estadoAcometidaQuery = `
-            SELECT est.permite_lectura, est.nombre AS estado_nombre
-            FROM acometida ac
-            JOIN cat_estados_acometida est ON ac.estado_id = est.id_estado
-            WHERE ac.acometida_id = $1
-            LIMIT 1;
-          `;
-
-          const [pendResult, fuerResult, estadoAcometidaResult] =
-            await Promise.all([
-              client.query(pendQuery),
-              client.query(fuerQuery),
-              client.query(estadoAcometidaQuery, [acometidaId]),
-            ]);
-
-          // Block reading if connection state doesn't allow it
-          if (estadoAcometidaResult.rowCount === 0) {
+          if (estadoAcometidaRows.length === 0) {
             throw new RpcException({
               statusCode: statusCode.NOT_FOUND,
-              message: `La acometida ${acometidaId} no existe o no tiene estado registrado.`,
-            });
-          }
-          if (!estadoAcometidaResult.rows[0].permite_lectura) {
-            throw new RpcException({
-              statusCode: statusCode.FORBIDDEN ?? 403,
-              message: `La acometida ${acometidaId} tiene estado "${estadoAcometidaResult.rows[0].estado_nombre}" y no permite el ingreso de lecturas.`,
+              message: `Acometida ${acometidaId} no existe.`,
             });
           }
 
-          const pendId =
-            pendResult.rowCount > 0
-              ? pendResult.rows[0].lectura_estado_id
-              : null;
-          const fuerId =
-            fuerResult.rowCount > 0
-              ? fuerResult.rows[0].lectura_estado_id
-              : null;
-          console.log('pendId', pendId);
-          console.log('fuerId', fuerId);
+          if (!estadoAcometidaRows[0].permite_lectura) {
+            throw new RpcException({
+              statusCode: statusCode.FORBIDDEN,
+              message: `Estado "${estadoAcometidaRows[0].estado_nombre}" no permite lecturas.`,
+            });
+          }
+
+          const pendId = pendRows[0]?.lectura_estado_id;
+          const fuerId = fuerRows[0]?.lectura_estado_id;
+
           if (!pendId || !fuerId) {
             throw new RpcException({
-              statusCode: statusCode.INTERNAL_SERVER_ERROR,
-              message: `Estados PEND o FUER no encontrados en LecturaEstado.`,
+              statusCode: 500,
+              message: 'IDs de estado no encontrados.',
             });
           }
 
-          // === 2. CONTROL AVANZADO: REGLAS DE DUPLICADOS ===
+          // 2. Lógica de Fechas
           const timeZone = 'America/Guayaquil';
-          const now = new Date();
-          const zonedDate = toZonedTime(now, timeZone);
-
+          const zonedDate = toZonedTime(new Date(), timeZone);
           const fechaLecturaInput = reading.readingDate ?? zonedDate;
-          const mesLectura = zonedDate.toISOString().split('T')[0].slice(0, 7); // YYYY-MM
-          const novedadInput = reading.novelty ?? 'LECTURA NORMAL';
-          const observation = novedadInput.includes('LECTURA NORMAL')
-            ? 'NORMAL'
-            : novedadInput || 'LECTURA NORMAL';
+          const mesLectura = zonedDate.toISOString().split('T')[0].slice(0, 7);
 
-          const isEspecial =
-            novedadInput.includes('INICIAL') ||
-            novedadInput.includes('CAMBIO DE MEDIDOR');
-
-          // Conteo con filtro
-          const countQuery = `
-        SELECT 
-          COUNT(*) FILTER (WHERE novedad NOT LIKE '%INICIAL%' AND novedad NOT LIKE '%CAMBIO DE MEDIDOR%') AS normales,
-          COUNT(*) FILTER (WHERE novedad LIKE '%INICIAL%' OR novedad LIKE '%CAMBIO DE MEDIDOR%') AS especiales
-        FROM lectura
-        WHERE acometida_id = $1
-          AND TO_CHAR(fecha_lectura, 'YYYY-MM') = $2
-          AND lectura_estado_id IS NOT NULL;
-      `;
-          const countResult = await client.query(countQuery, [
-            acometidaId,
-            mesLectura,
-          ]);
-          const normales = parseInt(countResult.rows[0].normales || '0', 10);
-          const especiales = parseInt(
-            countResult.rows[0].especiales || '0',
-            10,
+          // 3. Control de duplicados
+          const countRows = await client.query<any>(
+            `
+            SELECT 
+              COUNT(*) FILTER (WHERE novedad NOT LIKE '%INICIAL%' AND novedad NOT LIKE '%CAMBIO DE MEDIDOR%') AS normales,
+              COUNT(*) FILTER (WHERE novedad LIKE '%INICIAL%' OR novedad LIKE '%CAMBIO DE MEDIDOR%') AS especiales
+            FROM lectura
+            WHERE acometida_id = $1 AND TO_CHAR(fecha_lectura, 'YYYY-MM') = $2 AND lectura_estado_id IS NOT NULL;
+          `,
+            [acometidaId, mesLectura],
           );
 
-          const maxNormal = 1;
-          const maxEspecial = 2;
-
-          if (!isEspecial && normales >= maxNormal) {
+          const isEspecial =
+            (reading.novelty ?? '').includes('INICIAL') ||
+            (reading.novelty ?? '').includes('CAMBIO DE MEDIDOR');
+          if (!isEspecial && parseInt(countRows[0].normales) >= 1) {
             throw new RpcException({
               statusCode: statusCode.CONFLICT,
-              message: `Ya existe una lectura normal en ${mesLectura}. Máximo ${maxNormal} permitida.`,
+              message: `Ya existe una lectura normal en ${mesLectura}.`,
             });
           }
 
-          if (isEspecial && especiales >= maxEspecial) {
-            throw new RpcException({
-              statusCode: statusCode.CONFLICT,
-              message: `Máximo ${maxEspecial} lecturas especiales (INICIAL/CAMBIO MEDIDOR) en ${mesLectura}.`,
-            });
-          }
-
-          // === 2.5 Obterner Promedio Consumo ===
-          const avgQuery = `SELECT average_consumption FROM consumo_promedio WHERE acometida_id = $1 LIMIT 1;`;
-          const avgResult = await client.query(avgQuery, [acometidaId]);
-          const averageConsumption =
-            avgResult.rowCount > 0
-              ? parseFloat(avgResult.rows[0].average_consumption)
-              : 0;
-
+          // 4. Consumo Promedio
+          const avgRows = await client.query<any>(
+            `SELECT average_consumption FROM consumo_promedio WHERE acometida_id = $1 LIMIT 1;`,
+            [acometidaId],
+          );
+          const averageConsumption = parseFloat(
+            avgRows[0]?.average_consumption || '0',
+          );
           const calculatedNovelty = getTypeCurrentConsumption(
             reading.previousReading,
             reading.currentReading,
             averageConsumption,
           );
 
-          // === 3. Verificar rango de período ===
-          const nextQuery = `
-        SELECT fecha_inicio_periodo, fecha_fin_periodo
-        FROM siguiente_lectura
-        WHERE acometida_id = $1;
-      `;
-          const nextResult = await client.query(nextQuery, [acometidaId]);
-
+          // 5. Verificar Periodo
+          const nextRows = await client.query<any>(
+            `SELECT fecha_inicio_periodo, fecha_fin_periodo FROM siguiente_lectura WHERE acometida_id = $1;`,
+            [acometidaId],
+          );
           let estadoId = pendId;
-          let novedadFinal = calculatedNovelty.title;
-          let observationFinal = observation;
+          let observationFinal = reading.novelty || 'NORMAL';
 
           const hoy = new Date(fechaLecturaInput);
           hoy.setHours(0, 0, 0, 0);
 
-          if (nextResult.rowCount > 0) {
-            const { fecha_inicio_periodo: inicio, fecha_fin_periodo: fin } =
-              nextResult.rows[0];
-            const inicioDate = new Date(inicio);
-            const finDate = new Date(fin);
-
-            const dentro = hoy >= inicioDate && hoy <= finDate;
-
-            if (!dentro) {
+          if (nextRows.length > 0) {
+            const inicio = new Date(nextRows[0].fecha_inicio_periodo);
+            const fin = new Date(nextRows[0].fecha_fin_periodo);
+            if (hoy < inicio || hoy > fin) {
               estadoId = fuerId;
-              observationFinal = observation || 'LECTURA FUERA DE PERIODO';
+              observationFinal = 'LECTURA FUERA DE PERIODO';
             }
-          } else {
-            estadoId = fuerId;
-            observationFinal = observation || 'LECTURA SIN PERIODO DEFINIDO';
           }
 
-          // === 4. INSERT Lectura con estado y novedad correctos ===
+          // 6. INSERT con RETURNING completo para el Adapter
           const insertQuery = `
-        INSERT INTO lectura(
-          acometida_id, fecha_lectura, hora_lectura, sector, cuenta, clave_catastral,
-          valor_lectura, tasa_alcantarillado, lectura_anterior, lectura_actual,
-          codigo_ingreso_renta, novedad, codigo_ingreso, tipo_novedad_lectura_id, lectura_estado_id, mes_lectura,observacion
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
-        RETURNING
-          lectura_id as "reading_id",
-          acometida_id as "connection_id",
-          fecha_lectura as "reading_date",
-          hora_lectura as "reading_time",
-          sector as "sector",
-          cuenta as "account",
-          clave_catastral as "cadastral_key",
-          valor_lectura as "reading_value",
-          tasa_alcantarillado as "sewer_rate",
-          lectura_anterior as "previous_reading",
-          lectura_actual as "current_reading",
-          codigo_ingreso_renta as "rental_income_code",
-          novedad as "novelty",
-          codigo_ingreso as "income_code",
-          (SELECT codigo FROM Lectura_estado WHERE lectura_estado_id = $15) as "status_code";
-      `;
+            INSERT INTO lectura(
+              acometida_id, fecha_lectura, hora_lectura, sector, cuenta, clave_catastral,
+              valor_lectura, tasa_alcantarillado, lectura_anterior, lectura_actual,
+              codigo_ingreso_renta, novedad, codigo_ingreso, tipo_novedad_lectura_id, lectura_estado_id, mes_lectura,observacion
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+            RETURNING
+              lectura_id as "reading_id",
+              acometida_id as "connection_id",
+              fecha_lectura as "reading_date",
+              hora_lectura as "reading_time",
+              sector as "sector",
+              cuenta as "account",
+              clave_catastral as "cadastral_key",
+              valor_lectura as "reading_value",
+              tasa_alcantarillado as "sewer_rate",
+              lectura_anterior as "previous_reading",
+              lectura_actual as "current_reading",
+              codigo_ingreso_renta as "rental_income_code",
+              novedad as "novelty",
+              codigo_ingreso as "income_code",
+              (SELECT codigo FROM Lectura_estado WHERE lectura_estado_id = $15) as "status_code";
+          `;
 
-          let horaLectura: string | null;
-
-          if (reading.readingTime && reading.readingTime.trim() !== '') {
-            horaLectura = reading.readingTime.trim();
-          } else {
-            // Create a time string in HH:mm:ss format for Ecuador time
-            const ecTime = toZonedTime(new Date(), 'America/Guayaquil');
-            // Format manually or use a formatter if imported. Simple ISO split might be UTC.
-            // toZonedTime returns a Date instance tailored for the zone, but .toISOString() converts back to UTC.
-            // We need string representation in that zone.
-            // Using Intl.DateTimeFormat for safety.
-            horaLectura = new Intl.DateTimeFormat('en-GB', {
+          const horaLectura =
+            reading.readingTime ||
+            new Intl.DateTimeFormat('en-GB', {
               hour: '2-digit',
               minute: '2-digit',
               second: '2-digit',
-              timeZone: 'America/Guayaquil',
+              timeZone,
               hour12: false,
             }).format(new Date());
-          }
 
-          console.log('novedadFinal', reading);
-
-          const params: (string | Date | number | null)[] = [
+          const insertRows = await client.query<any>(insertQuery, [
             acometidaId,
             fechaLecturaInput,
             horaLectura,
@@ -568,48 +480,42 @@ export class ReadingPersistencePostgreSQL
             reading.previousReading ?? 0,
             reading.currentReading ?? 0,
             reading.rentalIncomeCode ?? null,
-            novedadFinal,
+            calculatedNovelty.title,
             reading.incomeCode ?? null,
             reading.typeNoveltyReadingId ?? 1,
             estadoId,
             mesLectura,
             observationFinal,
-          ];
+          ]);
 
-          const insertResult = await client.query<ReadingSQLResult>(
-            insertQuery,
-            params,
-          );
+          if (!insertRows[0]) throw new Error('Error al insertar la lectura.');
 
-          if (insertResult.rowCount === 0) {
-            throw new RpcException({
-              statusCode: statusCode.INTERNAL_SERVER_ERROR,
-              message: `Failed to create reading.`,
-            });
-          }
-
-          // === 5. Registrar auditoría de usuario (CREATE = action_type_id 1) ===
-          const newReadingId = insertResult.rows[0].reading_id;
+          // 7. Auditoría
           await client.query(
             `INSERT INTO usuario_lectura(usuario_id, lectura_id, action_type_id) VALUES ($1, $2, 1)`,
-            [creatorUserId, newReadingId],
+            [creatorUserId, insertRows[0].reading_id],
           );
 
-          return insertResult.rows[0];
+          return insertRows[0];
         },
       );
 
-      // === RESPUESTA ENRIQUECIDA ===
-      return ReadingPostgreSQLAdapter.fromReadingSQLResultToReadingModel(
-        result,
-      );
+      const readingModel: ReadingModel =
+        ReadingSQLAdapter.fromReadingSQLResultToReadingModel(result);
+      console.log('Reading created with ID:', readingModel);
+      return readingModel;
     } catch (error) {
       throw error;
     }
   }
 
-  async save(reading: ReadingModel, creatorUserId: UUID): Promise<ReadingModel> {
-    return this.createReading(reading, creatorUserId) as Promise<ReadingModel>;
+  async save(
+    reading: ReadingModel,
+    creatorUserId: UUID,
+  ): Promise<ReadingModel> {
+    const result = await this.createReading(reading, creatorUserId);
+    if (!result) throw new Error('Failed to save reading');
+    return result;
   }
 
   async findReadingHistoryByCadastralKey(
@@ -617,8 +523,7 @@ export class ReadingPersistencePostgreSQL
     limit: number,
     offset: number,
   ): Promise<ReadingHistoryModel[]> {
-    try {
-      const query: string = `
+    const query: string = `
         SELECT
             l.lectura_id                  AS reading_id,
             l.acometida_id                AS connection_id,
@@ -649,36 +554,18 @@ export class ReadingPersistencePostgreSQL
           AND l.fecha_lectura IS NOT NULL
         ORDER BY l.fecha_lectura DESC
         LIMIT $2 OFFSET $3;
-      `;
-      const params: (string | number)[] = [cadastralKey, limit, offset];
-
-      const result =
-        await this.postgresqlService.query<ReadingHistorySQLResult>(
-          query,
-          params,
-        );
-
-      if (result.length === 0) {
-        throw new RpcException({
-          statusCode: statusCode.NOT_FOUND,
-          message: `No reading history found for cadastral key: ${cadastralKey}`,
-        });
-      }
-
-      const response: ReadingHistoryModel[] = result.map((value) =>
-        ReadingPostgreSQLAdapter.fromReadingPostgreSQLResultToReadingHistoryModel(
-          value,
-        ),
-      );
-      return response;
-    } catch (error) {
-      throw error;
-    }
+    `;
+    const result = await this.databaseService.query<ReadingHistorySQLResult>(
+      query,
+      [cadastralKey, limit, offset],
+    );
+    return result.map((r) =>
+      ReadingSQLAdapter.fromReadingPostgreSQLResultToReadingHistoryModel(r),
+    );
   }
 
   async getAllReadingsImages(): Promise<ReadingImagesModel[]> {
-    try {
-      const query: string = `
+    const query: string = `
         SELECT
             fl.clave_catastral           AS cadastral_key,
             fl.lectura_id                AS reading_id,
@@ -722,36 +609,18 @@ export class ReadingPersistencePostgreSQL
             consumption
         ORDER BY
             fl.clave_catastral;
-      `;
-
-      const result = await this.postgresqlService.query<ReadingImagesSQLResult>(
-        query,
-        [],
-      );
-
-      if (result.length === 0) {
-        throw new RpcException({
-          statusCode: statusCode.NOT_FOUND,
-          message: `No reading images found.`,
-        });
-      }
-
-      const response: ReadingImagesModel[] = result.map((value) =>
-        ReadingPostgreSQLAdapter.fromReadingPostgreSQLResultToReadingImagesModel(
-          value,
-        ),
-      );
-      return response;
-    } catch (error) {
-      throw error;
-    }
+    `;
+    const result =
+      await this.databaseService.query<ReadingImagesSQLResult>(query);
+    return result.map((r) =>
+      ReadingSQLAdapter.fromReadingPostgreSQLResultToReadingImagesModel(r),
+    );
   }
 
   async findReadingsImagesByCadastralKey(
     cadastralKey: string,
   ): Promise<ReadingImagesModel[]> {
-    try {
-      const query: string = `
+    const query: string = `
         SELECT
             fl.clave_catastral           AS cadastral_key,
             fl.lectura_id                AS reading_id,
@@ -796,47 +665,30 @@ export class ReadingPersistencePostgreSQL
             consumption
         ORDER BY
             fl.clave_catastral;
-      `;
-
-      const result = await this.postgresqlService.query<ReadingImagesSQLResult>(
-        query,
-        [cadastralKey],
-      );
-
-      if (result.length === 0) {
-        throw new RpcException({
-          statusCode: statusCode.NOT_FOUND,
-          message: `No reading images found for cadastral key: ${cadastralKey}`,
-        });
-      }
-
-      const response: ReadingImagesModel[] = result.map((value) =>
-        ReadingPostgreSQLAdapter.fromReadingPostgreSQLResultToReadingImagesModel(
-          value,
-        ),
-      );
-      return response;
-    } catch (error) {
-      throw error;
-    }
+    `;
+    const result = await this.databaseService.query<ReadingImagesSQLResult>(
+      query,
+      [cadastralKey],
+    );
+    return result.map((r) =>
+      ReadingSQLAdapter.fromReadingPostgreSQLResultToReadingImagesModel(r),
+    );
   }
+
   async getPendingReadingsByMonth(
     dateMonth: string,
     sector?: number | number[] | null,
   ): Promise<PendingReadingConnectionModel[]> {
-    try {
-      const dateMonthFormatted = dateMonth.replace('/', '-');
+    const dateMonthFormatted = dateMonth.replace('/', '-');
+    const params: any[] = [dateMonthFormatted];
+    let sectorClause = '';
+    if (sector != null) {
+      const sectors = Array.isArray(sector) ? sector : [sector];
+      sectorClause = `AND ac.sector = ANY($2)`;
+      params.push(sectors);
+    }
 
-      let sectorClause = '';
-      const params: any[] = [dateMonthFormatted];
-
-      if (sector != null) {
-        const sectors = Array.isArray(sector) ? sector : [sector];
-        sectorClause = `AND ac.sector = ANY($${params.length + 1})`;
-        params.push(sectors);
-      }
-
-      const query = `
+    const query = `
         SELECT  
             ac.acometida_id          AS cadastral_key,  
             ac.numero_medidor        AS meter_number,  
@@ -870,50 +722,91 @@ export class ReadingPersistencePostgreSQL
           AND est.permite_lectura = TRUE
           ${sectorClause}
         ORDER BY ac.sector, ac.acometida_id;
-      `;
-
-      const result =
-        await this.postgresqlService.query<PendingReadingConnectionSQLResult>(
-          query,
-          params,
-        );
-
-      if (result.length === 0) {
-        throw new RpcException({
-          statusCode: statusCode.NOT_FOUND,
-          message: `No pending readings found for month: ${dateMonthFormatted}${sector ? ` and sector(s): ${sector}` : ''}`,
-        });
-      }
-
-      const response: PendingReadingConnectionModel[] = result.map((value) =>
-        ReadingPostgreSQLAdapter.fromPendingReadingConnectionPostgreSQLResultToPendingReadingConnectionModel(
-          value,
-        ),
+    `;
+    const result =
+      await this.databaseService.query<PendingReadingConnectionSQLResult>(
+        query,
+        params,
       );
+    return result.map((r) =>
+      ReadingSQLAdapter.fromPendingReadingConnectionPostgreSQLResultToPendingReadingConnectionModel(
+        r,
+      ),
+    );
+  }
 
-      return response;
-    } catch (error) {
-      throw error;
+  async getTakenReadingsByMonth(
+    dateMonth: string,
+    sector?: number | number[] | null,
+  ): Promise<TakenReadingConnectionModel[]> {
+    const dateMonthFormatted = dateMonth.replace('/', '-');
+    const params: any[] = [dateMonthFormatted];
+    let sectorClause = '';
+    if (sector != null) {
+      const sectors = Array.isArray(sector) ? sector : [sector];
+      sectorClause = `AND ac.sector = ANY($2)`;
+      params.push(sectors);
     }
+
+    const query = `
+        SELECT  
+            l.lectura_id AS reading_id,  
+            l.fecha_lectura AS reading_date,  
+            ac.acometida_id AS cadastral_key,  
+            ac.numero_medidor AS meter_number,  
+            ac.direccion AS address,  
+            ac.sector,  
+            ac.cuenta AS account,  
+            COALESCE(ci.nombres || ' ' || ci.apellidos, COALESCE(e.razon_social, e.nombre_comercial)) AS client_name,  
+            c.cliente_id AS card_id,  
+            l.lectura_anterior AS previous_reading,  
+            l.lectura_actual AS current_reading,  
+            l.valor_lectura AS reading_value,  
+            coalesce(l.lectura_actual - l.lectura_anterior,0) AS calculated_consumption,
+            cp.average_consumption AS average_consumption,  
+            ct.nombre AS rate_name,  
+            l.tipo_novedad_lectura_id AS reading_type,  
+            tnl.nombre as reading_type_name,  
+            l.novedad AS novelty  
+        FROM lectura l  
+            INNER JOIN acometida ac ON ac.acometida_id = l.acometida_id  
+            LEFT JOIN cliente c ON ac.cliente_id = c.cliente_id  
+            LEFT JOIN ciudadano ci ON ci.ciudadano_id = c.cliente_id  
+            LEFT JOIN empresa e ON e.ruc = c.cliente_id  
+            LEFT JOIN tarifa t ON t.tarifa_id = ac.tarifa_id  
+            LEFT JOIN categoria ct ON t.categoria_id = ct.categoria_id  
+            LEFT JOIN consumo_promedio cp ON cp.acometida_id = ac.acometida_id  
+            LEFT JOIN public.tipo_novedad_lectura tnl on tnl.tipo_novedad_lectura_id = l.tipo_novedad_lectura_id  
+        WHERE l.mes_lectura = $1
+            ${sectorClause}
+        ORDER BY l.fecha_lectura DESC;
+    `;
+    const result =
+      await this.databaseService.query<TakenReadingConnectionSQLResult>(
+        query,
+        params,
+      );
+    return result.map((r) =>
+      ReadingSQLAdapter.fromTakenReadingConnectionPostgreSQLResultToTakenReadingConnectionModel(
+        r,
+      ),
+    );
   }
 
   async getTakenReadingEstimatesOrAverage(
-    month: string,
-    sector?: number,
+    dateMonth: string,
+    sector?: number | number[] | null,
   ): Promise<TakenReadingConnectionModel[]> {
-    try {
-      const dateMonthFormatted = month.replace('/', '-');
+    const dateMonthFormatted = dateMonth.replace('/', '-');
+    const params: any[] = [dateMonthFormatted];
+    let sectorClause = '';
+    if (sector != null) {
+      const sectors = Array.isArray(sector) ? sector : [sector];
+      sectorClause = `AND ac.sector = ANY($2)`;
+      params.push(sectors);
+    }
 
-      let sectorClause = '';
-      const params: any[] = [dateMonthFormatted];
-
-      if (sector != null) {
-        const sectors = Array.isArray(sector) ? sector : [sector];
-        sectorClause = `AND ac.sector = ANY($${params.length + 1})`;
-        params.push(sectors);
-      }
-
-      const query: string = `
+    const query = `
         SELECT  
             l.lectura_id AS reading_id,  
             l.fecha_lectura AS reading_date,  
@@ -946,69 +839,72 @@ export class ReadingPersistencePostgreSQL
             ${sectorClause}
             AND l.tipo_novedad_lectura_id = 9
         ORDER BY l.fecha_lectura DESC;
-      `;
-
-      const result =
-        await this.postgresqlService.query<TakenReadingConnectionSQLResult>(
-          query,
-          params,
-        );
-
-      if (result.length === 0) {
-        throw new RpcException({
-          statusCode: statusCode.NOT_FOUND,
-          message: `No taken readings found for month: ${dateMonthFormatted}${sector ? ` and sector(s): ${sector}` : ''}`,
-        });
-      }
-
-      const response: TakenReadingConnectionModel[] = result.map((value) =>
-        ReadingPostgreSQLAdapter.fromTakenReadingConnectionPostgreSQLResultToTakenReadingConnectionModel(
-          value,
-        ),
+    `;
+    const result =
+      await this.databaseService.query<TakenReadingConnectionSQLResult>(
+        query,
+        params,
       );
-
-      return response;
-    } catch (error) {
-      throw error;
-    }
+    return result.map((r) =>
+      ReadingSQLAdapter.fromTakenReadingConnectionPostgreSQLResultToTakenReadingConnectionModel(
+        r,
+      ),
+    );
   }
 
-  async getTakenReadingsByMonth(
+  async getReadingByNovelty(
     dateMonth: string,
+    novelty?: string,
     sector?: number,
-  ): Promise<TakenReadingConnectionModel[]> {
-    try {
-      const dateMonthFormatted = dateMonth.replace('/', '-');
+  ): Promise<ReadingNoveltyModel[]> {
+    const dateMonthFormatted = dateMonth.replace('/', '-');
 
-      let sectorClause = '';
-      const params: any[] = [dateMonthFormatted];
+    // El arreglo inicia solo con el $1 obligatorio
+    const params: any[] = [dateMonthFormatted];
+    let paramIndex = 2; // Llevamos la cuenta del próximo $ disponible
+    let noveltyClause = '';
+    if (novelty) {
+      // Usamos el número actual y luego lo incrementamos
+      noveltyClause = `AND l.novedad ILIKE $${paramIndex}`;
+      params.push(`%${novelty}%`);
+      paramIndex++;
+    } else {
+      noveltyClause = `AND l.novedad IS NOT NULL AND l.novedad <> ''`;
+    }
+    let sectorClause = '';
+    if (sector != null) {
+      // Usamos el número que toque (puede ser $2 o $3 dependiendo de si entró la novedad)
+      sectorClause = `AND ac.sector = $${paramIndex}`;
+      params.push(sector);
+      paramIndex++;
+    }
 
-      if (sector != null) {
-        const sectors = Array.isArray(sector) ? sector : [sector];
-        sectorClause = `AND ac.sector = ANY($${params.length + 1})`;
-        params.push(sectors);
-      }
-
-      const query: string = `
+    const query = `
         SELECT  
-            l.lectura_id AS reading_id,  
-            l.fecha_lectura AS reading_date,  
-            ac.acometida_id AS cadastral_key,  
-            ac.numero_medidor AS meter_number,  
-            ac.direccion AS address,  
+            l.lectura_id AS                           reading_id,  
+            l.fecha_lectura AS                        reading_date,
+            l.mes_lectura AS                          reading_month,
+            l.hora_lectura AS                         reading_time,  
+            ac.acometida_id AS                        cadastral_key,  
+            ac.numero_medidor AS                      meter_number,  
+            ac.direccion AS                           address,  
             ac.sector,  
-            ac.cuenta AS account,  
+            ac.cuenta AS                              account,  
             COALESCE(ci.nombres || ' ' || ci.apellidos, COALESCE(e.razon_social, e.nombre_comercial)) AS client_name,  
-            c.cliente_id AS card_id,  
-            l.lectura_anterior AS previous_reading,  
-            l.lectura_actual AS current_reading,  
-            l.valor_lectura AS reading_value,  
+            c.cliente_id AS                           card_id,  
+            l.lectura_anterior AS                     previous_reading,  
+            l.lectura_actual AS                       current_reading,  
+            l.valor_lectura AS                        reading_value,  
             coalesce(l.lectura_actual - l.lectura_anterior,0) AS calculated_consumption,
-            cp.average_consumption AS average_consumption,  
-            ct.nombre AS rate_name,  
-            l.tipo_novedad_lectura_id AS reading_type,  
-            tnl.nombre as reading_type_name,  
-            l.novedad AS novelty  
+            cp.average_consumption AS                 average_consumption,  
+            ct.nombre AS                              rate_name,  
+            l.tipo_novedad_lectura_id AS              reading_type_id,  
+            tnl.nombre as                             reading_type_name,  
+            l.novedad AS                              novelty,
+            tnl.tipo_novedad_lectura_id AS            type_novelty_reading_id,
+            tnl.nombre AS                             type_novelty_reading_name,
+            tnl.descripcion AS                        type_novelty_reading_description,
+            ARRAY_AGG(fl.imagen_url)     AS images
         FROM lectura l  
             INNER JOIN acometida ac ON ac.acometida_id = l.acometida_id  
             LEFT JOIN cliente c ON ac.cliente_id = c.cliente_id  
@@ -1017,34 +913,42 @@ export class ReadingPersistencePostgreSQL
             LEFT JOIN tarifa t ON t.tarifa_id = ac.tarifa_id  
             LEFT JOIN categoria ct ON t.categoria_id = ct.categoria_id  
             LEFT JOIN consumo_promedio cp ON cp.acometida_id = ac.acometida_id  
-            LEFT JOIN public.tipo_novedad_lectura tnl on tnl.tipo_novedad_lectura_id = l.tipo_novedad_lectura_id  
+            LEFT JOIN public.tipo_novedad_lectura tnl on tnl.tipo_novedad_lectura_id = l.tipo_novedad_lectura_id
+            LEFT JOIN foto_lectura fl ON fl.lectura_id = l.lectura_id AND fl.clave_catastral = ac.acometida_id
         WHERE l.mes_lectura = $1
+            ${noveltyClause}
             ${sectorClause}
-        ORDER BY l.fecha_lectura DESC;
-      `;
-
-      const result =
-        await this.postgresqlService.query<TakenReadingConnectionSQLResult>(
-          query,
-          params,
-        );
-
-      if (result.length === 0) {
-        throw new RpcException({
-          statusCode: statusCode.NOT_FOUND,
-          message: `No taken readings found for month: ${dateMonthFormatted}${sector ? ` and sector(s): ${sector}` : ''}`,
-        });
-      }
-
-      const response: TakenReadingConnectionModel[] = result.map((value) =>
-        ReadingPostgreSQLAdapter.fromTakenReadingConnectionPostgreSQLResultToTakenReadingConnectionModel(
-          value,
-        ),
-      );
-
-      return response;
-    } catch (error) {
-      throw error;
-    }
+            GROUP BY
+            l.lectura_id,
+            l.fecha_lectura,
+            l.mes_lectura,
+            l.hora_lectura,
+            ac.acometida_id,
+            ac.numero_medidor,
+            ac.direccion,
+            ac.sector,
+            ac.cuenta,
+            client_name,
+            c.cliente_id,
+            l.lectura_anterior,
+            l.lectura_actual,
+            l.valor_lectura,
+            cp.average_consumption,
+            ct.nombre,
+            l.tipo_novedad_lectura_id,
+            tnl.nombre,
+            l.novedad,
+            tnl.tipo_novedad_lectura_id,
+            tnl.nombre,
+            tnl.descripcion
+            ORDER BY l.fecha_lectura DESC;
+    `;
+    const result = await this.databaseService.query<ReadingNoveltySQLResult>(
+      query,
+      params,
+    );
+    return result.map((r) =>
+      ReadingSQLAdapter.fromReadingNoveltySQLResultToReadingNoveltyModel(r),
+    );
   }
 }

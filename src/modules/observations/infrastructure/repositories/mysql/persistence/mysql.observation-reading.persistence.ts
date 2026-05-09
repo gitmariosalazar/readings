@@ -1,23 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import {
-  ObservationDetailsSQLResponse,
   ObservationReadingSQLResponse,
-  ObservationReadingSQLResult,
-  ObservationSQLResult,
 } from '../../../interfaces/sql/observatio-reading.sql.response';
 import { ObservationReadingSQLAdapter } from '../../../adapters/observation-reading.sql.adapter';
 import { InterfaceObservationReadingRepository } from '../../../../domain/contracts/observation-reading.interface.repository';
 import { ObservationDetailsModel } from '../../../../domain/schemas/model/observation-details.model';
 import { ObservationReadingModel } from '../../../../domain/schemas/model/observation-reading.model';
-import {
-  DatabaseAbstract,
-  IDatabaseClient,
-} from '../../../../../../shared/connections/database/abstract/abstract.database';
-import { statusCode } from '../../../../../../settings/environments/status-code';
-import { RpcException } from '@nestjs/microservices/exceptions/rpc-exception';
+import { DatabaseAbstract, IDatabaseClient } from '../../../../../../shared/connections/database/abstract/abstract.database';
 
 @Injectable()
-export class ObservationReadingPostgreSQLPersistence
+export class ObservationReadingMySQLPersistence
   implements InterfaceObservationReadingRepository
 {
   constructor(private readonly databaseService: DatabaseAbstract) {}
@@ -41,7 +33,7 @@ export class ObservationReadingPostgreSQLPersistence
           a.direccion as "address",
           a.observaciones as "observations",
           c.cliente_id as "client_id",
-          COALESCE(c2.nombres || ' ' || c2.apellidos, e.razon_social, e.nombre_comercial) AS "client_name"
+          COALESCE(CONCAT(c2.nombres, ' ', c2.apellidos), e.razon_social, e.nombre_comercial) AS "client_name"
       FROM acometida a
       INNER JOIN lectura l ON a.acometida_id = l.acometida_id
       INNER JOIN observacion_lectura ol ON l.lectura_id = ol.lectura_id
@@ -52,11 +44,7 @@ export class ObservationReadingPostgreSQLPersistence
       LEFT JOIN empresa e ON e.cliente_id = c.cliente_id
       ORDER BY l.fecha_lectura DESC;
     `;
-    const result: ObservationDetailsSQLResponse[] =
-      await this.databaseService.query<ObservationDetailsSQLResponse>(query);
-
-    if (result.length === 0) return [];
-
+    const result = await this.databaseService.query<any>(query);
     return result.map(ObservationReadingSQLAdapter.toObservationDetailsModel);
   }
 
@@ -81,7 +69,7 @@ export class ObservationReadingPostgreSQLPersistence
           a.direccion as "address",
           a.observaciones as "observations",
           c.cliente_id as "client_id",
-          COALESCE(c2.nombres || ' ' || c2.apellidos, e.razon_social, e.nombre_comercial) AS "client_name"
+          COALESCE(CONCAT(c2.nombres, ' ', c2.apellidos), e.razon_social, e.nombre_comercial) AS "client_name"
       FROM acometida a
       INNER JOIN lectura l ON a.acometida_id = l.acometida_id
       INNER JOIN observacion_lectura ol ON l.lectura_id = ol.lectura_id
@@ -90,16 +78,10 @@ export class ObservationReadingPostgreSQLPersistence
       INNER JOIN cliente c ON a.cliente_id = c.cliente_id
       LEFT JOIN ciudadano c2 ON c2.ciudadano_id = c.cliente_id
       LEFT JOIN empresa e ON e.cliente_id = c.cliente_id
-      WHERE a.clave_catastral = $1
+      WHERE a.clave_catastral = ?
       ORDER BY l.fecha_lectura DESC;
     `;
-    const result: ObservationDetailsSQLResponse[] =
-      await this.databaseService.query<ObservationDetailsSQLResponse>(query, [
-        cadastralKey,
-      ]);
-
-    if (result.length === 0) return [];
-
+    const result = await this.databaseService.query<any>(query, [cadastralKey]);
     return result.map(ObservationReadingSQLAdapter.toObservationDetailsModel);
   }
 
@@ -108,28 +90,19 @@ export class ObservationReadingPostgreSQLPersistence
   ): Promise<ObservationReadingModel> {
     return this.databaseService.transaction(async (client: IDatabaseClient) => {
       const insertObservationQuery: string = `
-        INSERT INTO observacion (titulo_observacion, detalle_observacion) VALUES ($1,$2) returning observacion_id as
-        "observation_id", titulo_observacion as "observation_title", detalle_observacion as "observation_details";
+        INSERT INTO observacion (titulo_observacion, detalle_observacion) VALUES (?,?);
       `;
       const insertObservationParams = [
         observation.getObservation()?.getObservationTitle() ?? '',
         observation.getObservation()?.getObservationDetails() ?? '',
       ];
 
-      const obsRows = await client.query<ObservationSQLResult>(
-        insertObservationQuery,
-        insertObservationParams,
-      );
-      const observationId = obsRows[0].observation_id;
+      const { insertId: observationId } = await client.execute(insertObservationQuery, insertObservationParams);
 
-      const insertReadingQuery: string = `insert into observacion_lectura (observacion_id, lectura_id) values ($1, $2) returning observacion_lectura_id as "observation_reading_id", observacion_id as "observation_id", lectura_id as "reading_id";`;
-      const readRows = await client.query<ObservationReadingSQLResult>(
-        insertReadingQuery,
-        [observationId, observation.getReadingId()],
-      );
-      const observationReadingId = readRows[0].observation_reading_id;
+      const insertObservationReadingQuery: string = `INSERT INTO observacion_lectura (observacion_id, lectura_id) VALUES (?, ?);`;
+      const { insertId: observationReadingId } = await client.execute(insertObservationReadingQuery, [observationId, observation.getReadingId()]);
 
-      const selectQuery = `
+      const selectQuery: string = `
         SELECT 
           ol.observacion_lectura_id AS "observation_reading_id",
           ol.lectura_id AS "reading_id",
@@ -138,21 +111,10 @@ export class ObservationReadingPostgreSQLPersistence
           o.detalle_observacion AS "observation_details"
         FROM observacion_lectura ol
         INNER JOIN observacion o ON ol.observacion_id = o.observacion_id
-        WHERE ol.observacion_lectura_id = $1;
+        WHERE ol.observacion_lectura_id = ?;
       `;
 
-      const rows: ObservationReadingSQLResponse[] =
-        await client.query<ObservationReadingSQLResponse>(selectQuery, [
-          observationReadingId,
-        ]);
-
-      if (rows.length === 0) {
-        throw new RpcException({
-          statusCode: statusCode.INTERNAL_SERVER_ERROR,
-          message: 'Failed to retrieve the created observation reading',
-        });
-      }
-
+      const rows = await client.query<ObservationReadingSQLResponse>(selectQuery, [observationReadingId]);
       return ObservationReadingSQLAdapter.toObservationReadingModel(rows[0]);
     });
   }
@@ -169,20 +131,9 @@ export class ObservationReadingPostgreSQLPersistence
         o.detalle_observacion AS "observation_details"
       FROM observacion_lectura ol
       INNER JOIN observacion o ON ol.observacion_id = o.observacion_id
-      WHERE ol.lectura_id = $1;
+      WHERE ol.lectura_id = ?;
     `;
-    const result: ObservationReadingSQLResponse[] =
-      await this.databaseService.query<ObservationReadingSQLResponse>(query, [
-        readingId,
-      ]);
-
-    if (result.length === 0) {
-      throw new RpcException({
-        statusCode: statusCode.NOT_FOUND,
-        message: `No observations found for reading ID ${readingId}`,
-      });
-    }
-
+    const result = await this.databaseService.query<ObservationReadingSQLResponse>(query, [readingId]);
     return result.map(ObservationReadingSQLAdapter.toObservationReadingModel);
   }
 }

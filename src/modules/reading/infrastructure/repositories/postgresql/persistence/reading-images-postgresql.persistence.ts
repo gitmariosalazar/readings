@@ -2,20 +2,19 @@ import { Injectable } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
 import { InterfaceReadingImagesRepository } from '../../../../domain/contracts/reading-images.interface.repository';
 import { ReadingImagesModel } from '../../../../domain/schemas/model/reading-images.model';
-import { DatabaseServicePostgreSQL } from '../../../../../../shared/connections/database/postgresql/postgresql.service';
 import { ReadingImagesSQLResult } from '../../../interfaces/sql/reading-sql.result.interface';
-import { ReadingPostgreSQLAdapter } from '../adapters/reading-postgresql.adapter';
+import { ReadingSQLAdapter } from '../../../adapters/reading-sql.adapter';
 import { statusCode } from '../../../../../../settings/environments/status-code';
+import { DatabaseAbstract } from '../../../../../../shared/connections/database/abstract/abstract.database';
 
 @Injectable()
 export class ReadingImagesPersistencePostgreSQL
   implements InterfaceReadingImagesRepository
 {
-  constructor(private readonly postgresqlService: DatabaseServicePostgreSQL) {}
+  constructor(private readonly databaseService: DatabaseAbstract) {}
 
   async getAllReadingsImages(): Promise<ReadingImagesModel[]> {
-    try {
-      const query: string = `
+    const query: string = `
         SELECT
             fl.clave_catastral           AS cadastral_key,
             fl.lectura_id                AS reading_id,
@@ -59,36 +58,23 @@ export class ReadingImagesPersistencePostgreSQL
             consumption
         ORDER BY
             fl.clave_catastral;
-      `;
-
-      const result = await this.postgresqlService.query<ReadingImagesSQLResult>(
-        query,
-        [],
-      );
-
-      if (result.length === 0) {
-        throw new RpcException({
-          statusCode: statusCode.NOT_FOUND,
-          message: `No reading images found.`,
-        });
-      }
-
-      const response: ReadingImagesModel[] = result.map((value) =>
-        ReadingPostgreSQLAdapter.fromReadingPostgreSQLResultToReadingImagesModel(
-          value,
-        ),
-      );
-      return response;
-    } catch (error) {
-      throw error;
-    }
+    `;
+    const result =
+      await this.databaseService.query<ReadingImagesSQLResult>(query);
+    if (result.length === 0)
+      throw new RpcException({
+        statusCode: statusCode.NOT_FOUND,
+        message: `No reading images found.`,
+      });
+    return result.map(
+      ReadingSQLAdapter.fromReadingPostgreSQLResultToReadingImagesModel,
+    );
   }
 
   async findReadingImagesByCadastralKey(
     cadastralKey: string,
   ): Promise<ReadingImagesModel[]> {
-    try {
-      const query: string = `
+    const query: string = `
         SELECT
             fl.clave_catastral           AS cadastral_key,
             fl.lectura_id                AS reading_id,
@@ -133,35 +119,24 @@ export class ReadingImagesPersistencePostgreSQL
             consumption
         ORDER BY
             fl.clave_catastral DESC, l.mes_lectura DESC;
-      `;
-
-      const result = await this.postgresqlService.query<ReadingImagesSQLResult>(
-        query,
-        [cadastralKey],
-      );
-
-      if (result.length === 0) {
-        throw new RpcException({
-          statusCode: statusCode.NOT_FOUND,
-          message: `No reading images found for cadastral key: ${cadastralKey}`,
-        });
-      }
-
-      const response: ReadingImagesModel[] = result.map((value) =>
-        ReadingPostgreSQLAdapter.fromReadingPostgreSQLResultToReadingImagesModel(
-          value,
-        ),
-      );
-      return response;
-    } catch (error) {
-      throw error;
-    }
+    `;
+    const result = await this.databaseService.query<ReadingImagesSQLResult>(
+      query,
+      [cadastralKey],
+    );
+    if (result.length === 0)
+      throw new RpcException({
+        statusCode: statusCode.NOT_FOUND,
+        message: `No reading images found for: ${cadastralKey}`,
+      });
+    return result.map(
+      ReadingSQLAdapter.fromReadingPostgreSQLResultToReadingImagesModel,
+    );
   }
 
   async findReadingImagesByMonth(month: string): Promise<ReadingImagesModel[]> {
-    try {
-      const query: string = `
-        SELECT
+    const query: string = `
+      SELECT
             fl.clave_catastral           AS cadastral_key,
             fl.lectura_id                AS reading_id,
             l.lectura_anterior           AS previews_reading,
@@ -208,29 +183,21 @@ export class ReadingImagesPersistencePostgreSQL
             consumption
         ORDER BY
             fl.clave_catastral;
-      `;
-
-      const result = await this.postgresqlService.query<ReadingImagesSQLResult>(
-        query,
-        [month],
-      );
-
-      return result.map((value) =>
-        ReadingPostgreSQLAdapter.fromReadingPostgreSQLResultToReadingImagesModel(
-          value,
-        ),
-      );
-    } catch (error) {
-      throw error;
-    }
+    `;
+    const result = await this.databaseService.query<ReadingImagesSQLResult>(
+      query,
+      [month],
+    );
+    return result.map(
+      ReadingSQLAdapter.fromReadingPostgreSQLResultToReadingImagesModel,
+    );
   }
 
   async findReadingImagesByMonthAndSector(
     month: string,
     sector: number,
   ): Promise<ReadingImagesModel[]> {
-    try {
-      const query: string = `
+    const query: string = `
         SELECT
             fl.clave_catastral           AS cadastral_key,
             fl.lectura_id                AS reading_id,
@@ -279,20 +246,13 @@ export class ReadingImagesPersistencePostgreSQL
             consumption
         ORDER BY
             fl.clave_catastral;
-      `;
-
-      const result = await this.postgresqlService.query<ReadingImagesSQLResult>(
-        query,
-        [month, sector],
-      );
-
-      return result.map((value) =>
-        ReadingPostgreSQLAdapter.fromReadingPostgreSQLResultToReadingImagesModel(
-          value,
-        ),
-      );
-    } catch (error) {
-      throw error;
-    }
+    `;
+    const result = await this.databaseService.query<ReadingImagesSQLResult>(
+      query,
+      [month, sector],
+    );
+    return result.map(
+      ReadingSQLAdapter.fromReadingPostgreSQLResultToReadingImagesModel,
+    );
   }
 }

@@ -63,14 +63,14 @@ export interface ReadingInfoSQLResult {
   meter_number: string;
   rate_id: number;
   rate_name: string;
-  has_current_reading: boolean;
+  has_current_reading: boolean | null | number;
   month_reading: string;
   start_date_period: Date;
   end_date_period: Date;
   connection_state_id: number;
   connection_state_name: string;
   connection_state_description: string;
-  permit_reading: boolean;
+  permit_reading: boolean | null | number;
 }
 
 export interface AdvancedReportReadingsSQLResult {
@@ -161,4 +161,31 @@ export interface MonthlySummarySQLResult {
   min_consumption: number;
   incident_count: number;
   incident_rate_percentage: number;
+}
+
+export interface ReadingNoveltySQLResult {
+  reading_id: number;
+  reading_date: Date | null;
+  reading_month: string;
+  reading_time: string | null;
+  cadastral_key: string;
+  meter_number: string;
+  address: string;
+  sector: number;
+  account: number;
+  client_name: string;
+  card_id: string;
+  previous_reading: number;
+  current_reading: number | null;
+  reading_value: number | null;
+  calculated_consumption: number | null;
+  average_consumption: number | null;
+  rate_name: string;
+  reading_type_id: number;
+  reading_type_name: string;
+  novelty: string;
+  novelty_type_id: number | null;
+  novelty_type_name: string | null;
+  novelty_type_description: string | null;
+  images: string[];
 }
