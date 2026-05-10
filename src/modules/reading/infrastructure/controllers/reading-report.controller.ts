@@ -45,8 +45,9 @@ export class ReadingReportController {
   async getDailyReport(
     @Payload() date: string,
   ): Promise<DailyReadingsReportResponse[]> {
-    console.log(`date payload`, date);
-    return this.getDailyReadingsUseCase.execute(date);
+    const cleanDate = typeof date === 'string' ? date.replace(/['"]+/g, '') : date;
+    console.log(`date payload`, cleanDate);
+    return this.getDailyReadingsUseCase.execute(cleanDate);
   }
 
   @MessagePattern('reading.report.yearly')
@@ -60,41 +61,47 @@ export class ReadingReportController {
   async getDashboardMetrics(
     @Payload() date: string,
   ): Promise<DashboardMetricsResponse> {
-    return this.getDashboardMetricsUseCase.execute(date);
+    const cleanDate = typeof date === 'string' ? date.replace(/['"]+/g, '') : date;
+    return this.getDashboardMetricsUseCase.execute(cleanDate);
   }
 
   @MessagePattern('reading.report.stats.global')
   async getGlobalStats(
     @Payload() month: string,
   ): Promise<GlobalStatsReportResponse> {
-    return this.getGlobalStatsUseCase.execute(month);
+    const cleanMonth = typeof month === 'string' ? month.replace(/['"]+/g, '') : month;
+    return this.getGlobalStatsUseCase.execute(cleanMonth);
   }
 
   @MessagePattern('reading.report.stats.daily')
   async getDailyStats(
     @Payload() month: string,
   ): Promise<DailyStatsReportResponse[]> {
-    return this.getDailyStatsUseCase.execute(month);
+    const cleanMonth = typeof month === 'string' ? month.replace(/['"]+/g, '') : month;
+    return this.getDailyStatsUseCase.execute(cleanMonth);
   }
 
   @MessagePattern('reading.report.stats.sector')
   async getSectorStats(
     @Payload() month: string,
   ): Promise<SectorStatsReportResponse[]> {
-    return this.getSectorStatsUseCase.execute(month);
+    const cleanMonth = typeof month === 'string' ? month.replace(/['"]+/g, '') : month;
+    return this.getSectorStatsUseCase.execute(cleanMonth);
   }
 
   @MessagePattern('reading.report.stats.novelty')
   async getNoveltyStats(
     @Payload() month: string,
   ): Promise<NoveltyStatsReportResponse[]> {
-    return this.getNoveltyStatsUseCase.execute(month);
+    const cleanMonth = typeof month === 'string' ? month.replace(/['"]+/g, '') : month;
+    return this.getNoveltyStatsUseCase.execute(cleanMonth);
   }
 
   @MessagePattern('reading.report.advanced-monthly')
   async getAdvancedReportReadings(
     @Payload() month: string,
   ): Promise<AdvancedReportReadingsResponse[]> {
-    return this.getAdvancedReportReadingsUseCase.execute(month);
+    const cleanMonth = typeof month === 'string' ? month.replace(/['"]+/g, '') : month;
+    return this.getAdvancedReportReadingsUseCase.execute(cleanMonth);
   }
 }

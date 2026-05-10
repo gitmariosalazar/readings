@@ -142,8 +142,8 @@ export class UpdateReadingUseCase {
         toUpdate.currentMonthReading,
       );
 
-      console.log(`Updated reading: ${JSON.stringify(updatedReading)}`);
-      console.log(`Reading ID: ${readingId}`);
+      //console.log(`Updated reading: ${JSON.stringify(updatedReading)}`);
+      //console.log(`Reading ID: ${readingId}`);
       const updatedReadingEntity: ReadingModel | null =
         await this.readingRepository.updateCurrentReading(
           readingId,
