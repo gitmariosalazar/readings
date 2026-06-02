@@ -311,7 +311,7 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
       if (rows.length === 0) return null;
 
       await client.query(
-        `INSERT INTO usuario_lectura(usuario_id, lectura_id, action_type_id) VALUES ($1, $2, 2)`,
+        `INSERT INTO usuario_lectura(usuario_id, lectura_id, action_type_id) VALUES ($1, $2, (SELECT id FROM cat_action_types cat where cat.code LIKE '%UPDATE%' LIMIT 1))`,
         [updateUserId, readingId],
       );
 
@@ -492,7 +492,7 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
 
           // 7. Auditoría
           await client.query(
-            `INSERT INTO usuario_lectura(usuario_id, lectura_id, action_type_id) VALUES ($1, $2, 1)`,
+            `INSERT INTO usuario_lectura(usuario_id, lectura_id, action_type_id) VALUES ($1, $2, (SELECT id FROM cat_action_types cat where cat.code LIKE '%CREATE%' LIMIT 1))`,
             [creatorUserId, insertRows[0].reading_id],
           );
 
