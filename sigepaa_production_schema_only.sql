@@ -8318,7 +8318,7 @@ CREATE VIEW public.vw_avance_actualizacion_acometidas AS
          SELECT a.acometida_id,
             a.zona_id,
             a.cliente_id,
-            ((a.predio_clave_catastral IS NOT NULL) AND (a.coordenadas IS NOT NULL)) AS acometida_actualizada,
+            (a.coordenadas IS NOT NULL) AS acometida_actualizada,
             ((p.clave_catastral IS NOT NULL) AND (p.area_terreno > (0)::numeric) AND (p.coordenadas IS NOT NULL)) AS predio_actualizado,
             (cc.tiene_email AND cc.tiene_telf_valido) AS cliente_actualizado,
             GREATEST(a.updated_at, (p.updated_at)::timestamp with time zone, c.updated_at) AS ultima_modificacion_global
@@ -8334,7 +8334,7 @@ CREATE VIEW public.vw_avance_actualizacion_acometidas AS
     predio_actualizado,
     cliente_actualizado,
     ultima_modificacion_global,
-    (acometida_actualizada AND predio_actualizado AND cliente_actualizado) AS actualizacion_completa
+    (acometida_actualizada AND cliente_actualizado) AS actualizacion_completa
    FROM cte_metricas;
 
 
