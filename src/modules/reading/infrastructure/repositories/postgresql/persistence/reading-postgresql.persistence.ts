@@ -407,10 +407,27 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
           const averageConsumption = parseFloat(
             avgRows[0]?.average_consumption || '0',
           );
+
+          // <-- NUEVO: Obtener novedades dinámicas configuradas en la BD dentro de la transacción
+          const noveltiesRows = await client.query<any>(`
+            SELECT 
+                tipo_novedad_lectura_id AS id,
+                nombre AS title,
+                descripcion AS description,
+                min_porcentaje AS "minPercentage",
+                max_porcentaje AS "maxPercentage",
+                accion_recomendada AS "actionRecommended"
+            FROM 
+                tipo_novedad_lectura
+            ORDER BY 
+                tipo_novedad_lectura_id ASC;
+          `,[]);
+
           const calculatedNovelty = getTypeCurrentConsumption(
             reading.previousReading,
             reading.currentReading,
             averageConsumption,
+            noveltiesRows, // <-- Pasar las novedades obtenidas de la BD
           );
 
           // 5. Verificar Periodo

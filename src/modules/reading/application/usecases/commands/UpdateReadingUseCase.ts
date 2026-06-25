@@ -8,15 +8,18 @@ import { ReadingModel } from '../../../domain/schemas/model/reading.model';
 import { ReadingMapper } from '../../mappers/reading.mapper';
 import { validateFields } from '../../../../../shared/validators/fields.validators';
 import { statusCode } from '../../../../../settings/environments/status-code';
-import { INovelty } from '../../../domain/schemas/model/novelty.model';
+import { NoveltyModel } from '../../../domain/schemas/model/novelty.model';
 import { getTypeCurrentConsumption } from '../../../../../shared/types/novelty.type';
 import { UUID } from 'crypto';
+import { InterfaceNoveltyRepository } from '../../../domain/contracts/novelty.interface.repository';
 
 @Injectable()
 export class UpdateReadingUseCase {
   constructor(
     @Inject('ReadingRepository')
     private readonly readingRepository: InterfaceReadingRepository,
+    @Inject('NoveltyRepository')
+    private readonly noveltyRepository: InterfaceNoveltyRepository,
   ) {}
 
   async execute(
@@ -96,10 +99,13 @@ export class UpdateReadingUseCase {
         });
       }
 
-      const consumoActual: INovelty = getTypeCurrentConsumption(
+      const novelties = await this.noveltyRepository.findAllNovelties();
+
+      const consumoActual: NoveltyModel = getTypeCurrentConsumption(
         readinRequest.previousReading,
         readinRequest.currentReading,
         readinRequest.averageConsumption!,
+        novelties,
       );
 
       readinRequest.typeNoveltyReadingId = consumoActual.id;

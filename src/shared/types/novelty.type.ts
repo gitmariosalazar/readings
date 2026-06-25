@@ -6,7 +6,7 @@ export interface INovelty {
   maxPercentage: number | null;
   actionRecommended: string;
 }
-
+/*
 export const NOVELTIES: Record<number, INovelty> = {
   1: {
     id: 1,
@@ -78,7 +78,7 @@ export const NOVELTIES: Record<number, INovelty> = {
       'Programar nueva visita. Notificar cliente. Usar promedio histórico.',
   },
 };
-
+*/
 /**
  * Determina el tipo de novedad de consumo basado en las lecturas actual y anterior comparadas con el promedio.
  * @param previousReading - La lectura anterior del medidor (en m3).
@@ -91,12 +91,38 @@ export function getTypeCurrentConsumption(
   previousReading: number | null,
   currentReading: number | null,
   average: number | null,
+  novelties: INovelty[], // <-- Nuevo parámetro dinámico
 ): INovelty {
+  // Helper para buscar y sanitizar la novedad por ID
+  const getNoveltyById = (id: number): INovelty => {
+    const found = novelties.find((n) => n.id === id);
+    if (!found) {
+      throw new Error(
+        `Novedad con ID ${id} no encontrada en la base de datos.`,
+      );
+    }
+    return {
+      id: found.id,
+      title: found.title,
+      description: found.description,
+      minPercentage:
+        found.minPercentage != null
+          ? parseFloat(found.minPercentage as any)
+          : null,
+      maxPercentage:
+        found.maxPercentage != null
+          ? parseFloat(found.maxPercentage as any)
+          : null,
+      actionRecommended: found.actionRecommended,
+    };
+  };
+
   // Validar entrada
   if (previousReading == null || currentReading == null || average == null) {
+    const sinLectura = getNoveltyById(7); // ID 7: SIN LECTURA
     return {
-      ...NOVELTIES[7], // SIN LECTURA
-      description: NOVELTIES[7].description.replace(
+      ...sinLectura,
+      description: sinLectura.description.replace(
         '{{average}}',
         average?.toFixed(2) ?? '—',
       ),
@@ -120,9 +146,10 @@ export function getTypeCurrentConsumption(
   }
 
   if (currentReading < previousReading) {
+    const lecturaInvalida = getNoveltyById(6); // ID 6: LECTURA INVÁLIDA
     return {
-      ...NOVELTIES[6], // LECTURA INVÁLIDA
-      description: NOVELTIES[6].description
+      ...lecturaInvalida,
+      description: lecturaInvalida.description
         .replace(
           '{{currentConsumption}}',
           (currentReading - previousReading).toFixed(2),
@@ -134,59 +161,64 @@ export function getTypeCurrentConsumption(
   const currentConsumption = currentReading - previousReading;
   const percentage = average > 0 ? (currentConsumption / average) * 100 : 0;
 
-  // Manejo de casos especiales
+  // Manejo de casos especiales (Consumo 0)
   if (currentConsumption === 0) {
+    const consumoMuyBajo = getNoveltyById(4); // ID 4: CONSUMO MUY BAJO
     return {
-      ...NOVELTIES[4], // CONSUMO MUY BAJO
-      description: NOVELTIES[4].description
+      ...consumoMuyBajo,
+      description: consumoMuyBajo.description
         .replace('{{currentConsumption}}', currentConsumption.toFixed(2))
         .replace('{{average}}', average.toFixed(2)),
     };
   }
 
-  // Buscar la novedad según el porcentaje
-  const novelty = Object.values(NOVELTIES).find(
-    (n) =>
-      n.minPercentage !== null &&
-      n.maxPercentage !== null &&
-      percentage >= n.minPercentage &&
-      percentage <= n.maxPercentage,
-  );
+  // Buscar dinámicamente la novedad según el porcentaje
+  const matchedNovelty = novelties.find((n) => {
+    const min =
+      n.minPercentage != null ? parseFloat(n.minPercentage as any) : null;
+    const max =
+      n.maxPercentage != null ? parseFloat(n.maxPercentage as any) : null;
 
-  if (novelty) {
+    // Rango acotado (ej: NORMAL [60 - 140])
+    if (min !== null && max !== null) {
+      return percentage >= min && percentage <= max;
+    }
+    // Rango abierto superior (ej: CONSUMO EXCESIVO > 200)
+    if (min !== null && max === null) {
+      return percentage >= min;
+    }
+    // Rango abierto inferior
+    if (min === null && max !== null) {
+      return percentage <= max;
+    }
+    return false;
+  });
+
+  if (matchedNovelty) {
     return {
-      ...novelty,
-      description: novelty.description
+      id: matchedNovelty.id,
+      title: matchedNovelty.title,
+      description: matchedNovelty.description
         .replace('{{currentConsumption}}', currentConsumption.toFixed(2))
         .replace('{{average}}', average.toFixed(2)),
+      minPercentage:
+        matchedNovelty.minPercentage != null
+          ? parseFloat(matchedNovelty.minPercentage as any)
+          : null,
+      maxPercentage:
+        matchedNovelty.maxPercentage != null
+          ? parseFloat(matchedNovelty.maxPercentage as any)
+          : null,
+      actionRecommended: matchedNovelty.actionRecommended,
     };
   }
 
-  // Asignar CONSUMO EXCESIVO para >200%
-  if (percentage > 200.0) {
-    return {
-      ...NOVELTIES[5], // CONSUMO EXCESIVO
-      description: NOVELTIES[5].description
-        .replace('{{currentConsumption}}', currentConsumption.toFixed(2))
-        .replace('{{average}}', average.toFixed(2)),
-    };
-  }
-
-  // Fallback para casos no cubiertos (no debería ocurrir con rangos completos)
+  // Fallback si nada coincide
+  const lecturaInvalida = getNoveltyById(6);
   return {
-    ...NOVELTIES[6], // LECTURA INVÁLIDA
-    description: NOVELTIES[6].description
+    ...lecturaInvalida,
+    description: lecturaInvalida.description
       .replace('{{currentConsumption}}', currentConsumption.toFixed(2))
       .replace('{{previousReading}}', previousReading.toFixed(2)),
   };
 }
-
-export type NoveltyType =
-  | 'NORMAL'
-  | 'CONSUMO BAJO'
-  | 'CONSUMO ALTO'
-  | 'CONSUMO MUY BAJO'
-  | 'CONSUMO EXCESIVO'
-  | 'LECTURA INVÁLIDA'
-  | 'SIN LECTURA'
-  | 'LECTURA INICIAL';

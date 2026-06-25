@@ -38,6 +38,8 @@ import { GetAuditBySectorAndMonthUseCase } from '../../../application/usecases/a
 import { CloseAuditSectorUseCase } from '../../../application/usecases/audit/CloseAuditSectorUseCase';
 import { GetAuditHistoryBySectorUseCase } from '../../../application/usecases/audit/GetAuditHistoryBySectorUseCase';
 import { GetReadingByNoveltyUseCase } from '../../../application/usecases/queries/GetReadingByNoveltyUseCase';
+import { FindAllNoveltiesUseCase } from '../../../application/usecases/novelties/FindAllNoveltiesUseCase';
+import { NoveltyPersistencePostgreSQL } from '../../repositories/postgresql/persistence/novelty.postgresql.persistence';
 
 @Module({
   controllers: [
@@ -75,6 +77,7 @@ import { GetReadingByNoveltyUseCase } from '../../../application/usecases/querie
     GetAuditBySectorAndMonthUseCase,
     CloseAuditSectorUseCase,
     GetAuditHistoryBySectorUseCase,
+    FindAllNoveltiesUseCase,
 
     {
       provide: 'ReadingRepository',
@@ -91,6 +94,10 @@ import { GetReadingByNoveltyUseCase } from '../../../application/usecases/querie
     {
       provide: 'ReadingImagesRepository',
       useClass: ReadingImagesPersistencePostgreSQL,
+    },
+    {
+      provide: 'NoveltyRepository',
+      useClass: NoveltyPersistencePostgreSQL,
     },
   ],
   exports: [],

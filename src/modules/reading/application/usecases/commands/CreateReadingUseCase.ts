@@ -14,9 +14,10 @@ import { InterfaceObservationReadingRepository } from '../../../../observations/
 import { CreateObservationReadingRequest } from '../../../../observations/application/dtos/request/create-observatio-reading.request';
 import { ObservationReadingModel } from '../../../../observations/domain/schemas/model/observation-reading.model';
 import { ObservationReadingMapper } from '../../../../observations/application/mappers/observation-reading.mapper';
-import { INovelty } from '../../../domain/schemas/model/novelty.model';
+import { NoveltyModel } from '../../../domain/schemas/model/novelty.model';
 import { getTypeCurrentConsumption } from '../../../../../shared/types/novelty.type';
 import { UUID } from 'crypto';
+import { InterfaceNoveltyRepository } from '../../../domain/contracts/novelty.interface.repository';
 
 @Injectable()
 export class CreateReadingUseCase {
@@ -25,6 +26,8 @@ export class CreateReadingUseCase {
     private readonly readingRepository: InterfaceReadingRepository,
     @Inject('ObservationReadingRepository')
     private readonly observationRepository: InterfaceObservationReadingRepository,
+    @Inject('NoveltyRepository')
+    private readonly noveltyRepository: InterfaceNoveltyRepository,
   ) {}
 
   async execute(
@@ -100,10 +103,13 @@ export class CreateReadingUseCase {
       readingRequest.readingTime = hora;
       readingRequest.readingDate = fechaFormateada;
 
-      const consumoActual: INovelty = getTypeCurrentConsumption(
+      const novelties = await this.noveltyRepository.findAllNovelties();
+
+      const consumoActual: NoveltyModel = getTypeCurrentConsumption(
         readingRequest.previousReading,
         readingRequest.currentReading,
         readingRequest.averageConsumption,
+        novelties,
       );
 
       readingRequest.typeNoveltyReadingId = consumoActual.id;

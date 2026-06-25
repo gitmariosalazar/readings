@@ -12,6 +12,7 @@ import { GetTakenReadingsByMonthUseCase } from '../../application/usecases/queri
 import { GetTakenReadingEstimatesOrAverageUseCase } from '../../application/usecases/queries/GetTakenReadingEstimatesOrAverageUseCase';
 import { UUID } from 'crypto';
 import { GetReadingByNoveltyUseCase } from '../../application/usecases/queries/GetReadingByNoveltyUseCase';
+import { FindAllNoveltiesUseCase } from '../../application/usecases/novelties/FindAllNoveltiesUseCase';
 
 @Controller('Readings')
 export class ReadingController {
@@ -25,6 +26,7 @@ export class ReadingController {
     private readonly getTakenReadingEstimatesOrAverageUseCase: GetTakenReadingEstimatesOrAverageUseCase,
     private readonly getTakenReadingsByMonthUseCase: GetTakenReadingsByMonthUseCase,
     private readonly getReadingByNoveltyUseCase: GetReadingByNoveltyUseCase,
+    private readonly findAllNoveltiesUseCase: FindAllNoveltiesUseCase,
   ) {}
 
   @Get('find-basic-reading/:catastralCode')
@@ -119,5 +121,11 @@ export class ReadingController {
   ) {
     const { month, novelty, sector } = data;
     return this.getReadingByNoveltyUseCase.execute(month, novelty, sector);
+  }
+
+  @Get('find-all-novelties')
+  @MessagePattern('reading.find-all-novelties')
+  async findAllNovelties() {
+    return this.findAllNoveltiesUseCase.execute();
   }
 }
