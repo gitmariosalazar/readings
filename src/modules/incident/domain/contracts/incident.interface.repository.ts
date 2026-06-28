@@ -1,6 +1,7 @@
 import { UUID } from 'crypto';
 import { IncidentModel } from '../schemas/model/incident.model';
 import { IncidentCategoryModel } from '../schemas/model/incident-category-type.model';
+import { IncidentDetailRowResponse } from '../schemas/response/view_incident.response';
 
 /**
  * Repository interface for Incident operations.
@@ -20,13 +21,15 @@ export interface InterfaceIncidentRepository {
     images: string[],
   ): Promise<IncidentModel | null>;
 
-  findIncidentsByConnection(connectionId: string): Promise<IncidentModel[]>;
-  findById(incidentId: number): Promise<IncidentModel | null>;
+  findIncidentsByConnection(
+    connectionId: string,
+  ): Promise<IncidentDetailRowResponse[]>;
+  findById(incidentId: number): Promise<IncidentDetailRowResponse | null>;
   findIncidents(filters: {
     connectionId?: string | null;
     status?: string | null;
     priority?: string | null;
     incidentTypeId?: number | null;
-  }): Promise<IncidentModel[]>;
+  }): Promise<IncidentDetailRowResponse[]>;
   findIncidentCategories(): Promise<IncidentCategoryModel[]>;
 }

@@ -13,6 +13,9 @@ import {
   IncidentSQLResult,
 } from '../../../interfaces/sql/incident-sql.result.interface';
 import { IncidentSQLAdapter } from '../../../adapters/incident-sql.adapter';
+import { IncidentDetailRowResponse } from '../../../../domain/schemas/response/view_incident.response';
+import { IncidentAdapter } from '../../../adapters/incident.adapter';
+import { IncidentDetailRowSQLResult } from '../../../interfaces/sql/view_incidents.sql-result';
 
 @Injectable()
 export class IncidentPersistencePostgreSQL implements InterfaceIncidentRepository {
@@ -26,7 +29,7 @@ export class IncidentPersistencePostgreSQL implements InterfaceIncidentRepositor
       return await this.databaseService.transaction(
         async (client: IDatabaseClient) => {
           // 1. Insert incident
-          const insertQuery = `
+          const insertQuery = /* sql */ `
           INSERT INTO public.incidente_medidor (
             acometida_id, lectura_id, tipo_incidente_id, descripcion_reporte,
             direccion_referencia, origen_reporte, prioridad, usuario_reporta_id,
@@ -65,7 +68,7 @@ export class IncidentPersistencePostgreSQL implements InterfaceIncidentRepositor
 
           // 2. Insert photos
           if (images.length > 0) {
-            const insertPhotoQuery = `
+            const insertPhotoQuery = /* sql */ `
             INSERT INTO public.foto_incidente (incidente_id, ruta_archivo, tipo_foto)
             VALUES ($1, $2, 'REPORTE');
           `;
@@ -101,7 +104,7 @@ export class IncidentPersistencePostgreSQL implements InterfaceIncidentRepositor
       return await this.databaseService.transaction(
         async (client: IDatabaseClient) => {
           // 1. Update incident state
-          const updateQuery = `
+          const updateQuery = /* sql */ `
           UPDATE public.incidente_medidor
           SET
             estado = 'RESUELTO',
@@ -132,7 +135,7 @@ export class IncidentPersistencePostgreSQL implements InterfaceIncidentRepositor
 
           // 2. Insert resolution photos
           if (images.length > 0) {
-            const insertPhotoQuery = `
+            const insertPhotoQuery = /* sql */ `
             INSERT INTO public.foto_incidente (incidente_id, ruta_archivo, tipo_foto)
             VALUES ($1, $2, 'RESOLUCION');
           `;
@@ -155,38 +158,36 @@ export class IncidentPersistencePostgreSQL implements InterfaceIncidentRepositor
 
   async findIncidentsByConnection(
     connectionId: string,
-  ): Promise<IncidentModel[]> {
-    const query = `
+  ): Promise<IncidentDetailRowResponse[]> {
+    const query = /* sql */ `
       SELECT 
-        incidente_id AS incident_id, acometida_id, lectura_id, tipo_incidente_id, descripcion_reporte,
-        direccion_referencia, estado, origen_reporte, prioridad, fecha_reporte, usuario_reporta_id,
-        cliente_usuario_reporta_id, ST_X(coordenadas) as longitude, ST_Y(coordenadas) as latitude,
-        fecha_resolucion, usuario_resuelve_id, descripcion_resolucion, cobrar_a_usuario, costo_reparacion
-      FROM public.incidente_medidor
-      WHERE acometida_id = $1
-      ORDER BY fecha_reporte DESC;
+        *
+      FROM public.view_incidentes_detalle
+      WHERE connection_id = $1
+      ORDER BY report_date DESC;
     `;
-    const result = await this.databaseService.query<IncidentSQLResult>(query, [
-      connectionId,
-    ]);
-    return result.map((r) => IncidentSQLAdapter.fromSQLResultToModel(r));
+    const result = await this.databaseService.query<IncidentDetailRowSQLResult>(
+      query,
+      [connectionId],
+    );
+    return IncidentAdapter.fromSQLResultListToResponseList(result);
   }
 
-  async findById(incidentId: number): Promise<IncidentModel | null> {
-    const query = `
+  async findById(
+    incidentId: number,
+  ): Promise<IncidentDetailRowResponse | null> {
+    const query = /* sql */ `
       SELECT 
-        incidente_id AS incident_id, acometida_id, lectura_id, tipo_incidente_id, descripcion_reporte,
-        direccion_referencia, estado, origen_reporte, prioridad, fecha_reporte, usuario_reporta_id,
-        cliente_usuario_reporta_id, ST_X(coordenadas) as longitude, ST_Y(coordenadas) as latitude,
-        fecha_resolucion, usuario_resuelve_id, descripcion_resolucion, cobrar_a_usuario, costo_reparacion
-      FROM public.incidente_medidor
-      WHERE incidente_id = $1;
+        *
+      FROM public.view_incidentes_detalle
+      WHERE incident_id = $1;
     `;
-    const result = await this.databaseService.query<IncidentSQLResult>(query, [
-      incidentId,
-    ]);
+    const result = await this.databaseService.query<IncidentDetailRowSQLResult>(
+      query,
+      [incidentId],
+    );
     if (result.length === 0) return null;
-    return IncidentSQLAdapter.fromSQLResultToModel(result[0]);
+    return IncidentAdapter.fromSQLResultToResponse(result[0]);
   }
 
   async findIncidents(filters: {
@@ -194,114 +195,49 @@ export class IncidentPersistencePostgreSQL implements InterfaceIncidentRepositor
     status?: string | null;
     priority?: string | null;
     incidentTypeId?: number | null;
-  }): Promise<IncidentModel[]> {
-    let query = `
-      SELECT 
-        i.incidente_id AS incident_id,
-        i.acometida_id AS acometida_id,
-        i.lectura_id AS lectura_id,
-        i.estado AS estado,
-        i.origen_reporte AS origen_reporte,
-        i.prioridad AS prioridad,
-        i.fecha_reporte AS fecha_reporte,
-        i.descripcion_reporte AS descripcion_reporte,
-        i.direccion_referencia AS direccion_referencia,
-        ST_Y(i.coordenadas) AS latitude,
-        ST_X(i.coordenadas) AS longitude,
-        i.usuario_reporta_id AS usuario_reporta_id,
-        i.cliente_usuario_reporta_id AS cliente_usuario_reporta_id,
-        i.fecha_resolucion AS fecha_resolucion,
-        i.usuario_resuelve_id AS usuario_resuelve_id,
-        i.descripcion_resolucion AS descripcion_resolucion,
-        i.costo_reparacion AS costo_reparacion,
-        i.cobrar_a_usuario AS cobrar_a_usuario,
-        c.nombre AS "categoryName",
-        c.codigo AS "categoryCode",
-        t.nombre AS "incidentTypeName",
-        t.prioridad_sugerida AS "suggestedPriority",
-        CASE 
-          WHEN i.usuario_reporta_id IS NOT NULL THEN 'EMPLOYEE: ' || u_rep.username || ' (' || u_rep.email || ')'
-          WHEN i.cliente_usuario_reporta_id IS NOT NULL THEN 'CLIENT: ID ' || c_rep.cliente_id || ' (' || c_rep.email || ')'
-          ELSE 'SYSTEM/ANONYMOUS'
-        END AS "reportedBy",
-        (
-          SELECT COALESCE(
-            json_agg(
-              json_build_object(
-                'photoId', f.foto_incidente_id,
-                'filePath', f.ruta_archivo,
-                'type', f.tipo_foto
-              )
-            ),
-            '[]'::json
-          )
-          FROM public.foto_incidente f
-          WHERE f.incidente_id = i.incidente_id
-        ) AS "evidencePhotos",
-        (
-          SELECT COALESCE(
-            json_agg(
-              json_build_object(
-                'changeDate', h.fecha_cambio,
-                'previousStatus', h.estado_anterior,
-                'newStatus', h.estado_nuevo,
-                'managedBy', u_hist.username,
-                'observation', h.observacion
-              ) ORDER BY h.fecha_cambio ASC
-            ),
-            '[]'::json
-          )
-          FROM public.historial_incidente h
-          LEFT JOIN public.usuarios u_hist ON u_hist.usuario_id = h.usuario_id
-          WHERE h.incidente_id = i.incidente_id
-        ) AS "statusHistory"
-      FROM public.incidente_medidor i
-      INNER JOIN public.tipo_incidente_medidor t ON t.tipo_incidente_id = i.tipo_incidente_id
-      INNER JOIN public.categoria_incidente_medidor c ON c.categoria_incidente_id = t.categoria_incidente_id
-      LEFT JOIN public.usuarios u_rep ON u_rep.usuario_id = i.usuario_reporta_id
-      LEFT JOIN public.cliente_usuario c_rep ON c_rep.cliente_usuario_id = i.cliente_usuario_reporta_id
-      LEFT JOIN public.usuarios u_res ON u_res.usuario_id = i.usuario_resuelve_id
-      WHERE 1=1
+  }): Promise<IncidentDetailRowResponse[]> {
+    let query = /* sql */ `
+      SELECT * FROM view_incidentes_detalle i WHERE 1=1
     `;
 
     const values: any[] = [];
     let paramIndex = 1;
 
     if (filters.connectionId) {
-      query += ` AND i.acometida_id = $${paramIndex}`;
+      query += /* sql */ ` AND i.connection_id = $${paramIndex}`;
       values.push(filters.connectionId);
       paramIndex++;
     }
 
     if (filters.status) {
-      query += ` AND i.estado = $${paramIndex}`;
+      query += /* sql */ ` AND i.status = $${paramIndex}`;
       values.push(filters.status);
       paramIndex++;
     }
 
     if (filters.priority) {
-      query += ` AND i.prioridad = $${paramIndex}`;
+      query += /* sql */ ` AND i.current_priority = $${paramIndex}`;
       values.push(filters.priority);
       paramIndex++;
     }
 
     if (filters.incidentTypeId) {
-      query += ` AND i.tipo_incidente_id = $${paramIndex}`;
+      query += /* sql */ ` AND i.incident_type_id = $${paramIndex}`;
       values.push(filters.incidentTypeId);
       paramIndex++;
     }
 
-    query += ` ORDER BY i.fecha_reporte DESC;`;
+    query += /* sql */ ` ORDER BY i.report_date DESC;`;
 
-    const result = await this.databaseService.query<IncidentSQLResult>(
+    const result = await this.databaseService.query<IncidentDetailRowSQLResult>(
       query,
       values,
     );
-    return result.map((r) => IncidentSQLAdapter.fromSQLResultToModel(r));
+    return IncidentAdapter.fromSQLResultListToResponseList(result);
   }
 
   async findIncidentCategories(): Promise<IncidentCategoryModel[]> {
-    const query = `
+    const query = /* sql */ `
       SELECT
           cim.categoria_incidente_id AS "category_id",
           cim.codigo AS "category_code",

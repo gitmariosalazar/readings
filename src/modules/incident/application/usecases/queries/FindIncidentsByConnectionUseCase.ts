@@ -4,6 +4,7 @@ import { IncidentResponse } from '../../dtos/response/incident.response';
 import { InterfaceIncidentRepository } from '../../../domain/contracts/incident.interface.repository';
 import { IncidentMapper } from '../../mappers/incident.mapper';
 import { statusCode } from '../../../../../settings/environments/status-code';
+import { IncidentDetailRowResponse } from '../../../domain/schemas/response/view_incident.response';
 
 @Injectable()
 /**
@@ -15,7 +16,7 @@ export class FindIncidentsByConnectionUseCase {
     private readonly incidentRepository: InterfaceIncidentRepository,
   ) {}
 
-  async execute(connectionId: string): Promise<IncidentResponse[]> {
+  async execute(connectionId: string): Promise<IncidentDetailRowResponse[]> {
     try {
       if (!connectionId || connectionId.trim().length === 0) {
         throw new RpcException({
@@ -24,8 +25,9 @@ export class FindIncidentsByConnectionUseCase {
         });
       }
 
-      const models = await this.incidentRepository.findIncidentsByConnection(connectionId);
-      return models.map(model => IncidentMapper.fromModelToResponse(model));
+      const models =
+        await this.incidentRepository.findIncidentsByConnection(connectionId);
+      return models;
     } catch (error) {
       throw error;
     }

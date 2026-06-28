@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { IncidentResponse } from '../../dtos/response/incident.response';
 import { InterfaceIncidentRepository } from '../../../domain/contracts/incident.interface.repository';
 import { IncidentMapper } from '../../mappers/incident.mapper';
+import { IncidentDetailRowResponse } from '../../../domain/schemas/response/view_incident.response';
 
 @Injectable()
 /**
@@ -18,10 +19,10 @@ export class SearchIncidentsUseCase {
     status?: string | null;
     priority?: string | null;
     incidentTypeId?: number | null;
-  }): Promise<IncidentResponse[]> {
+  }): Promise<IncidentDetailRowResponse[]> {
     try {
       const models = await this.incidentRepository.findIncidents(filters);
-      return models.map((model) => IncidentMapper.fromModelToResponse(model));
+      return models;
     } catch (error) {
       throw error;
     }
