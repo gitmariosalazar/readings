@@ -18,7 +18,7 @@ export class SearchIncidentsUseCase {
     connectionId?: string | null;
     status?: string | null;
     priority?: string | null;
-    incidentTypeId?: number | null;
+    categoryId?: number | null;
   }): Promise<IncidentDetailRowResponse[]> {
     try {
       const models = await this.incidentRepository.findIncidents(filters);

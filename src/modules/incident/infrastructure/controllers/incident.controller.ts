@@ -67,7 +67,7 @@ export class IncidentController {
       connectionId?: string | null;
       status?: string | null;
       priority?: string | null;
-      incidentTypeId?: number | null;
+      categoryId?: number | null;
     },
   ) {
     return this.searchIncidentsUseCase.execute(filters);

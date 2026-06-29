@@ -194,7 +194,7 @@ export class IncidentPersistencePostgreSQL implements InterfaceIncidentRepositor
     connectionId?: string | null;
     status?: string | null;
     priority?: string | null;
-    incidentTypeId?: number | null;
+    categoryId?: number | null;
   }): Promise<IncidentDetailRowResponse[]> {
     let query = /* sql */ `
       SELECT * FROM view_incidentes_detalle i WHERE 1=1
@@ -221,9 +221,9 @@ export class IncidentPersistencePostgreSQL implements InterfaceIncidentRepositor
       paramIndex++;
     }
 
-    if (filters.incidentTypeId) {
-      query += /* sql */ ` AND i.incident_type_id = $${paramIndex}`;
-      values.push(filters.incidentTypeId);
+    if (filters.categoryId) {
+      query += /* sql */ ` AND i.category_id = $${paramIndex}`;
+      values.push(filters.categoryId);
       paramIndex++;
     }
 

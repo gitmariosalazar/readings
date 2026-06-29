@@ -29,7 +29,7 @@ export interface InterfaceIncidentRepository {
     connectionId?: string | null;
     status?: string | null;
     priority?: string | null;
-    incidentTypeId?: number | null;
+    categoryId?: number | null;
   }): Promise<IncidentDetailRowResponse[]>;
   findIncidentCategories(): Promise<IncidentCategoryModel[]>;
 }
