@@ -35,6 +35,7 @@ export class IncidentAdapter {
       readingId: sql.reading_id,
 
       // Categoría y Tipo
+      categoryId: sql.category_id,
       categoryCode: sql.category_code,
       categoryName: sql.category_name,
       incidentTypeId: sql.incident_type_id,

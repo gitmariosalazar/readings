@@ -76,6 +76,7 @@ export interface IncidentDetailRowSQLResult {
   reading_id: number | null;
 
   // Categoría y Tipo
+  category_id: number;
   category_code: string;
   category_name: string;
   incident_type_id: number;
