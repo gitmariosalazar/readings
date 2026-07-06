@@ -77,166 +77,171 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
 
   async findReadingInfo(cadastralKey: string): Promise<ReadingInfoModel[]> {
     const query: string = `
-        WITH ultima_lectura_valida AS (
-          -- 1. Últimas 5 lecturas válidas
-          SELECT
-            l.lectura_id,
-            l.acometida_id,
-            l.fecha_lectura,
-            l.hora_lectura,
-            l.lectura_anterior,
-            l.lectura_actual,
-            l.valor_lectura,
-            l.mes_lectura
-          FROM (
-            SELECT l.*
-            FROM lectura l
-            WHERE l.acometida_id = $1
-              AND l.fecha_lectura IS NOT NULL
-              AND l.novedad IS NOT NULL
-              AND l.novedad NOT LIKE '%INICIAL AUTOMÁTICA%'
-              AND l.novedad NOT LIKE '%CAMBIO MEDIDOR%'
-            ORDER BY l.fecha_lectura DESC
-            LIMIT 5
-          ) l
-          ORDER BY l.fecha_lectura DESC
-        ),
-
-        ranked AS (
-          SELECT
-            *,
-            ROW_NUMBER() OVER (PARTITION BY acometida_id ORDER BY fecha_lectura DESC) AS rn,
-            date_trunc('month', fecha_lectura)::date AS mes_lectura_trunc
-          FROM ultima_lectura_valida
-        ),
-
-        mes_actual AS (
-          SELECT date_trunc('month', CURRENT_DATE)::date AS mes_hoy
-        ),
-
-        -- ¿Ya existe una lectura tomada en el mes actual?
-        lectura_mes_actual_existe AS (
-          SELECT
-            EXISTS (
-              SELECT 1
-              FROM lectura l
-              WHERE l.acometida_id = $1
-                AND date_trunc('month', l.fecha_lectura)::date = date_trunc('month', CURRENT_DATE)::date
-                AND l.novedad NOT LIKE '%INICIAL AUTOMÁTICA%'
-                AND l.novedad NOT LIKE '%CAMBIO MEDIDOR%'
-            ) AS ya_tomada_mes_actual
-        ),
-
-        -- Próximo mes que debería tener lectura
-        proximo_mes_esperado AS (
-          SELECT
-            COALESCE(
-              date_trunc('month', MAX(l.fecha_lectura)) + INTERVAL '1 month',
-              date_trunc('month', CURRENT_DATE)
-            )::date AS mes_que_toca
+      WITH ultima_lectura_valida AS (
+        -- 1. Obtenemos de forma segura las últimas 5 lecturas reales
+        SELECT
+          l.lectura_id,
+          l.acometida_id,
+          l.fecha_lectura,
+          l.hora_lectura,
+          l.lectura_anterior,
+          l.lectura_actual,
+          l.valor_lectura,
+          l.mes_lectura
+        FROM (
+          SELECT l.*
           FROM lectura l
           WHERE l.acometida_id = $1
             AND l.fecha_lectura IS NOT NULL
+            AND l.novedad IS NOT NULL
             AND l.novedad NOT LIKE '%INICIAL AUTOMÁTICA%'
             AND l.novedad NOT LIKE '%CAMBIO MEDIDOR%'
-        ),
+          ORDER BY l.fecha_lectura DESC
+          LIMIT 5
+        ) l
+      ),
 
-        periodo AS (
-          SELECT
-            COALESCE(sl.fecha_inicio_periodo, CURRENT_DATE - INTERVAL '1 month') AS inicio,
-            sl.fecha_siguiente_lectura AS fecha_mitad,
-            COALESCE(sl.fecha_fin_periodo, CURRENT_DATE + INTERVAL '1 month') AS fin
-          FROM siguiente_lectura sl
-          WHERE sl.acometida_id = $1
-        ),
-
-        lectura_en_periodo AS (
-          SELECT
-            p.inicio,
-            p.fin,
-            (CURRENT_DATE BETWEEN p.inicio AND p.fin) AS en_periodo,
-            EXISTS (
-              SELECT 1
-              FROM lectura l2
-              WHERE l2.acometida_id = $1
-                AND l2.fecha_lectura::date >= COALESCE(p.fecha_mitad, p.inicio)
-                AND l2.novedad NOT LIKE '%INICIAL AUTOMÁTICA%'
-                AND l2.novedad NOT LIKE '%CAMBIO MEDIDOR%'
-            ) AS ya_tomada_en_periodo_actual
-          FROM periodo p
-        )
-
-        -- Resultado final
+      ranked AS (
+        -- 2. Enumeramos para saber cuál es la última (rn=1) y la penúltima (rn=2)
         SELECT
-          l.lectura_id AS "reading_id",
-          l.fecha_lectura AS "previous_reading_date",
-          l.hora_lectura AS "reading_time",
-          ac.acometida_id AS "cadastral_key",
-          c.cliente_id AS "card_id",
-          COALESCE(ci.nombres || ' ' || ci.apellidos, e.razon_social) AS "client_name",
-          cc.phones AS "client_phones",
-          cc.correos AS "client_emails",
-          ac.direccion AS address,
-          l.lectura_anterior AS "previous_reading",
-          l.lectura_actual AS "current_reading",
-          l.valor_lectura AS "reading_value",
-          ac.sector,
-          ac.cuenta AS account,
-          cp.average_consumption AS "average_consumption",
-          ac.numero_medidor AS "meter_number",
-          ac.tarifa_id AS "rate_id",
-          ct.nombre AS "rate_name",
+          *,
+          ROW_NUMBER() OVER (PARTITION BY acometida_id ORDER BY fecha_lectura DESC) AS rn,
+          date_trunc('month', fecha_lectura)::date AS mes_lectura_trunc
+        FROM ultima_lectura_valida
+      ),
 
-          -- LÓGICA FINAL CORRECTA
-          CASE
-            -- Solo habilitamos edición si:
-            -- - Estamos en el mes actual
-            -- - Y aún NO se ha tomado la lectura de este mes
-            -- - Y esta es la fila más reciente (rn=1)
-            WHEN l.rn = 1
-            AND pme.mes_que_toca = ma.mes_hoy
-            AND NOT lmae.ya_tomada_mes_actual
-            THEN true
+      mes_actual AS (
+        -- 3. Fecha de control del mes en curso
+        SELECT date_trunc('month', CURRENT_DATE)::date AS mes_hoy
+      ),
 
-            -- La lectura anterior siempre como referencia
-            WHEN l.rn = 2 THEN true
+      lectura_mes_actual_existe AS (
+        -- 4. Bandera confiable: ¿Ya se digitó la lectura de este mes?
+        SELECT
+          EXISTS (
+            SELECT 1
+            FROM lectura l
+            WHERE l.acometida_id = $1
+              AND date_trunc('month', l.fecha_lectura)::date = date_trunc('month', CURRENT_DATE)::date
+              AND l.novedad NOT LIKE '%INICIAL AUTOMÁTICA%'
+              AND l.novedad NOT LIKE '%CAMBIO MEDIDOR%'
+          ) AS ya_tomada_mes_actual
+      ),
 
-            -- Cualquier otro caso: false
-            ELSE false
-          END AS "has_current_reading",
+      proximo_mes_esperado AS (
+        -- 5. Calcula qué mes calendario debería tocar según el histórico
+        SELECT
+          COALESCE(
+            date_trunc('month', MAX(l.fecha_lectura)) + INTERVAL '1 month',
+            date_trunc('month', CURRENT_DATE)
+          )::date AS mes_que_toca
+        FROM lectura l
+        WHERE l.acometida_id = $1
+          AND l.fecha_lectura IS NOT NULL
+          AND l.novedad NOT LIKE '%INICIAL AUTOMÁTICA%'
+          AND l.novedad NOT LIKE '%CAMBIO MEDIDOR%'
+      ),
 
-          -- Debug muy útil
-          pme.mes_que_toca AS "next_month_to_take_debug",
-          ma.mes_hoy AS "current_month_debug",
-          lmae.ya_tomada_mes_actual AS "already_taken_current_month_debug",
-          l.mes_lectura_trunc AS "reading_month_debug",
-          lep.inicio AS "start_date_period",
-          lep.fin AS "end_date_period",
-          lep.en_periodo AS "in_period_debug",
-          l.mes_lectura AS "month_reading",
-          est.id_estado AS "connection_state_id",
-          est.nombre AS "connection_state_name",
-          est.descripcion AS "connection_state_description",
-          est.permite_lectura AS "permit_reading"
+      periodo AS (
+        -- 6. Rangos de control de la tabla Siguiente Lectura
+        SELECT
+          COALESCE(sl.fecha_inicio_periodo, CURRENT_DATE - INTERVAL '1 month') AS inicio,
+          sl.fecha_siguiente_lectura AS fecha_mitad,
+          COALESCE(sl.fecha_fin_periodo, CURRENT_DATE + INTERVAL '1 month') AS fin
+        FROM siguiente_lectura sl
+        WHERE sl.acometida_id = $1
+      ),
 
-        FROM ranked l
-        CROSS JOIN proximo_mes_esperado pme
-        CROSS JOIN mes_actual ma
-        CROSS JOIN lectura_mes_actual_existe lmae
-        CROSS JOIN periodo p
-        CROSS JOIN lectura_en_periodo lep
-        JOIN acometida ac ON ac.acometida_id = l.acometida_id
-        JOIN cat_estados_acometida est ON ac.estado_id = est.id_estado  -- validate readable state
-        LEFT JOIN cliente c ON c.cliente_id = ac.cliente_id
-        LEFT JOIN ciudadano ci ON ci.ciudadano_id = c.cliente_id
-        LEFT JOIN empresa e ON e.ruc = c.cliente_id
-        INNER JOIN tarifa t ON t.tarifa_id = ac.tarifa_id
-        LEFT JOIN categoria ct ON ct.categoria_id = t.categoria_id
-        LEFT JOIN consumo_promedio cp ON cp.acometida_id = ac.acometida_id
-        LEFT JOIN cliente_contacto cc ON cc.cliente_id = c.cliente_id
+      lectura_en_periodo AS (
+        -- 7. Control secundario de periodo activo
+        SELECT
+          p.inicio,
+          p.fin,
+          (CURRENT_DATE BETWEEN p.inicio AND p.fin) AS en_periodo,
+          EXISTS (
+            SELECT 1
+            FROM lectura l2
+            WHERE l2.acometida_id = $1
+              AND l2.fecha_lectura::date >= COALESCE(p.fecha_mitad, p.inicio)::date
+              AND l2.novedad NOT LIKE '%INICIAL AUTOMÁTICA%'
+              AND l2.novedad NOT LIKE '%CAMBIO MEDIDOR%'
+          ) AS ya_tomada_en_periodo_actual
+        FROM periodo p
+      )
 
-        WHERE l.rn <= 2
-        ORDER BY l.fecha_lectura DESC;
+      -- ==========================================
+      -- RESULTADO FINAL COMPLEMENTADO Y SEGURO
+      -- ==========================================
+      SELECT
+        l.lectura_id AS "reading_id",
+        l.fecha_lectura AS "previous_reading_date",
+        l.hora_lectura AS "reading_time",
+        ac.acometida_id AS "cadastral_key",
+        c.cliente_id AS "card_id",
+        COALESCE(ci.nombres || ' ' || ci.apellidos, e.razon_social) AS "client_name",
+        cc.phones AS "client_phones",
+        cc.correos AS "client_emails",
+        ac.direccion AS address,
+        l.lectura_anterior AS "previous_reading",
+        l.lectura_actual AS "current_reading",
+        l.valor_lectura AS "reading_value",
+        ac.sector,
+        ac.cuenta AS account,
+        cp.average_consumption AS "average_consumption",
+        ac.numero_medidor AS "meter_number",
+        ac.tarifa_id AS "rate_id",
+        ct.nombre AS "rate_name",
+
+        -- LÓGICA DE NEGOCIO SEGURA Y EDITABLE
+        CASE
+          -- Fila más reciente: Editable solo si toca este mes y no se ha tomado
+          WHEN l.rn = 1
+              AND pme.mes_que_toca = ma.mes_hoy
+              AND NOT COALESCE(lmae.ya_tomada_mes_actual, false)
+          THEN true
+
+          -- Fila 2: Siempre permitida como referencia de edición
+          WHEN l.rn = 2 THEN true
+          
+          ELSE false
+        END AS "has_current_reading",
+
+        -- Bloque de Debug para Auditoría Interna
+        pme.mes_que_toca AS "next_month_to_take_debug",
+        ma.mes_hoy AS "current_month_debug",
+        COALESCE(lmae.ya_tomada_mes_actual, false) AS "already_taken_current_month_debug",
+        l.mes_lectura_trunc AS "reading_month_debug",
+        lep.inicio AS "start_date_period",
+        lep.fin AS "end_date_period",
+        COALESCE(lep.en_periodo, false) AS "in_period_debug",
+        l.mes_lectura AS "month_reading",
+        est.id_estado AS "connection_state_id",
+        est.nombre AS "connection_state_name",
+        est.permite_lectura AS "permit_reading"
+
+      FROM ranked l
+      -- Joins cruzados limpios que SIEMPRE devuelven 1 fila (nunca rompen el flujo)
+      CROSS JOIN proximo_mes_esperado pme
+      CROSS JOIN mes_actual ma
+      CROSS JOIN lectura_mes_actual_existe lmae
+
+      -- Joins condicionales seguros: Protegen la consulta si no hay datos de periodo
+      LEFT JOIN periodo p ON true
+      LEFT JOIN lectura_en_periodo lep ON true
+
+      -- Entidades Principales
+      JOIN acometida ac ON ac.acometida_id = l.acometida_id
+      LEFT JOIN cat_estados_acometida est ON ac.estado_id = est.id_estado  
+      LEFT JOIN cliente c ON c.cliente_id = ac.cliente_id
+      LEFT JOIN ciudadano ci ON ci.ciudadano_id = c.cliente_id
+      LEFT JOIN empresa e ON e.ruc = c.cliente_id
+      LEFT JOIN tarifa t ON t.tarifa_id = ac.tarifa_id
+      LEFT JOIN categoria ct ON ct.categoria_id = t.categoria_id
+      LEFT JOIN consumo_promedio cp ON cp.acometida_id = ac.acometida_id
+      LEFT JOIN cliente_contacto cc ON cc.cliente_id = c.cliente_id
+
+      WHERE l.rn <= 2
+      ORDER BY l.fecha_lectura DESC;
     `;
 
     const result = await this.databaseService.query<ReadingInfoSQLResult>(
@@ -409,7 +414,8 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
           );
 
           // <-- NUEVO: Obtener novedades dinámicas configuradas en la BD dentro de la transacción
-          const noveltiesRows = await client.query<any>(`
+          const noveltiesRows = await client.query<any>(
+            `
             SELECT 
                 tipo_novedad_lectura_id AS id,
                 nombre AS title,
@@ -421,7 +427,9 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
                 tipo_novedad_lectura
             ORDER BY 
                 tipo_novedad_lectura_id ASC;
-          `,[]);
+          `,
+            [],
+          );
 
           const calculatedNovelty = getTypeCurrentConsumption(
             reading.previousReading,
