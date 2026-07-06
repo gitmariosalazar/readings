@@ -68,6 +68,9 @@ export class IncidentController {
       status?: string | null;
       priority?: string | null;
       categoryId?: number | null;
+      sector?: string | null;
+      reference?: string | null;
+      reportDate?: Date | null;
     },
   ) {
     return this.searchIncidentsUseCase.execute(filters);
