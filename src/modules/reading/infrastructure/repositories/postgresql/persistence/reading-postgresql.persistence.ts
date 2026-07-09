@@ -244,7 +244,12 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
         l.mes_lectura AS "month_reading",
         est.id_estado AS "connection_state_id",
         est.nombre AS "connection_state_name",
-        est.permite_lectura AS "permit_reading"
+        est.permite_lectura AS "permit_reading",
+        CASE 
+          WHEN ac.coordenadas IS NOT NULL THEN 
+            json_build_object('lat', ST_Y(ac.coordenadas), 'lng', ST_X(ac.coordenadas))
+            ELSE NULL 
+          END as "connection_location"
 
       FROM ranked l
       -- Joins cruzados limpios que SIEMPRE devuelven 1 fila (nunca rompen el flujo)

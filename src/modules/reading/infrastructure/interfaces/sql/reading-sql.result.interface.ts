@@ -73,6 +73,7 @@ export interface ReadingInfoSQLResult {
   connection_state_name: string;
   connection_state_description: string;
   permit_reading: boolean | null | number;
+  connection_location?: { lat: number; lng: number } | null;
 }
 
 export interface AdvancedReportReadingsSQLResult {

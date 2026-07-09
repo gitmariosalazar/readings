@@ -36,5 +36,6 @@ export class ReadingInfoModel {
     public readonly connectionStateName: string,
     public readonly connectionStateDescription: string,
     public readonly permitReading: boolean,
+    public readonly connectionLocation?: { lat: number; lng: number } | null,
   ) {}
 }

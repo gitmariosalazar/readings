@@ -68,6 +68,7 @@ export class ReadingInfoMapper {
       connectionStateName: domainModel.connectionStateName,
       connectionStateDescription: domainModel.connectionStateDescription,
       permitReading: domainModel.permitReading,
+      connectionLocation: domainModel.connectionLocation,
     };
   }
 
