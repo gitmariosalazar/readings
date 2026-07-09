@@ -244,7 +244,7 @@ export class IncidentPersistencePostgreSQL implements InterfaceIncidentRepositor
 
     if (filters.reportDate) {
       query += /* sql */ ` AND i.report_date::date = $${paramIndex}`;
-      values.push(filters.reportDate.toISOString().split('T')[0]);
+      values.push(filters.reportDate);
       paramIndex++;
     }
 

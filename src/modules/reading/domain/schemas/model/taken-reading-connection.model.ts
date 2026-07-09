@@ -18,5 +18,10 @@ export class TakenReadingConnectionModel {
     public readonly readingTypeId: number,
     public readonly readingTypeName: string,
     public readonly novelty?: string,
+    public readonly locationCapture?: { lat: number; lng: number } | null,
+    public readonly locationConnection?: { lat: number; lng: number } | null,
+    public readonly distanceMeters?: number | null,
+    public readonly isInsideAllowedRadius?: boolean | null,
+    public readonly distanceLineGeoJSON?: any | null,
   ) {}
 }

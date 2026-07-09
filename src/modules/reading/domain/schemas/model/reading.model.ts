@@ -16,6 +16,7 @@ export class ReadingModel {
     public readonly incomeCode: number | null,
     public readonly typeNoveltyReadingId: number,
     public readonly currentMonthReading: string,
+    public readonly locationCapture: { lat: number; lng: number } | null,
   ) {}
 
   // Domain logic
@@ -36,6 +37,7 @@ export class ReadingNoveltyModel {
     public readonly sector: number,
     public readonly account: number,
     public readonly clientName: string,
+    public readonly locationCapture: { lat: number; lng: number } | null,
     public readonly cardId: string,
     public readonly previousReading: number,
     public readonly currentReading: number | null,
@@ -50,5 +52,9 @@ export class ReadingNoveltyModel {
     public readonly noveltyTypeName: string | null,
     public readonly noveltyTypeDescription: string | null,
     public readonly images: string[],
+    public readonly locationConnection?: { lat: number; lng: number } | null,
+    public readonly distanceMeters?: number | null,
+    public readonly isInsideAllowedRadius?: boolean | null,
+    public readonly distanceLineGeoJSON?: any | null,
   ) {}
 }

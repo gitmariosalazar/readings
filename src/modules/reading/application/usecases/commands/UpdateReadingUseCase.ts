@@ -146,6 +146,7 @@ export class UpdateReadingUseCase {
         toUpdate.incomeCode,
         toUpdate.typeNoveltyReadingId,
         toUpdate.currentMonthReading,
+        toUpdate.locationCapture,
       );
 
       //console.log(`Updated reading: ${JSON.stringify(updatedReading)}`);

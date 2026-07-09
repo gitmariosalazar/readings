@@ -54,7 +54,28 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
             cp.average_consumption AS "average_consumption",
             ac.numero_medidor AS "meter_number",
             ac.tarifa_id AS "rate_id",
-            ct.nombre AS "rate_name"
+            ct.nombre AS "rate_name",
+            CASE
+                WHEN l.ubicacion_captura IS NOT NULL THEN
+                    json_build_object('lat', ST_Y(l.ubicacion_captura), 'lng', ST_X(l.ubicacion_captura))
+                ELSE NULL
+            END as "location_capture",
+            CASE
+                WHEN ac.coordenadas IS NOT NULL THEN
+                    json_build_object('lat', ST_Y(ac.coordenadas), 'lng', ST_X(ac.coordenadas))
+                ELSE NULL
+            END as "location_connection",
+            ST_Distance(l.ubicacion_captura::geography, ac.coordenadas::geography) as "distance_meters",
+            CASE
+                WHEN l.ubicacion_captura IS NOT NULL AND ac.coordenadas IS NOT NULL THEN
+                    ST_DWithin(l.ubicacion_captura::geography, ac.coordenadas::geography, 15.0)
+                ELSE false
+            END as "is_inside_allowed_radius",
+            CASE
+                WHEN l.ubicacion_captura IS NOT NULL AND ac.coordenadas IS NOT NULL THEN
+                    ST_AsGeoJSON(ST_MakeLine(ac.coordenadas, l.ubicacion_captura))::json
+                ELSE NULL
+            END as "distance_line_geojson"
         FROM acometida ac
             LEFT JOIN cliente c ON ac.cliente_id = c.cliente_id
             LEFT JOIN ciudadano ci ON ci.ciudadano_id = c.cliente_id
@@ -129,15 +150,21 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
       ),
 
       proximo_mes_esperado AS (
-        -- 5. Calcula qué mes calendario debería tocar según el histórico
-        SELECT
-          COALESCE(
-            date_trunc('month', MAX(l.fecha_lectura)) + INTERVAL '1 month',
-            date_trunc('month', CURRENT_DATE)
-          )::date AS mes_que_toca
+        -- 5. Determinamos el mes teórico que toca basándonos en la cadena 'YYYY-MM'
+        SELECT 
+          CASE 
+            -- Si no hay lecturas previas, toca el mes actual
+            WHEN MAX(l.mes_lectura) IS NULL THEN date_trunc('month', CURRENT_DATE)::date
+            
+            -- Si el mes siguiente al histórico ya pasó, nos acoplamos al mes actual del servidor
+            WHEN (to_date(MAX(l.mes_lectura), 'YYYY-MM') + INTERVAL '1 month')::date < date_trunc('month', CURRENT_DATE)::date
+            THEN date_trunc('month', CURRENT_DATE)::date
+            
+            -- Si está al día, toca el mes consecutivo normal
+            ELSE (to_date(MAX(l.mes_lectura), 'YYYY-MM') + INTERVAL '1 month')::date
+          END AS mes_que_toca
         FROM lectura l
         WHERE l.acometida_id = $1
-          AND l.fecha_lectura IS NOT NULL
           AND l.novedad NOT LIKE '%INICIAL AUTOMÁTICA%'
           AND l.novedad NOT LIKE '%CAMBIO MEDIDOR%'
       ),
@@ -459,12 +486,15 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
           }
 
           // 6. INSERT con RETURNING completo para el Adapter
-          const insertQuery = `
+          const insertQuery = /* sql */ `
             INSERT INTO lectura(
               acometida_id, fecha_lectura, hora_lectura, sector, cuenta, clave_catastral,
               valor_lectura, tasa_alcantarillado, lectura_anterior, lectura_actual,
-              codigo_ingreso_renta, novedad, codigo_ingreso, tipo_novedad_lectura_id, lectura_estado_id, mes_lectura,observacion
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+              codigo_ingreso_renta, novedad, codigo_ingreso, tipo_novedad_lectura_id, lectura_estado_id, mes_lectura,observacion, ubicacion_captura
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17,
+              CASE WHEN $18::double precision IS NOT NULL AND $19::double precision IS NOT NULL 
+                 THEN ST_SetSRID(ST_MakePoint($19, $18), 4326) ELSE NULL END  
+            )
             RETURNING
               lectura_id as "reading_id",
               acometida_id as "connection_id",
@@ -480,7 +510,12 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
               codigo_ingreso_renta as "rental_income_code",
               novedad as "novelty",
               codigo_ingreso as "income_code",
-              (SELECT codigo FROM Lectura_estado WHERE lectura_estado_id = $15) as "status_code";
+              (SELECT codigo FROM Lectura_estado WHERE lectura_estado_id = $15) as "status_code",
+              CASE 
+                  WHEN ubicacion_captura IS NOT NULL THEN 
+                    json_build_object('lat', ST_Y(ubicacion_captura), 'lng', ST_X(ubicacion_captura))
+                  ELSE NULL 
+                END as "location_capture";
           `;
 
           const horaLectura =
@@ -511,6 +546,8 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
             estadoId,
             mesLectura,
             observationFinal,
+            reading.locationCapture?.lat ?? null,
+            reading.locationCapture?.lng ?? null,
           ]);
 
           if (!insertRows[0]) throw new Error('Error al insertar la lectura.');
@@ -792,7 +829,28 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
             ct.nombre AS rate_name,  
             l.tipo_novedad_lectura_id AS reading_type,  
             tnl.nombre as reading_type_name,  
-            l.novedad AS novelty  
+            l.novedad AS novelty,
+            CASE
+                WHEN l.ubicacion_captura IS NOT NULL THEN
+                    json_build_object('lat', ST_Y(l.ubicacion_captura), 'lng', ST_X(l.ubicacion_captura))
+                ELSE NULL
+            END as "location_capture",
+            CASE
+                WHEN ac.coordenadas IS NOT NULL THEN
+                    json_build_object('lat', ST_Y(ac.coordenadas), 'lng', ST_X(ac.coordenadas))
+                ELSE NULL
+            END as "location_connection",
+            ST_Distance(l.ubicacion_captura::geography, ac.coordenadas::geography) as "distance_meters",
+            CASE
+                WHEN l.ubicacion_captura IS NOT NULL AND ac.coordenadas IS NOT NULL THEN
+                    ST_DWithin(l.ubicacion_captura::geography, ac.coordenadas::geography, 15.0)
+                ELSE false
+            END as "is_inside_allowed_radius",
+            CASE
+                WHEN l.ubicacion_captura IS NOT NULL AND ac.coordenadas IS NOT NULL THEN
+                    ST_AsGeoJSON(ST_MakeLine(ac.coordenadas, l.ubicacion_captura))::json
+                ELSE NULL
+            END as "distance_line_geojson"
         FROM lectura l  
             INNER JOIN acometida ac ON ac.acometida_id = l.acometida_id  
             LEFT JOIN cliente c ON ac.cliente_id = c.cliente_id  
@@ -850,7 +908,28 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
             ct.nombre AS rate_name,  
             l.tipo_novedad_lectura_id AS reading_type,  
             tnl.nombre as reading_type_name,  
-            l.novedad AS novelty  
+            l.novedad AS novelty,
+            CASE
+                WHEN l.ubicacion_captura IS NOT NULL THEN
+                    json_build_object('lat', ST_Y(l.ubicacion_captura), 'lng', ST_X(l.ubicacion_captura))
+                ELSE NULL
+            END as "location_capture",
+            CASE
+                WHEN ac.coordenadas IS NOT NULL THEN
+                    json_build_object('lat', ST_Y(ac.coordenadas), 'lng', ST_X(ac.coordenadas))
+                ELSE NULL
+            END as "location_connection",
+            ST_Distance(l.ubicacion_captura::geography, ac.coordenadas::geography) as "distance_meters",
+            CASE
+                WHEN l.ubicacion_captura IS NOT NULL AND ac.coordenadas IS NOT NULL THEN
+                    ST_DWithin(l.ubicacion_captura::geography, ac.coordenadas::geography, 15.0)
+                ELSE false
+            END as "is_inside_allowed_radius",
+            CASE
+                WHEN l.ubicacion_captura IS NOT NULL AND ac.coordenadas IS NOT NULL THEN
+                    ST_AsGeoJSON(ST_MakeLine(ac.coordenadas, l.ubicacion_captura))::json
+                ELSE NULL
+            END as "distance_line_geojson"
         FROM lectura l  
             INNER JOIN acometida ac ON ac.acometida_id = l.acometida_id  
             LEFT JOIN cliente c ON ac.cliente_id = c.cliente_id  
@@ -929,6 +1008,27 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
             tnl.tipo_novedad_lectura_id AS            type_novelty_reading_id,
             tnl.nombre AS                             type_novelty_reading_name,
             tnl.descripcion AS                        type_novelty_reading_description,
+            CASE
+                WHEN L.ubicacion_captura IS NOT NULL THEN
+                    json_build_object('lat', ST_Y(L.ubicacion_captura), 'lng', ST_X(L.ubicacion_captura))
+                ELSE NULL
+            END AS location_capture,
+            CASE
+                WHEN ac.coordenadas IS NOT NULL THEN
+                    json_build_object('lat', ST_Y(ac.coordenadas), 'lng', ST_X(ac.coordenadas))
+                ELSE NULL
+            END AS location_connection,
+            ST_Distance(l.ubicacion_captura::geography, ac.coordenadas::geography) AS distance_meters,
+            CASE
+                WHEN l.ubicacion_captura IS NOT NULL AND ac.coordenadas IS NOT NULL THEN
+                    ST_DWithin(l.ubicacion_captura::geography, ac.coordenadas::geography, 15.0)
+                ELSE false
+            END AS is_inside_allowed_radius,
+            CASE
+                WHEN l.ubicacion_captura IS NOT NULL AND ac.coordenadas IS NOT NULL THEN
+                    ST_AsGeoJSON(ST_MakeLine(ac.coordenadas, l.ubicacion_captura))::json
+                ELSE NULL
+            END AS distance_line_geojson,
             ARRAY_AGG(fl.imagen_url)     AS images
         FROM lectura l  
             INNER JOIN acometida ac ON ac.acometida_id = l.acometida_id  

@@ -79,6 +79,7 @@ export class ReadingSQLAdapter {
       rentalIncomeCode: readingResultSQL.rental_income_code,
       novelty: readingResultSQL.novelty,
       incomeCode: readingResultSQL.income_code,
+      locationCapture: readingResultSQL.location_capture ?? null,
     };
     return response;
   }
@@ -103,6 +104,7 @@ export class ReadingSQLAdapter {
       readingResultSQL.income_code,
       1, // default ID or fetch from DB
       '', // currentMonthReading placeholder
+      readingResultSQL.location_capture ?? null,
     );
   }
 
@@ -261,6 +263,11 @@ export class ReadingSQLAdapter {
       takenReadingConnectionResultSQL.reading_type_id,
       takenReadingConnectionResultSQL.reading_type_name,
       takenReadingConnectionResultSQL.novelty,
+      takenReadingConnectionResultSQL.location_capture ?? null,
+      takenReadingConnectionResultSQL.location_connection ?? null,
+      takenReadingConnectionResultSQL.distance_meters ?? null,
+      takenReadingConnectionResultSQL.is_inside_allowed_radius ?? null,
+      takenReadingConnectionResultSQL.distance_line_geojson ?? null,
     );
   }
 
@@ -307,6 +314,13 @@ export class ReadingSQLAdapter {
       noveltyTypeName: readingNoveltyResultSQL.novelty_type_name,
       noveltyTypeDescription: readingNoveltyResultSQL.novelty_type_description,
       images: readingNoveltyResultSQL.images,
+      locationCapture: readingNoveltyResultSQL.location_capture ?? null,
+      locationConnection: readingNoveltyResultSQL.location_connection ?? null,
+      distanceMeters: readingNoveltyResultSQL.distance_meters ?? null,
+      isInsideAllowedRadius:
+        readingNoveltyResultSQL.is_inside_allowed_radius ?? null,
+      distanceLineGeoJSON:
+        readingNoveltyResultSQL.distance_line_geojson ?? null,
     };
     return response;
   }

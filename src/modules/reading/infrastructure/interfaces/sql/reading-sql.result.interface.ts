@@ -9,6 +9,7 @@ export interface ReadingBasicInfoSQLResult {
   current_reading: number | null;
   sector: number;
   account: number;
+  location_capture?: { lat: number; lng: number } | null;
   reading_value: number;
   average_consumption: number;
   meter_number: string;
@@ -32,6 +33,7 @@ export interface ReadingSQLResult {
   novelty: string | null;
   income_code: number | null;
   average_consumption: number;
+  location_capture?: { lat: number; lng: number } | null;
 }
 
 export interface ClientPhoneSQLResult {
@@ -150,6 +152,11 @@ export interface TakenReadingConnectionSQLResult {
   reading_type_id: number;
   reading_type_name: string;
   novelty: string;
+  location_capture?: { lat: number; lng: number } | null;
+  location_connection?: { lat: number; lng: number } | null;
+  distance_meters?: number | null;
+  is_inside_allowed_radius?: boolean | null;
+  distance_line_geojson?: any | null;
 }
 
 export interface MonthlySummarySQLResult {
@@ -188,4 +195,9 @@ export interface ReadingNoveltySQLResult {
   novelty_type_name: string | null;
   novelty_type_description: string | null;
   images: string[];
+  location_capture?: { lat: number; lng: number } | null;
+  location_connection?: { lat: number; lng: number } | null;
+  distance_meters?: number | null;
+  is_inside_allowed_radius?: boolean | null;
+  distance_line_geojson?: any | null;
 }

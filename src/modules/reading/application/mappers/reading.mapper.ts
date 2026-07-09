@@ -46,6 +46,7 @@ export class ReadingMapper {
       readingRequest.incomeCode,
       readingRequest.typeNoveltyReadingId ?? 1,
       currentMonthReading,
+      readingRequest.locationCapture ?? null,
     );
   }
 
@@ -72,6 +73,7 @@ export class ReadingMapper {
       readingRequest.incomeCode ?? 0,
       readingRequest.typeNoveltyReadingId ?? 1,
       '', // currentMonthReading (default or needs to be in request)
+      readingRequest.locationCapture ?? null,
     );
   }
   static fromReadingModelToReadingResponse(
@@ -92,6 +94,7 @@ export class ReadingMapper {
       rentalIncomeCode: reading.rentalIncomeCode ?? 0,
       novelty: reading.novelty ?? '',
       incomeCode: reading.incomeCode ?? 0,
+      locationCapture: reading.locationCapture ?? null,
     };
     return response;
   }
@@ -174,6 +177,12 @@ export class ReadingMapper {
       readingTypeId: takenReadingConnection.readingTypeId,
       readingTypeName: takenReadingConnection.readingTypeName,
       novelty: takenReadingConnection.novelty,
+      locationCapture: takenReadingConnection.locationCapture ?? null,
+      locationConnection: takenReadingConnection.locationConnection ?? null,
+      distanceMeters: takenReadingConnection.distanceMeters ?? null,
+      isInsideAllowedRadius:
+        takenReadingConnection.isInsideAllowedRadius ?? null,
+      distanceLineGeoJSON: takenReadingConnection.distanceLineGeoJSON ?? null,
     };
     return response;
   }
@@ -222,6 +231,11 @@ export class ReadingMapper {
       noveltyTypeName: readingNovelty.noveltyTypeName,
       noveltyTypeDescription: readingNovelty.noveltyTypeDescription,
       images: readingNovelty.images,
+      locationCapture: readingNovelty.locationCapture ?? null,
+      locationConnection: readingNovelty.locationConnection ?? null,
+      distanceMeters: readingNovelty.distanceMeters ?? null,
+      isInsideAllowedRadius: readingNovelty.isInsideAllowedRadius ?? null,
+      distanceLineGeoJSON: readingNovelty.distanceLineGeoJSON ?? null,
     };
     return response;
   }
