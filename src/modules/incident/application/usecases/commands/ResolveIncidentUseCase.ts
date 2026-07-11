@@ -16,7 +16,7 @@ export class ResolveIncidentUseCase {
   ) {}
 
   async execute(
-    incidentId: number,
+    incidentId: string,
     request: ResolveIncidentRequest,
     resolverUserId: UUID,
   ): Promise<IncidentResponse | null> {
@@ -39,7 +39,8 @@ export class ResolveIncidentUseCase {
       }
 
       // Verificar si el incidente existe antes de proceder
-      const existingIncident = await this.incidentRepository.findById(incidentId);
+      const existingIncident =
+        await this.incidentRepository.findById(incidentId);
       if (!existingIncident) {
         throw new RpcException({
           statusCode: statusCode.NOT_FOUND,

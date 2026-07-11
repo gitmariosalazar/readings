@@ -20,7 +20,7 @@ export interface IncidentHistorySQLResult {
   date_change: string; // ISO 8601 Date string
   previous_status: string | null;
   new_status: string;
-  managed_by: string;
+  managed_by: string | Record<string, any>;
   observation: string | null;
 }
 
@@ -67,12 +67,15 @@ export interface UserRowSQLResult {
   name: string; // UUID
   card_id: string;
   user_type: string;
+  email: string | null;
+  phone: string | null;
 }
 
 // 3. Interfaz Principal (La Fila de la Vista)
 export interface IncidentDetailRowSQLResult {
-  incident_id: number;
+  incident_id: string;
   connection_id: string | null;
+  incident_code: string;
   reading_id: number | null;
 
   // Categoría y Tipo

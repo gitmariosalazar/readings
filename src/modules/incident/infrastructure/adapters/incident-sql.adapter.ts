@@ -4,7 +4,10 @@ import {
   IncidentSQLResult,
 } from '../interfaces/sql/incident-sql.result.interface';
 import { IncidentModel } from '../../domain/schemas/model/incident.model';
-import { IncidentCategoryModel, IncidentTypeModel } from '../../domain/schemas/model/incident-category-type.model';
+import {
+  IncidentCategoryModel,
+  IncidentTypeModel,
+} from '../../domain/schemas/model/incident-category-type.model';
 import { IncidentCategoryResponse } from '../../application/dtos/response/incident-category-type.response';
 
 /**
@@ -25,6 +28,7 @@ export class IncidentSQLAdapter {
     return new IncidentModel(
       result.incident_id,
       result.acometida_id,
+      result.codigo_incidente,
       result.lectura_id,
       result.tipo_incidente_id,
       result.descripcion_reporte,
@@ -50,6 +54,14 @@ export class IncidentSQLAdapter {
       result.reportedBy,
       result.evidencePhotos,
       result.statusHistory,
+      result.reportClient
+        ? {
+            nombre: (result.reportClient as any).nombre || result.reportClient.firstName,
+            apellido: (result.reportClient as any).apellido || result.reportClient.lastName,
+            correo: (result.reportClient as any).correo || result.reportClient.email,
+            celular: (result.reportClient as any).celular || result.reportClient.cellPhone,
+          }
+        : null,
     );
   }
 

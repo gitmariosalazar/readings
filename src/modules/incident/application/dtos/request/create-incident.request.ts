@@ -13,4 +13,12 @@ export class CreateIncidentRequest {
   latitude?: number | null;
   longitude?: number | null;
   images?: string[];
+  reportClient?: reportClient | null;
+}
+
+interface reportClient {
+  firstName: string;
+  lastName: string;
+  email: string | null;
+  cellPhone: string | null;
 }

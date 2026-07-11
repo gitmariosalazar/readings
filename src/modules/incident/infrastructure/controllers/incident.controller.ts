@@ -41,7 +41,7 @@ export class IncidentController {
   async resolveIncident(
     @Payload()
     data: {
-      incidentId: number;
+      incidentId: string;
       request: ResolveIncidentRequest;
       resolverUserId: UUID;
     },

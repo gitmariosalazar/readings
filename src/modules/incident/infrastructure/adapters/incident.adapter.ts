@@ -32,6 +32,8 @@ export class IncidentAdapter {
     return {
       incidentId: sql.incident_id,
       connectionId: sql.connection_id,
+      incidentCode: sql.incident_code,
+
       readingId: sql.reading_id,
 
       // Categoría y Tipo
@@ -162,6 +164,8 @@ export class IncidentAdapter {
       name: user.name,
       cardId: user.card_id,
       userType: user.user_type,
+      email: user.email,
+      phone: user.phone,
     };
   }
 

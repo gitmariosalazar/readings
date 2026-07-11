@@ -13,7 +13,7 @@ export interface InterfaceIncidentRepository {
   ): Promise<IncidentModel | null>;
 
   resolveIncident(
-    incidentId: number,
+    incidentId: string,
     resolverUserId: UUID,
     description: string,
     repairCost: number,
@@ -24,7 +24,7 @@ export interface InterfaceIncidentRepository {
   findIncidentsByConnection(
     connectionId: string,
   ): Promise<IncidentDetailRowResponse[]>;
-  findById(incidentId: number): Promise<IncidentDetailRowResponse | null>;
+  findById(incidentId: string): Promise<IncidentDetailRowResponse | null>;
   findIncidents(filters: {
     connectionId?: string | null;
     status?: string | null;

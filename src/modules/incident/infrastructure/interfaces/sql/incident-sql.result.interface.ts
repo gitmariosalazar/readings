@@ -1,6 +1,7 @@
 export interface IncidentSQLResult {
-  incident_id: number;
+  incident_id: string;
   acometida_id: string | null;
+  codigo_incidente: string;
   lectura_id: number | null;
   tipo_incidente_id: number;
   descripcion_reporte: string;
@@ -36,6 +37,12 @@ export interface IncidentSQLResult {
     managedBy: string | null;
     observation: string | null;
   }> | null;
+  reportClient?: {
+    firstName: string;
+    lastName: string;
+    email: string | null;
+    cellPhone: string | null;
+  } | null;
 }
 
 export interface IncidentCategorySQLResult {

@@ -33,17 +33,35 @@ export class IncidentPersistencePostgreSQL implements InterfaceIncidentRepositor
           INSERT INTO public.incidente_medidor (
             acometida_id, lectura_id, tipo_incidente_id, descripcion_reporte,
             direccion_referencia, origen_reporte, prioridad, usuario_reporta_id,
-            cliente_usuario_reporta_id, coordenadas
+            cliente_usuario_reporta_id, coordenadas, datos_reportante
           ) VALUES (
             $1, $2, $3, $4, $5, $6, $7, $8, $9,
-            CASE WHEN $10::double precision IS NOT NULL AND $11::double precision IS NOT NULL 
-                 THEN ST_SetSRID(ST_MakePoint($11, $10), 4326) ELSE NULL END
+            CASE WHEN $10::double precision IS NOT NULL AND $11::double precision IS NOT NULL
+                 THEN ST_SetSRID(ST_MakePoint($11, $10), 4326) ELSE NULL END,
+            $12
           )
-          RETURNING 
-            incidente_id AS incident_id, acometida_id, lectura_id, tipo_incidente_id, descripcion_reporte,
-            direccion_referencia, estado, origen_reporte, prioridad, fecha_reporte, usuario_reporta_id,
-            cliente_usuario_reporta_id, ST_X(coordenadas) as longitude, ST_Y(coordenadas) as latitude,
-            fecha_resolucion, usuario_resuelve_id, descripcion_resolucion, cobrar_a_usuario, costo_reparacion;
+          RETURNING
+            incidente_id AS incident_id,
+            acometida_id,
+            codigo_incidente,
+            lectura_id,
+            tipo_incidente_id,
+            descripcion_reporte,
+            direccion_referencia,
+            estado,
+            origen_reporte,
+            prioridad,
+            fecha_reporte,
+            usuario_reporta_id,
+            cliente_usuario_reporta_id,
+            ST_X(coordenadas) as longitude,
+            ST_Y(coordenadas) as latitude,
+            fecha_resolucion,
+            usuario_resuelve_id,
+            descripcion_resolucion,
+            cobrar_a_usuario,
+            costo_reparacion,
+            datos_reportante AS "reportClient";
         `;
 
           const lat = incident.coordinates?.lat ?? null;
@@ -61,6 +79,9 @@ export class IncidentPersistencePostgreSQL implements InterfaceIncidentRepositor
             incident.clienteUsuarioReportaId,
             lat,
             lng,
+            incident.reportClient
+              ? JSON.stringify(incident.reportClient)
+              : null,
           ]);
 
           if (result.length === 0) return null;
@@ -87,13 +108,13 @@ export class IncidentPersistencePostgreSQL implements InterfaceIncidentRepositor
       const err = error as Error;
       throw new RpcException({
         statusCode: 500,
-        message: `Error al crear el incidente en PostgreSQL: ${err.message}`,
+        message: `Error al crear el incidente en PostgreSQL: ${err}`,
       });
     }
   }
 
   async resolveIncident(
-    incidentId: number,
+    incidentId: string,
     resolverUserId: UUID,
     description: string,
     repairCost: number,
@@ -174,13 +195,13 @@ export class IncidentPersistencePostgreSQL implements InterfaceIncidentRepositor
   }
 
   async findById(
-    incidentId: number,
+    incidentId: string,
   ): Promise<IncidentDetailRowResponse | null> {
     const query = /* sql */ `
       SELECT 
         *
       FROM public.view_incidentes_detalle
-      WHERE incident_id = $1;
+      WHERE incident_id = $1::uuid;
     `;
     const result = await this.databaseService.query<IncidentDetailRowSQLResult>(
       query,
