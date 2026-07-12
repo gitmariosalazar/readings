@@ -6,6 +6,7 @@ import { ResolveIncidentUseCase } from '../../../application/usecases/commands/R
 import { FindIncidentsByConnectionUseCase } from '../../../application/usecases/queries/FindIncidentsByConnectionUseCase';
 import { SearchIncidentsUseCase } from '../../../application/usecases/queries/SearchIncidentsUseCase';
 import { FindIncidentCategoriesUseCase } from '../../../application/usecases/queries/FindIncidentCategoriesUseCase';
+import { GetIncidentDashboardKpisUseCase } from '../../../application/usecases/queries/GetIncidentDashboardKpisUseCase';
 
 @Module({
   controllers: [IncidentController],
@@ -15,6 +16,7 @@ import { FindIncidentCategoriesUseCase } from '../../../application/usecases/que
     FindIncidentsByConnectionUseCase,
     SearchIncidentsUseCase,
     FindIncidentCategoriesUseCase,
+    GetIncidentDashboardKpisUseCase,
     {
       provide: 'IncidentRepository',
       useClass: IncidentPersistencePostgreSQL,
@@ -27,6 +29,7 @@ import { FindIncidentCategoriesUseCase } from '../../../application/usecases/que
     FindIncidentsByConnectionUseCase,
     SearchIncidentsUseCase,
     FindIncidentCategoriesUseCase,
+    GetIncidentDashboardKpisUseCase,
   ],
 })
 export class IncidentModuleUsingPostgreSQL {}

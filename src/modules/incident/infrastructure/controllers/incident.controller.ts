@@ -8,6 +8,7 @@ import { ResolveIncidentUseCase } from '../../application/usecases/commands/Reso
 import { FindIncidentsByConnectionUseCase } from '../../application/usecases/queries/FindIncidentsByConnectionUseCase';
 import { SearchIncidentsUseCase } from '../../application/usecases/queries/SearchIncidentsUseCase';
 import { FindIncidentCategoriesUseCase } from '../../application/usecases/queries/FindIncidentCategoriesUseCase';
+import { GetIncidentDashboardKpisUseCase } from '../../application/usecases/queries/GetIncidentDashboardKpisUseCase';
 
 @Controller('Incidents')
 export class IncidentController {
@@ -17,7 +18,14 @@ export class IncidentController {
     private readonly findIncidentsByConnectionUseCase: FindIncidentsByConnectionUseCase,
     private readonly searchIncidentsUseCase: SearchIncidentsUseCase,
     private readonly findIncidentCategoriesUseCase: FindIncidentCategoriesUseCase,
+    private readonly getIncidentDashboardKpisUseCase: GetIncidentDashboardKpisUseCase,
   ) {}
+
+  @Get('dashboard/kpis')
+  @MessagePattern('incident.dashboard-kpis')
+  async getIncidentDashboardKpis() {
+    return this.getIncidentDashboardKpisUseCase.execute();
+  }
 
   @Post('create-incident')
   @MessagePattern('incident.create-incident')

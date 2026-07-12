@@ -2,11 +2,14 @@ import { UUID } from 'crypto';
 import { IncidentModel } from '../schemas/model/incident.model';
 import { IncidentCategoryModel } from '../schemas/model/incident-category-type.model';
 import { IncidentDetailRowResponse } from '../schemas/response/view_incident.response';
+import { IncidentDashboardResponseDto } from '../../application/dtos/response/incident-dashboard.dto';
 
 /**
  * Repository interface for Incident operations.
  */
 export interface InterfaceIncidentRepository {
+  getIncidentDashboardKpis(): Promise<IncidentDashboardResponseDto | null>;
+
   createIncident(
     incident: IncidentModel,
     images: string[],

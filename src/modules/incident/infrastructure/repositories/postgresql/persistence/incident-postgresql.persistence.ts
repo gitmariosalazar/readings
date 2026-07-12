@@ -16,10 +16,133 @@ import { IncidentSQLAdapter } from '../../../adapters/incident-sql.adapter';
 import { IncidentDetailRowResponse } from '../../../../domain/schemas/response/view_incident.response';
 import { IncidentAdapter } from '../../../adapters/incident.adapter';
 import { IncidentDetailRowSQLResult } from '../../../interfaces/sql/view_incidents.sql-result';
+import { IncidentDashboardResponseDto } from '../../../../application/dtos/response/incident-dashboard.dto';
+import { IncidentDashboardMapper } from '../../../../application/mappers/incident-dashboard.mapper';
 
 @Injectable()
 export class IncidentPersistencePostgreSQL implements InterfaceIncidentRepository {
   constructor(private readonly databaseService: DatabaseAbstract) {}
+
+  async getIncidentDashboardKpis(): Promise<IncidentDashboardResponseDto | null> {
+    try {
+      const query = `
+        SELECT jsonb_build_object(
+            
+            -- 1. KPIs GLOBALES (Tarjetas Superiores)
+            'kpis_generales', (
+                SELECT jsonb_build_object(
+                    'total_incidentes', COUNT(*),
+                    'total_pendientes', COUNT(*) FILTER (WHERE status NOT IN ('RESUELTO', 'FALSO_REPORTE')),
+                    'total_resueltos', COUNT(*) FILTER (WHERE status = 'RESUELTO'),
+                    'total_criticos_activos', COUNT(*) FILTER (WHERE current_priority = 'CRITICA' AND status NOT IN ('RESUELTO', 'FALSO_REPORTE')),
+                    'costo_reparacion_acumulado', COALESCE(SUM(repair_cost), 0.00),
+                    'tiempo_promedio_resolucion_dias', ROUND(AVG(open_days) FILTER (WHERE status = 'RESUELTO'), 1)
+                )
+                FROM public.view_incidentes_detalle
+            ),
+
+            -- 2. DISTRIBUCIÓN POR ESTADO (Para Gráfico de Dona / Pastel)
+            'por_estado', (
+                SELECT jsonb_agg(jsonb_build_object('estado', status, 'cantidad', count))
+                FROM (
+                    SELECT status, COUNT(*) as count 
+                    FROM public.view_incidentes_detalle 
+                    GROUP BY status
+                    ORDER BY count DESC
+                ) t
+            ),
+
+            -- 3. DISTRIBUCIÓN POR CATEGORÍA Y TIPO (Para Gráfico de Barras / Treemap)
+            'por_categoria', (
+                SELECT jsonb_agg(jsonb_build_object(
+                    'categoria', category_name,
+                    'cantidad', count,
+                    'costo_total', total_cost
+                ))
+                FROM (
+                    SELECT category_name, COUNT(*) as count, SUM(repair_cost) as total_cost
+                    FROM public.view_incidentes_detalle
+                    GROUP BY category_name
+                    ORDER BY count DESC
+                ) t
+            ),
+
+            -- 4. INCIDENTES POR ORIGEN (Para ver adopción de canales web vs físicos)
+            'por_origen_reporte', (
+                SELECT jsonb_agg(jsonb_build_object('origen', report_origin, 'cantidad', count))
+                FROM (
+                    SELECT report_origin, COUNT(*) as count 
+                    FROM public.view_incidentes_detalle 
+                    GROUP BY report_origin
+                    ORDER BY count DESC
+                ) t
+            ),
+
+            -- 5. INCIDENTES POR PRIORIDAD (Gráfico de Columnas o Embudo)
+            'por_prioridad', (
+                SELECT jsonb_agg(jsonb_build_object('prioridad', current_priority, 'cantidad', count))
+                FROM (
+                    SELECT current_priority, COUNT(*) as count 
+                    FROM public.view_incidentes_detalle 
+                    GROUP BY current_priority
+                    ORDER BY 
+                        CASE current_priority 
+                            WHEN 'CRITICA' THEN 1 
+                            WHEN 'ALTA' THEN 2 
+                            WHEN 'MEDIA' THEN 3 
+                            WHEN 'BAJA' THEN 4 
+                            ELSE 5 
+                        END
+                ) t
+            ),
+
+            -- 6. TENDENCIA DE REPORTES (Últimos 30 días - Para Gráfico de Líneas/Área)
+            'tendencia_ultimos_30_dias', (
+                SELECT jsonb_agg(jsonb_build_object(
+                    'fecha', fecha::date,
+                    'cantidad_reportada', cantidad
+                ))
+                FROM (
+                    SELECT DATE_TRUNC('day', report_date) AS fecha, COUNT(*) AS cantidad
+                    FROM public.view_incidentes_detalle
+                    WHERE report_date >= CURRENT_DATE - INTERVAL '30 days'
+                    GROUP BY DATE_TRUNC('day', report_date)
+                    ORDER BY fecha ASC
+                ) t
+            ),
+
+            -- 7. TOP 10 INCIDENTES CRÍTICOS SIN RESOLVER (Para Tabla de Acción Inmediata)
+            'atencion_inmediata', (
+                SELECT COALESCE(jsonb_agg(jsonb_build_object(
+                    'incident_code', incident_code,
+                    'connection_id', connection_id,
+                    'category', category_name,
+                    'type', incident_type_name,
+                    'days_open', pending_days,
+                    'latitude', latitude,
+                    'longitude', longitude
+                )), '[]'::jsonb)
+                FROM (
+                    SELECT incident_code, connection_id, category_name, incident_type_name, pending_days, latitude, longitude
+                    FROM public.view_incidentes_detalle
+                    WHERE current_priority = 'CRITICA' AND status NOT IN ('RESUELTO', 'FALSO_REPORTE')
+                    ORDER BY pending_days DESC NULLS LAST
+                    LIMIT 10
+                ) t
+            )
+
+        ) AS "dashboard_data";
+      `;
+      const result = await this.databaseService.query<Record<string, unknown>>(query, []);
+
+      if (!result || result.length === 0 || !result[0]?.dashboard_data) {
+        return null;
+      }
+      return IncidentDashboardMapper.toDto(result[0].dashboard_data as Record<string, unknown>);
+    } catch (error) {
+      throw error;
+    }
+  }
 
   async createIncident(
     incident: IncidentModel,
