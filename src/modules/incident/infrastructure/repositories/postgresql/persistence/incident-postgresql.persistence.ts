@@ -133,12 +133,17 @@ export class IncidentPersistencePostgreSQL implements InterfaceIncidentRepositor
 
         ) AS "dashboard_data";
       `;
-      const result = await this.databaseService.query<Record<string, unknown>>(query, []);
+      const result = await this.databaseService.query<Record<string, unknown>>(
+        query,
+        [],
+      );
 
       if (!result || result.length === 0 || !result[0]?.dashboard_data) {
         return null;
       }
-      return IncidentDashboardMapper.toDto(result[0].dashboard_data as Record<string, unknown>);
+      return IncidentDashboardMapper.toDto(
+        result[0].dashboard_data as Record<string, unknown>,
+      );
     } catch (error) {
       throw error;
     }
@@ -304,11 +309,22 @@ export class IncidentPersistencePostgreSQL implements InterfaceIncidentRepositor
     connectionId: string,
   ): Promise<IncidentDetailRowResponse[]> {
     const query = /* sql */ `
-      SELECT 
-        *
-      FROM public.view_incidentes_detalle
-      WHERE connection_id = $1
-      ORDER BY report_date DESC;
+      SELECT
+          a.*,
+          b.estado_anterior AS previous_order_state,
+          b.estado_nuevo AS current_order_state
+      FROM public.view_incidentes_detalle a
+      LEFT JOIN work_orders.orden_trabajo c
+          ON c.id_entidad_origen = a.incident_id
+      LEFT JOIN LATERAL (
+          SELECT estado_anterior, estado_nuevo
+          FROM work_orders.historial_estado_orden_trabajo
+          WHERE id_orden_trabajo = c.id_orden_trabajo
+          ORDER BY id_historial DESC, fecha_cambio DESC
+          LIMIT 1
+      ) b ON true
+      WHERE a.connection_id = $1
+      ORDER BY a.report_date DESC;
     `;
     const result = await this.databaseService.query<IncidentDetailRowSQLResult>(
       query,
@@ -321,10 +337,22 @@ export class IncidentPersistencePostgreSQL implements InterfaceIncidentRepositor
     incidentId: string,
   ): Promise<IncidentDetailRowResponse | null> {
     const query = /* sql */ `
-      SELECT 
-        *
-      FROM public.view_incidentes_detalle
-      WHERE incident_id = $1::uuid;
+      SELECT
+          a.*,
+          b.estado_anterior AS previous_order_state,
+          b.estado_nuevo AS current_order_state
+      FROM public.view_incidentes_detalle a
+      LEFT JOIN work_orders.orden_trabajo c
+          ON c.id_entidad_origen = a.incident_id
+      LEFT JOIN LATERAL (
+          SELECT estado_anterior, estado_nuevo
+          FROM work_orders.historial_estado_orden_trabajo
+          WHERE id_orden_trabajo = c.id_orden_trabajo
+          ORDER BY id_historial DESC, fecha_cambio DESC
+          LIMIT 1
+      ) b ON true
+      WHERE a.incident_id = $1::uuid
+      ORDER BY a.report_date DESC;
     `;
     const result = await this.databaseService.query<IncidentDetailRowSQLResult>(
       query,
@@ -344,55 +372,69 @@ export class IncidentPersistencePostgreSQL implements InterfaceIncidentRepositor
     reportDate?: Date | null;
   }): Promise<IncidentDetailRowResponse[]> {
     let query = /* sql */ `
-      SELECT * FROM view_incidentes_detalle i WHERE 1=1
+      SELECT
+          a.*,
+          b.estado_anterior AS previous_order_state,
+          b.estado_nuevo AS current_order_state
+      FROM public.view_incidentes_detalle a
+      LEFT JOIN work_orders.orden_trabajo c
+          ON c.id_entidad_origen = a.incident_id
+      LEFT JOIN LATERAL (
+          SELECT estado_anterior, estado_nuevo
+          FROM work_orders.historial_estado_orden_trabajo
+          WHERE id_orden_trabajo = c.id_orden_trabajo
+          ORDER BY id_historial DESC, fecha_cambio DESC
+          LIMIT 1
+      ) b ON true
+      WHERE 1=1
     `;
 
     const values: any[] = [];
     let paramIndex = 1;
 
     if (filters.connectionId) {
-      query += /* sql */ ` AND i.connection_id = $${paramIndex}`;
+      query += /* sql */ ` AND a.connection_id = $${paramIndex}`;
       values.push(filters.connectionId);
       paramIndex++;
     }
 
     if (filters.status) {
-      query += /* sql */ ` AND i.status = $${paramIndex}`;
+      query += /* sql */ ` AND a.status = $${paramIndex}`;
       values.push(filters.status);
       paramIndex++;
     }
 
     if (filters.priority) {
-      query += /* sql */ ` AND i.current_priority = $${paramIndex}`;
+      query += /* sql */ ` AND a.current_priority = $${paramIndex}`;
       values.push(filters.priority);
       paramIndex++;
     }
 
     if (filters.categoryId) {
-      query += /* sql */ ` AND i.category_id = $${paramIndex}`;
+      query += /* sql */ ` AND a.category_id = $${paramIndex}`;
       values.push(filters.categoryId);
       paramIndex++;
     }
 
     if (filters.sector) {
-      query += /* sql */ ` AND CAST(split_part(i.connection_id, '-', 1) AS INTEGER) = $${paramIndex}`;
+      query += /* sql */ ` AND CAST(split_part(a.connection_id, '-', 1) AS INTEGER) = $${paramIndex}`;
       values.push(filters.sector);
       paramIndex++;
     }
 
     if (filters.reference) {
-      query += /* sql */ ` AND i.reference_address ILIKE $${paramIndex}`;
+      query += /* sql */ ` AND a.reference_address ILIKE $${paramIndex}`;
       values.push(`%${filters.reference}%`);
       paramIndex++;
     }
 
     if (filters.reportDate) {
-      query += /* sql */ ` AND i.report_date::date = $${paramIndex}`;
+      query += /* sql */ ` AND a.report_date::date = $${paramIndex}`;
       values.push(filters.reportDate);
       paramIndex++;
     }
 
-    query += /* sql */ ` ORDER BY i.report_date DESC;`;
+    query += /* sql */ ` ORDER BY a.report_date DESC;`;
 
     const result = await this.databaseService.query<IncidentDetailRowSQLResult>(
       query,

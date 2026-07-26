@@ -32,6 +32,7 @@ export class IncidentAdapter {
     return {
       incidentId: sql.incident_id,
       connectionId: sql.connection_id,
+      orderCode: sql.order_code,
       incidentCode: sql.incident_code,
 
       readingId: sql.reading_id,
@@ -104,6 +105,8 @@ export class IncidentAdapter {
       // Auditoría
       createdAt: sql.created_at,
       updatedAt: sql.updated_at,
+      previousOrderState: sql.previous_order_state,
+      currentOrderState: sql.current_order_state,
     };
   }
 

@@ -75,6 +75,7 @@ export interface UserRowSQLResult {
 export interface IncidentDetailRowSQLResult {
   incident_id: string;
   connection_id: string | null;
+  order_code: string | null;
   incident_code: string;
   reading_id: number | null;
 
@@ -131,4 +132,6 @@ export interface IncidentDetailRowSQLResult {
   // Auditoría básica
   created_at: string; // ISO 8601 Date string
   updated_at: string; // ISO 8601 Date string
+  previous_order_state: string | null;
+  current_order_state: string | null;
 }
