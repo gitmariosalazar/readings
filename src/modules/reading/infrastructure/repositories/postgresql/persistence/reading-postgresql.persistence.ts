@@ -115,8 +115,8 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
           WHERE l.acometida_id = $1
             AND l.fecha_lectura IS NOT NULL
             AND l.novedad IS NOT NULL
-            AND l.novedad NOT LIKE '%INICIAL AUTOMÁTICA%'
-            AND l.novedad NOT LIKE '%CAMBIO MEDIDOR%'
+            --AND l.novedad NOT LIKE '%INICIAL AUTOMÁTICA%'
+            --AND l.novedad NOT LIKE '%CAMBIO MEDIDOR%'
           ORDER BY l.fecha_lectura DESC
           LIMIT 5
         ) l
@@ -144,29 +144,31 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
             FROM lectura l
             WHERE l.acometida_id = $1
               AND date_trunc('month', l.fecha_lectura)::date = date_trunc('month', CURRENT_DATE)::date
-              AND l.novedad NOT LIKE '%INICIAL AUTOMÁTICA%'
-              AND l.novedad NOT LIKE '%CAMBIO MEDIDOR%'
+              AND l.novedad NOT ILIKE '%INICIAL AUTOMÁTICA%'
+              AND l.novedad NOT ILIKE '%CAMBIO MEDIDOR%'
+              AND l.novedad NOT ILIKE '%CAMBIO DE MEDIDOR%'
           ) AS ya_tomada_mes_actual
       ),
 
       proximo_mes_esperado AS (
         -- 5. Determinamos el mes teórico que toca basándonos en la cadena 'YYYY-MM'
-        SELECT 
-          CASE 
+        SELECT
+          CASE
             -- Si no hay lecturas previas, toca el mes actual
             WHEN MAX(l.mes_lectura) IS NULL THEN date_trunc('month', CURRENT_DATE)::date
-            
+
             -- Si el mes siguiente al histórico ya pasó, nos acoplamos al mes actual del servidor
             WHEN (to_date(MAX(l.mes_lectura), 'YYYY-MM') + INTERVAL '1 month')::date < date_trunc('month', CURRENT_DATE)::date
             THEN date_trunc('month', CURRENT_DATE)::date
-            
+
             -- Si está al día, toca el mes consecutivo normal
             ELSE (to_date(MAX(l.mes_lectura), 'YYYY-MM') + INTERVAL '1 month')::date
           END AS mes_que_toca
         FROM lectura l
         WHERE l.acometida_id = $1
-          AND l.novedad NOT LIKE '%INICIAL AUTOMÁTICA%'
-          AND l.novedad NOT LIKE '%CAMBIO MEDIDOR%'
+          AND l.novedad NOT ILIKE '%INICIAL AUTOMÁTICA%'
+          AND l.novedad NOT ILIKE '%CAMBIO MEDIDOR%'
+          AND l.novedad NOT ILIKE '%CAMBIO DE MEDIDOR%'
       ),
 
       periodo AS (
@@ -190,8 +192,9 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
             FROM lectura l2
             WHERE l2.acometida_id = $1
               AND l2.fecha_lectura::date >= COALESCE(p.fecha_mitad, p.inicio)::date
-              AND l2.novedad NOT LIKE '%INICIAL AUTOMÁTICA%'
-              AND l2.novedad NOT LIKE '%CAMBIO MEDIDOR%'
+              AND l2.novedad NOT ILIKE '%INICIAL AUTOMÁTICA%'
+              AND l2.novedad NOT ILIKE '%CAMBIO MEDIDOR%'
+              AND l2.novedad NOT ILIKE '%CAMBIO DE MEDIDOR%'
           ) AS ya_tomada_en_periodo_actual
         FROM periodo p
       )
@@ -225,11 +228,12 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
           WHEN l.rn = 1
               AND pme.mes_que_toca = ma.mes_hoy
               AND NOT COALESCE(lmae.ya_tomada_mes_actual, false)
+
           THEN true
 
           -- Fila 2: Siempre permitida como referencia de edición
           WHEN l.rn = 2 THEN true
-          
+
           ELSE false
         END AS "has_current_reading",
 
@@ -245,10 +249,10 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
         est.id_estado AS "connection_state_id",
         est.nombre AS "connection_state_name",
         est.permite_lectura AS "permit_reading",
-        CASE 
-          WHEN ac.coordenadas IS NOT NULL THEN 
+        CASE
+          WHEN ac.coordenadas IS NOT NULL THEN
             json_build_object('lat', ST_Y(ac.coordenadas), 'lng', ST_X(ac.coordenadas))
-            ELSE NULL 
+            ELSE NULL
           END as "connection_location"
 
       FROM ranked l
@@ -263,7 +267,7 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
 
       -- Entidades Principales
       JOIN acometida ac ON ac.acometida_id = l.acometida_id
-      LEFT JOIN cat_estados_acometida est ON ac.estado_id = est.id_estado  
+      LEFT JOIN cat_estados_acometida est ON ac.estado_id = est.id_estado
       LEFT JOIN cliente c ON c.cliente_id = ac.cliente_id
       LEFT JOIN ciudadano ci ON ci.ciudadano_id = c.cliente_id
       LEFT JOIN empresa e ON e.ruc = c.cliente_id
