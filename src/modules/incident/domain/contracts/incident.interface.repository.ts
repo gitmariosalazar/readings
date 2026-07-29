@@ -36,6 +36,18 @@ export interface InterfaceIncidentRepository {
     sector?: string | null;
     reference?: string | null;
     reportDate?: Date | null;
+    internalUserId?: string | null;
+    externalUserId?: string | null;
+  }): Promise<IncidentDetailRowResponse[]>;
+  findIncidentsByClientUserId(filters: {
+    externalUserId: string | null;
+    connectionId?: string | null;
+    status?: string | null;
+    priority?: string | null;
+    categoryId?: number | null;
+    sector?: string | null;
+    reference?: string | null;
+    reportDate?: Date | null;
   }): Promise<IncidentDetailRowResponse[]>;
   findIncidentCategories(): Promise<IncidentCategoryModel[]>;
 }

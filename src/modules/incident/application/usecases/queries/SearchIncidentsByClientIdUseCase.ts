@@ -8,13 +8,14 @@ import { IncidentDetailRowResponse } from '../../../domain/schemas/response/view
 /**
  * Use case to search and list incidents using dynamic filters (connectionId, status, priority, type).
  */
-export class SearchIncidentsUseCase {
+export class SearchIncidentsByClientIdUseCase {
   constructor(
     @Inject('IncidentRepository')
     private readonly incidentRepository: InterfaceIncidentRepository,
   ) {}
 
   async execute(filters: {
+    externalUserId: string | null;
     connectionId?: string | null;
     status?: string | null;
     priority?: string | null;
@@ -22,11 +23,10 @@ export class SearchIncidentsUseCase {
     sector?: string | null;
     reference?: string | null;
     reportDate?: Date | null;
-    internalUserId?: string | null;
-    externalUserId?: string | null;
   }): Promise<IncidentDetailRowResponse[]> {
     try {
-      const models = await this.incidentRepository.findIncidents(filters);
+      const models =
+        await this.incidentRepository.findIncidentsByClientUserId(filters);
       return models;
     } catch (error) {
       throw error;

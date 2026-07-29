@@ -370,6 +370,8 @@ export class IncidentPersistencePostgreSQL implements InterfaceIncidentRepositor
     sector?: string | null;
     reference?: string | null;
     reportDate?: Date | null;
+    internalUserId?: string | null;
+    externalUserId?: string | null;
   }): Promise<IncidentDetailRowResponse[]> {
     let query = /* sql */ `
       SELECT
@@ -377,6 +379,8 @@ export class IncidentPersistencePostgreSQL implements InterfaceIncidentRepositor
           b.estado_anterior AS previous_order_state,
           b.estado_nuevo AS current_order_state
       FROM public.view_incidentes_detalle a
+      INNER JOIN public.incidente_medidor im
+          ON im.codigo_incidente = a.incident_code
       LEFT JOIN work_orders.orden_trabajo c
           ON c.id_entidad_origen = a.incident_id
       LEFT JOIN LATERAL (
@@ -416,6 +420,24 @@ export class IncidentPersistencePostgreSQL implements InterfaceIncidentRepositor
       paramIndex++;
     }
 
+    if (filters.internalUserId) {
+      query += /* sql */ ` AND im.usuario_reporta_id = $${paramIndex}`;
+      values.push(filters.internalUserId);
+      paramIndex++;
+    }
+
+    if (filters.externalUserId) {
+      query += /* sql */ ` AND im.cliente_usuario_reporta_id = $${paramIndex}`;
+      values.push(filters.externalUserId);
+      paramIndex++;
+    }
+
+    if (filters.externalUserId && filters.connectionId) {
+      query += /* sql */ ` AND (im.cliente_usuario_reporta_id = $${paramIndex} OR a.connection_id = $${paramIndex + 1})`;
+      values.push(filters.externalUserId, filters.connectionId);
+      paramIndex += 2;
+    }
+
     if (filters.sector) {
       query += /* sql */ ` AND CAST(split_part(a.connection_id, '-', 1) AS INTEGER) = $${paramIndex}`;
       values.push(filters.sector);
@@ -443,6 +465,101 @@ export class IncidentPersistencePostgreSQL implements InterfaceIncidentRepositor
     return IncidentAdapter.fromSQLResultListToResponseList(result);
   }
 
+  async findIncidentsByClientUserId(filters: {
+    externalUserId: string;
+    connectionId?: string | null;
+    status?: string | null;
+    priority?: string | null;
+    categoryId?: number | null;
+    sector?: string | null;
+    reference?: string | null;
+    reportDate?: Date | null;
+  }): Promise<IncidentDetailRowResponse[]> {
+    try {
+      let query = /* sql */ `
+      SELECT
+          a.*,
+          b.estado_anterior AS previous_order_state,
+          b.estado_nuevo AS current_order_state
+      FROM public.view_incidentes_detalle a
+      INNER JOIN public.incidente_medidor im
+          ON im.codigo_incidente = a.incident_code
+      LEFT JOIN work_orders.orden_trabajo c
+          ON c.id_entidad_origen = a.incident_id
+      LEFT JOIN LATERAL (
+          SELECT estado_anterior, estado_nuevo
+          FROM work_orders.historial_estado_orden_trabajo
+          WHERE id_orden_trabajo = c.id_orden_trabajo
+          ORDER BY id_historial DESC, fecha_cambio DESC
+          LIMIT 1
+      ) b ON true
+      WHERE im.cliente_usuario_reporta_id = $1
+        OR im.acometida_id in (
+          select a.acometida_id from acometida ac
+          inner join cliente_usuario cu on cu.cliente_id = ac.cliente_id
+          where cu.cliente_usuario_id = $1
+        )
+    `;
+
+      const values: any[] = [filters.externalUserId];
+      let paramIndex = 2;
+
+      // Filtros opcionales adicionales sobre los datos de ese cliente
+      if (filters.connectionId) {
+        query += /* sql */ ` AND a.connection_id = $${paramIndex}`;
+        values.push(filters.connectionId);
+        paramIndex++;
+      }
+
+      if (filters.status) {
+        query += /* sql */ ` AND a.status = $${paramIndex}`;
+        values.push(filters.status);
+        paramIndex++;
+      }
+
+      if (filters.priority) {
+        query += /* sql */ ` AND a.current_priority = $${paramIndex}`;
+        values.push(filters.priority);
+        paramIndex++;
+      }
+
+      if (filters.categoryId) {
+        query += /* sql */ ` AND a.category_id = $${paramIndex}`;
+        values.push(filters.categoryId);
+        paramIndex++;
+      }
+
+      if (filters.sector) {
+        query += /* sql */ ` AND split_part(a.connection_id, '-', 1) = $${paramIndex}`;
+        values.push(filters.sector.toString());
+        paramIndex++;
+      }
+
+      if (filters.reference) {
+        query += /* sql */ ` AND a.reference_address ILIKE $${paramIndex}`;
+        values.push(`%${filters.reference}%`);
+        paramIndex++;
+      }
+
+      if (filters.reportDate) {
+        query += /* sql */ ` AND a.report_date::date = $${paramIndex}`;
+        values.push(filters.reportDate);
+        paramIndex++;
+      }
+
+      query += /* sql */ ` ORDER BY a.report_date DESC;`;
+
+      const result =
+        await this.databaseService.query<IncidentDetailRowSQLResult>(
+          query,
+          values,
+        );
+
+      return IncidentAdapter.fromSQLResultListToResponseList(result);
+    } catch (error) {
+      throw error;
+    }
+  }
   async findIncidentCategories(): Promise<IncidentCategoryModel[]> {
     const query = /* sql */ `
       SELECT

@@ -9,6 +9,7 @@ import { FindIncidentsByConnectionUseCase } from '../../application/usecases/que
 import { SearchIncidentsUseCase } from '../../application/usecases/queries/SearchIncidentsUseCase';
 import { FindIncidentCategoriesUseCase } from '../../application/usecases/queries/FindIncidentCategoriesUseCase';
 import { GetIncidentDashboardKpisUseCase } from '../../application/usecases/queries/GetIncidentDashboardKpisUseCase';
+import { SearchIncidentsByClientIdUseCase } from '../../application/usecases/queries/SearchIncidentsByClientIdUseCase';
 
 @Controller('Incidents')
 export class IncidentController {
@@ -19,6 +20,7 @@ export class IncidentController {
     private readonly searchIncidentsUseCase: SearchIncidentsUseCase,
     private readonly findIncidentCategoriesUseCase: FindIncidentCategoriesUseCase,
     private readonly getIncidentDashboardKpisUseCase: GetIncidentDashboardKpisUseCase,
+    private readonly searchIncidentsByClientIdUseCase: SearchIncidentsByClientIdUseCase,
   ) {}
 
   @Get('dashboard/kpis')
@@ -79,9 +81,29 @@ export class IncidentController {
       sector?: string | null;
       reference?: string | null;
       reportDate?: Date | null;
+      internalUserId?: string | null;
+      externalUserId?: string | null;
     },
   ) {
     return this.searchIncidentsUseCase.execute(filters);
+  }
+
+  @Get('search-by-client-id')
+  @MessagePattern('incident.search-by-client-id')
+  async searchIncidentsByClientId(
+    @Payload()
+    filters: {
+      externalUserId: string;
+      connectionId?: string | null;
+      status?: string | null;
+      priority?: string | null;
+      categoryId?: number | null;
+      sector?: string | null;
+      reference?: string | null;
+      reportDate?: Date | null;
+    },
+  ) {
+    return this.searchIncidentsByClientIdUseCase.execute(filters);
   }
 
   @Get('categories')
