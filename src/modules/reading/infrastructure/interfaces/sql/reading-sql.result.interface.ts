@@ -34,6 +34,7 @@ export interface ReadingSQLResult {
   income_code: number | null;
   average_consumption: number;
   location_capture?: { lat: number; lng: number } | null;
+  reading_code?: string;
 }
 
 export interface ClientPhoneSQLResult {
@@ -106,6 +107,7 @@ export interface ReadingHistorySQLResult {
   current_reading: number;
   consumption: number;
   observation: string;
+  reading_value: number;
 }
 
 export interface ReadingImagesSQLResult {
@@ -201,4 +203,15 @@ export interface ReadingNoveltySQLResult {
   distance_meters?: number | null;
   is_inside_allowed_radius?: boolean | null;
   distance_line_geojson?: any | null;
+}
+
+export interface TarifaSQLResult {
+  categoria_id: number;
+}
+
+export interface RangoTarifaSQLResult {
+  Minimo: number;
+  Maximo: number;
+  Base: number;
+  Adicional: number;
 }

@@ -18,6 +18,7 @@ import { NoveltyModel } from '../../../domain/schemas/model/novelty.model';
 import { getTypeCurrentConsumption } from '../../../../../shared/types/novelty.type';
 import { UUID } from 'crypto';
 import { InterfaceNoveltyRepository } from '../../../domain/contracts/novelty.interface.repository';
+import { request } from 'express';
 
 @Injectable()
 export class CreateReadingUseCase {
@@ -115,8 +116,21 @@ export class CreateReadingUseCase {
       readingRequest.typeNoveltyReadingId = consumoActual.id;
       readingRequest.novelty = consumoActual.title;
 
+      const valueConsumoAgua =
+        await this.readingRepository.calculateReadingValue(
+          readingRequest.cadastralKey,
+          Number(readingRequest.currentReading) -
+            Number(readingRequest.previousReading),
+        );
+
+      readingRequest.readingValue = valueConsumoAgua;
+
       const paraCrear: ReadingModel =
         ReadingMapper.fromCreateReadingRequestToReadingModel(readingRequest);
+
+      console.log(
+        `Creating reading with data: ${JSON.stringify(readingRequest)}, Model Reading: ${JSON.stringify(paraCrear)}, Calculated Reading Value: ${valueConsumoAgua}`,
+      );
       const creadoEntity: ReadingModel | null =
         await this.readingRepository.createReading(paraCrear, creatorUserId);
 

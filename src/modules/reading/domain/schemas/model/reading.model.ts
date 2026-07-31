@@ -17,6 +17,7 @@ export class ReadingModel {
     public readonly typeNoveltyReadingId: number,
     public readonly currentMonthReading: string,
     public readonly locationCapture: { lat: number; lng: number } | null,
+    public readonly readingCode: string,
   ) {}
 
   // Domain logic
@@ -56,5 +57,6 @@ export class ReadingNoveltyModel {
     public readonly distanceMeters?: number | null,
     public readonly isInsideAllowedRadius?: boolean | null,
     public readonly distanceLineGeoJSON?: any | null,
+    public readonly readingCode?: string | null,
   ) {}
 }

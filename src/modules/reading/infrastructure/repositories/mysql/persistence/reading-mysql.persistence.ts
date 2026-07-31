@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { toZonedTime } from 'date-fns-tz';
 import {
   PendingReadingConnectionSQLResult,
+  RangoTarifaSQLResult,
   ReadingBasicInfoSQLResult,
   ReadingHistorySQLResult,
   ReadingImagesSQLResult,
@@ -10,6 +11,7 @@ import {
   ReadingNoveltySQLResult,
   ReadingSQLResult,
   TakenReadingConnectionSQLResult,
+  TarifaSQLResult,
 } from '../../../interfaces/sql/reading-sql.result.interface';
 import { ReadingSQLAdapter } from '../../../adapters/reading-sql.adapter';
 import {
@@ -763,5 +765,117 @@ export class ReadingPersistenceMySQL implements InterfaceReadingRepository {
     return result.map((r) =>
       ReadingSQLAdapter.fromReadingNoveltySQLResultToReadingNoveltyModel(r),
     );
+  }
+
+  async calculateReadingValue(
+    cadastralKey: string,
+    consumptionM3: number,
+  ): Promise<number> {
+    try {
+      if (consumptionM3 < 0) {
+        return 0;
+      }
+      // 1. Obtener la tarifa de la acometida
+      const queryAcometida = /*sql*/ `
+          SELECT cat.categoria_id FROM acometida a
+            INNER JOIN tarifa t
+            ON a.tarifa_id = t.tarifa_id
+            INNER JOIN categoria cat ON cat.categoria_id = t.categoria_id
+            WHERE acometida_id = $1;
+      `;
+
+      const queryParams: any[] = [cadastralKey];
+
+      const resultAcometida = await this.databaseService.query<TarifaSQLResult>(
+        queryAcometida,
+        queryParams,
+      );
+
+      if (resultAcometida.length === 0) {
+        console.warn(
+          `No se encontró acometida para la clave catastral: ${cadastralKey}`,
+        );
+        return 0;
+      }
+
+      const tarifa: number = Number(resultAcometida[0].categoria_id);
+
+      // 2. Obtener los rangos de tarifas
+      const queryTarifas = /*sql*/ `
+          SELECT
+              minimo AS "Minimo",
+              maximo AS "Maximo",
+              base AS "Base",
+              adicional AS "Adicional"
+          FROM valor_tarifa
+          WHERE id_categoria = $1
+          ORDER BY minimo ASC;
+      `;
+
+      const queryParamsTarifas: any[] = [tarifa];
+
+      const resultTarifas =
+        await this.databaseService.query<RangoTarifaSQLResult>(
+          queryTarifas,
+          queryParamsTarifas,
+        );
+
+      if (resultTarifas.length === 0) {
+        console.warn(`No se encontraron rangos para la tarifa: ${tarifa}`);
+        return 0;
+      }
+
+      let min = 0;
+      let max = 0;
+      let bas = 0;
+      let adic = 0;
+      let bMinimo = 0;
+      let bMaximo = 0;
+
+      // Tomamos el primer y último para mensajes de error
+      bMinimo = resultTarifas[0].Minimo;
+      bMaximo = resultTarifas[resultTarifas.length - 1].Maximo;
+
+      // Buscar el rango correspondiente
+      for (const row of resultTarifas) {
+        const minimo = Number(row.Minimo);
+        const maximo = Number(row.Maximo);
+
+        if (consumptionM3 >= minimo && consumptionM3 <= maximo) {
+          min = minimo;
+          max = maximo;
+          bas = Number(row.Base);
+          adic = Number(row.Adicional);
+          break; // encontrado → salimos
+        }
+      }
+
+      // Si no encontró ningún rango válido
+      if (bas === 0) {
+        console.warn(
+          `Consumo ${consumptionM3} m³ fuera de rango para la clave catastral '${cadastralKey}' - Tarifa '${tarifa}'. ` +
+            `Rango permitido: ${bMinimo} a ${bMaximo} m³. Consulte el pliego tarifario.`,
+        );
+        // Aquí podrías lanzar un error o mostrar un mensaje en UI
+        // alert(...) si estás en frontend, pero como es función, retornamos 0
+        return 0;
+      }
+
+      // Cálculo final
+      let valorPagar: number;
+
+      if (consumptionM3 >= 0 && consumptionM3 <= 10) {
+        valorPagar = bas;
+      } else {
+        // valor base + adicional por m³ extras (a partir de min - 1)
+        const m3Adicionales = consumptionM3 - (min - 1);
+        valorPagar = bas + m3Adicionales * adic;
+      }
+
+      return valorPagar;
+    } catch (error) {
+      console.error('Error al calcular ValorPagarConsumo:', error);
+      throw error; // o retornar 0 según tu política
+    }
   }
 }

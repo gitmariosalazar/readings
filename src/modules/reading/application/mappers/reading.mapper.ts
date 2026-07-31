@@ -37,7 +37,7 @@ export class ReadingMapper {
       readingRequest.sector,
       readingRequest.account,
       readingRequest.cadastralKey,
-      0, // readingValue
+      readingRequest.readingValue ?? 0, // readingValue
       readingRequest.sewerRate,
       readingRequest.previousReading,
       readingRequest.currentReading ?? 0,
@@ -47,6 +47,7 @@ export class ReadingMapper {
       readingRequest.typeNoveltyReadingId ?? 1,
       currentMonthReading,
       readingRequest.locationCapture ?? null,
+      '',
     );
   }
 
@@ -74,6 +75,7 @@ export class ReadingMapper {
       readingRequest.typeNoveltyReadingId ?? 1,
       '', // currentMonthReading (default or needs to be in request)
       readingRequest.locationCapture ?? null,
+      '', // readingCode (default or needs to be in request)
     );
   }
   static fromReadingModelToReadingResponse(
@@ -95,6 +97,7 @@ export class ReadingMapper {
       novelty: reading.novelty ?? '',
       incomeCode: reading.incomeCode ?? 0,
       locationCapture: reading.locationCapture ?? null,
+      readingCode: reading.readingCode ?? '',
     };
     return response;
   }
@@ -113,6 +116,7 @@ export class ReadingMapper {
       currentReading: readingHistory.currentReading,
       consumption: readingHistory.consumption,
       observation: readingHistory.observation,
+      readingValue: readingHistory.readingValue,
     };
     return response;
   }

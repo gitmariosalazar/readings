@@ -10,5 +10,6 @@ export class ReadingHistoryModel {
     public currentReading: number,
     public consumption: number,
     public observation: string,
+    public readingValue: number,
   ) {}
 }

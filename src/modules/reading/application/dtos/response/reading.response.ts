@@ -14,6 +14,7 @@ export interface ReadingResponse {
   novelty: string | null;
   incomeCode: number | null;
   locationCapture?: { lat: number; lng: number } | null;
+  readingCode?: string;
 }
 
 export interface PendingReadingConnectionResponse {

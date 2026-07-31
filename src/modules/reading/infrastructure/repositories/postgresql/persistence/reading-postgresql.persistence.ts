@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { toZonedTime } from 'date-fns-tz';
 import {
   PendingReadingConnectionSQLResult,
+  RangoTarifaSQLResult,
   ReadingBasicInfoSQLResult,
   ReadingHistorySQLResult,
   ReadingImagesSQLResult,
@@ -10,6 +11,7 @@ import {
   ReadingNoveltySQLResult,
   ReadingSQLResult,
   TakenReadingConnectionSQLResult,
+  TarifaSQLResult,
 } from '../../../interfaces/sql/reading-sql.result.interface';
 import { ReadingSQLAdapter } from '../../../adapters/reading-sql.adapter';
 import {
@@ -308,6 +310,10 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
     reading: ReadingModel,
     updateUserId: UUID,
   ): Promise<ReadingModel | null> {
+    console.log(
+      `Updating reading with ID: ${readingId}, Reading: ${JSON.stringify(reading)}, Update User ID: ${updateUserId}`,
+    );
+
     return this.databaseService.transaction(async (client: IDatabaseClient) => {
       const updateQuery: string = `
         UPDATE lectura
@@ -334,7 +340,8 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
           lectura_actual as "current_reading",
           codigo_ingreso_renta as "rental_income_code",
           novedad as "novelty",
-          codigo_ingreso as "income_code";
+          codigo_ingreso as "income_code",
+          codigo_lectura as "reading_code";
       `;
       const updateParams = [
         reading.readingValue ?? 0,
@@ -501,8 +508,8 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
               valor_lectura, tasa_alcantarillado, lectura_anterior, lectura_actual,
               codigo_ingreso_renta, novedad, codigo_ingreso, tipo_novedad_lectura_id, lectura_estado_id, mes_lectura,observacion, ubicacion_captura
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17,
-              CASE WHEN $18::double precision IS NOT NULL AND $19::double precision IS NOT NULL 
-                 THEN ST_SetSRID(ST_MakePoint($19, $18), 4326) ELSE NULL END  
+              CASE WHEN $18::double precision IS NOT NULL AND $19::double precision IS NOT NULL
+                 THEN ST_SetSRID(ST_MakePoint($19, $18), 4326) ELSE NULL END
             )
             RETURNING
               lectura_id as "reading_id",
@@ -520,11 +527,12 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
               novedad as "novelty",
               codigo_ingreso as "income_code",
               (SELECT codigo FROM Lectura_estado WHERE lectura_estado_id = $15) as "status_code",
-              CASE 
-                  WHEN ubicacion_captura IS NOT NULL THEN 
+              CASE
+                  WHEN ubicacion_captura IS NOT NULL THEN
                     json_build_object('lat', ST_Y(ubicacion_captura), 'lng', ST_X(ubicacion_captura))
-                  ELSE NULL 
-                END as "location_capture";
+                  ELSE NULL
+                END as "location_capture",
+                codigo_lectura as "reading_code";
           `;
 
           const horaLectura =
@@ -619,10 +627,13 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
             l.lectura_anterior            AS previous_reading,
             l.lectura_actual              AS current_reading,
             (l.lectura_actual - l.lectura_anterior) AS consumption,
-            l.novedad                     AS observation
+            l.novedad                     AS observation,
+            l.valor_lectura               AS reading_value
         FROM lectura l
         WHERE l.acometida_id = $1
           AND l.fecha_lectura IS NOT NULL
+          AND COALESCE(l.novedad, '')     !~* 'CAMBIO|INICIAL|MEDIDOR'
+          AND COALESCE(l.observacion, '') !~* 'CAMBIO|INICIAL|MEDIDOR'
         ORDER BY l.fecha_lectura DESC
         LIMIT $2 OFFSET $3;
     `;
@@ -1084,5 +1095,121 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
     return result.map((r) =>
       ReadingSQLAdapter.fromReadingNoveltySQLResultToReadingNoveltyModel(r),
     );
+  }
+
+  async calculateReadingValue(
+    cadastralKey: string,
+    consumptionM3: number,
+  ): Promise<number> {
+    try {
+      // 1. Obtener la tarifa de la acometida
+      if (consumptionM3 < 0) {
+        return 0;
+      }
+      const queryAcometida = /*sql*/ `
+        SELECT cat.categoria_id FROM acometida a
+          INNER JOIN tarifa t
+          ON a.tarifa_id = t.tarifa_id
+          INNER JOIN categoria cat ON cat.categoria_id = t.categoria_id
+          WHERE acometida_id = $1;
+    `;
+
+      const queryParams: any[] = [cadastralKey];
+
+      const resultAcometida = await this.databaseService.query<TarifaSQLResult>(
+        queryAcometida,
+        queryParams,
+      );
+
+      if (resultAcometida.length === 0) {
+        console.warn(
+          `No se encontró acometida para la clave catastral: ${cadastralKey}`,
+        );
+        return 0;
+      }
+
+      const tarifa: number = Number(resultAcometida[0].categoria_id);
+
+      // 2. Obtener los rangos de tarifas
+      const queryTarifas = /*sql*/ `
+        SELECT
+            minimo AS "Minimo",
+            maximo AS "Maximo",
+            base AS "Base",
+            adicional AS "Adicional"
+        FROM valor_tarifa
+        WHERE id_categoria = $1
+        ORDER BY minimo ASC;
+    `;
+
+      const queryParamsTarifas: any[] = [tarifa];
+
+      const resultTarifas =
+        await this.databaseService.query<RangoTarifaSQLResult>(
+          queryTarifas,
+          queryParamsTarifas,
+        );
+
+      if (resultTarifas.length === 0) {
+        console.warn(`No se encontraron rangos para la tarifa: ${tarifa}`);
+        return 0;
+      }
+
+      let min = 0;
+      let max = 0;
+      let bas = 0;
+      let adic = 0;
+      let bMinimo = 0;
+      let bMaximo = 0;
+
+      // Tomamos el primer y último para mensajes de error
+      bMinimo = resultTarifas[0].Minimo;
+      bMaximo = resultTarifas[resultTarifas.length - 1].Maximo;
+
+      // Buscar el rango correspondiente
+      for (const row of resultTarifas) {
+        const minimo = Number(row.Minimo);
+        const maximo = Number(row.Maximo);
+
+        if (consumptionM3 >= minimo && consumptionM3 <= maximo) {
+          min = minimo;
+          max = maximo;
+          bas = Number(row.Base);
+          adic = Number(row.Adicional);
+          break; // encontrado → salimos
+        }
+      }
+
+      // Si no encontró ningún rango válido
+      if (bas === 0) {
+        console.warn(
+          `Consumo ${consumptionM3} m³ fuera de rango para la clave catastral '${cadastralKey}' - Tarifa '${tarifa}'. ` +
+            `Rango permitido: ${bMinimo} a ${bMaximo} m³. Consulte el pliego tarifario.`,
+        );
+        // Aquí podrías lanzar un error o mostrar un mensaje en UI
+        // alert(...) si estás en frontend, pero como es función, retornamos 0
+        return 0;
+      }
+
+      // Cálculo final
+      let valorPagar: number;
+
+      if (consumptionM3 >= 0 && consumptionM3 <= 10) {
+        valorPagar = bas;
+      } else {
+        // valor base + adicional por m³ extras (a partir de min - 1)
+        const m3Adicionales = consumptionM3 - (min - 1);
+        valorPagar = bas + m3Adicionales * adic;
+      }
+
+      console.log(
+        `Valor a pagar calculado para la clave catastral '${cadastralKey}': ${valorPagar} (Consumo: ${consumptionM3} m³, Tarifa: ${tarifa}, Rango: ${min}-${max}, Base: ${bas}, Adicional: ${adic})`,
+      );
+
+      return valorPagar;
+    } catch (error) {
+      console.error('Error al calcular ValorPagarConsumo:', error);
+      throw error; // o retornar 0 según tu política
+    }
   }
 }

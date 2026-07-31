@@ -9,4 +9,5 @@ export interface ReadingHistoryResponse {
   currentReading: number;
   consumption: number;
   observation: string;
+  readingValue: number;
 }

@@ -49,4 +49,9 @@ export interface InterfaceReadingRepository {
     novelty?: string,
     sector?: number,
   ): Promise<ReadingNoveltyModel[]>;
+
+  calculateReadingValue(
+    cadastralKey: string,
+    consumptionM3: number,
+  ): Promise<number>;
 }

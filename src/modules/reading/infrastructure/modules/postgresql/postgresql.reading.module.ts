@@ -40,6 +40,7 @@ import { GetAuditHistoryBySectorUseCase } from '../../../application/usecases/au
 import { GetReadingByNoveltyUseCase } from '../../../application/usecases/queries/GetReadingByNoveltyUseCase';
 import { FindAllNoveltiesUseCase } from '../../../application/usecases/novelties/FindAllNoveltiesUseCase';
 import { NoveltyPersistencePostgreSQL } from '../../repositories/postgresql/persistence/novelty.postgresql.persistence';
+import { CalculateReadingValueUseCase } from '../../../application/usecases/queries/CalculateReadingValueUseCase';
 
 @Module({
   controllers: [
@@ -78,6 +79,7 @@ import { NoveltyPersistencePostgreSQL } from '../../repositories/postgresql/pers
     CloseAuditSectorUseCase,
     GetAuditHistoryBySectorUseCase,
     FindAllNoveltiesUseCase,
+    CalculateReadingValueUseCase,
 
     {
       provide: 'ReadingRepository',

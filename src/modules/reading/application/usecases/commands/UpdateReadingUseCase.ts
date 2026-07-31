@@ -111,15 +111,19 @@ export class UpdateReadingUseCase {
       readinRequest.typeNoveltyReadingId = consumoActual.id;
       readinRequest.novelty = consumoActual.title;
 
-      const baseValue: number = 0;
       const consumption: number =
         (readinRequest.currentReading ?? 0) -
         (readinRequest.previousReading ?? 0);
-      const totalAmount: number = parseFloat(
-        (consumption * baseValue).toFixed(2),
-      );
 
-      if (totalAmount < 0) {
+      const valueConsumoAgua =
+        await this.readingRepository.calculateReadingValue(
+          readinRequest.cadastralKey,
+          consumption,
+        );
+
+      readinRequest.readingValue = valueConsumoAgua;
+
+      if (valueConsumoAgua < 0) {
         throw new RpcException({
           statusCode: statusCode.INTERNAL_SERVER_ERROR,
           message: `Error calculating total amount for reading with ID ${readingId}!`,
@@ -137,7 +141,7 @@ export class UpdateReadingUseCase {
         toUpdate.sector,
         toUpdate.account,
         toUpdate.cadastralKey,
-        totalAmount,
+        valueConsumoAgua,
         toUpdate.sewerRate,
         toUpdate.previousReading,
         toUpdate.currentReading,
@@ -147,6 +151,7 @@ export class UpdateReadingUseCase {
         toUpdate.typeNoveltyReadingId,
         toUpdate.currentMonthReading,
         toUpdate.locationCapture,
+        toUpdate.readingCode,
       );
 
       //console.log(`Updated reading: ${JSON.stringify(updatedReading)}`);

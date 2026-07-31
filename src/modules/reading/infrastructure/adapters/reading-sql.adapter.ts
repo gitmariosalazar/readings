@@ -105,6 +105,7 @@ export class ReadingSQLAdapter {
       1, // default ID or fetch from DB
       '', // currentMonthReading placeholder
       readingResultSQL.location_capture ?? null,
+      readingResultSQL.reading_code ?? '',
     );
   }
 
@@ -203,6 +204,7 @@ export class ReadingSQLAdapter {
       readingResultSQL.current_reading,
       readingResultSQL.consumption,
       readingResultSQL.observation,
+      readingResultSQL.reading_value,
     );
     return response;
   }

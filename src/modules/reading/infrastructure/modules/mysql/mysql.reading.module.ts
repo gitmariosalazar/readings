@@ -34,6 +34,7 @@ import { ReadingPersistenceMySQL } from '../../repositories/mysql/persistence/re
 import { ReadingReportMySQLPersistence } from '../../repositories/mysql/persistence/reading-report-mysql.persistence';
 import { ReadingImagesPersistenceMySQL } from '../../repositories/mysql/persistence/reading-images-mysql.persistence';
 import { GetReadingByNoveltyUseCase } from '../../../application/usecases/queries/GetReadingByNoveltyUseCase';
+import { CalculateReadingValueUseCase } from '../../../application/usecases/queries/CalculateReadingValueUseCase';
 
 @Module({
   controllers: [
@@ -71,6 +72,7 @@ import { GetReadingByNoveltyUseCase } from '../../../application/usecases/querie
     GetAuditBySectorAndMonthUseCase,
     CloseAuditSectorUseCase,
     GetAuditHistoryBySectorUseCase,
+    CalculateReadingValueUseCase,
 
     {
       provide: 'ReadingRepository',
