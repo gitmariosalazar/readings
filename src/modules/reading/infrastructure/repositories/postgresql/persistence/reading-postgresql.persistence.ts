@@ -581,7 +581,6 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
 
       const readingModel: ReadingModel =
         ReadingSQLAdapter.fromReadingSQLResultToReadingModel(result);
-      console.log('Reading created with ID:', readingModel);
       return readingModel;
     } catch (error) {
       throw error;

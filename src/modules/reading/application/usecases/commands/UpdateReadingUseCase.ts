@@ -122,6 +122,8 @@ export class UpdateReadingUseCase {
         );
 
       readinRequest.readingValue = valueConsumoAgua;
+      const sewerRateValue = this.CalculateSewerRate(valueConsumoAgua);
+      readinRequest.sewerRate = sewerRateValue;
 
       if (valueConsumoAgua < 0) {
         throw new RpcException({
@@ -176,5 +178,9 @@ export class UpdateReadingUseCase {
     } catch (error) {
       throw error;
     }
+  }
+
+  private CalculateSewerRate(readingValue: number): number {
+    return readingValue * (40 / 100); // 40% of the reading value
   }
 }

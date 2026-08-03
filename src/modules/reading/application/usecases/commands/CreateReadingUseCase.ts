@@ -124,13 +124,12 @@ export class CreateReadingUseCase {
         );
 
       readingRequest.readingValue = valueConsumoAgua;
+      const sewerRateValue = this.CalculateSewerRate(valueConsumoAgua);
+      readingRequest.sewerRate = sewerRateValue;
 
       const paraCrear: ReadingModel =
         ReadingMapper.fromCreateReadingRequestToReadingModel(readingRequest);
 
-      console.log(
-        `Creating reading with data: ${JSON.stringify(readingRequest)}, Model Reading: ${JSON.stringify(paraCrear)}, Calculated Reading Value: ${valueConsumoAgua}`,
-      );
       const creadoEntity: ReadingModel | null =
         await this.readingRepository.createReading(paraCrear, creatorUserId);
 
@@ -148,9 +147,6 @@ export class CreateReadingUseCase {
         novedadDesdeSolicitud.trim().length > 0 &&
         novedadDesdeSolicitud !== consumoActual.title
       ) {
-        console.warn(
-          `[Servicio] Advertencia: La novedad desde la solicitud (${novedadDesdeSolicitud}) no coincide con la novedad calculada (${consumoActual.title}). Usando el valor calculado.`,
-        );
         const solicitudObservacion: CreateObservationReadingRequest = {
           readingId: creado.readingId,
           observationTitle: `Discrepancia de novedad en lectura ID: ${creado.readingId}`,
@@ -201,5 +197,9 @@ export class CreateReadingUseCase {
     } catch (error) {
       throw error;
     }
+  }
+
+  private CalculateSewerRate(readingValue: number): number {
+    return readingValue * (40 / 100); // 40% of the reading value
   }
 }
