@@ -1046,7 +1046,7 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
 
     // El arreglo inicia solo con el $1 obligatorio
     const params: any[] = [dateMonthFormatted];
-    let paramIndex = 3; // Llevamos la cuenta del próximo $ disponible
+    let paramIndex = 2; // $1 ya lo ocupa dateMonthFormatted
     let noveltyClause = '';
     if (novelty) {
       // Usamos el número actual y luego lo incrementamos
