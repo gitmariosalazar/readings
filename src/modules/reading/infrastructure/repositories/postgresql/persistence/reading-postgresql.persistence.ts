@@ -823,12 +823,18 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
     userId?: string | null,
   ): Promise<TakenReadingConnectionModel[]> {
     const dateMonthFormatted = dateMonth.replace('/', '-');
-    const params: any[] = [dateMonthFormatted, userId];
+    const params: any[] = [dateMonthFormatted];
     let sectorClause = '';
     if (sector != null) {
       const sectors = Array.isArray(sector) ? sector : [sector];
-      sectorClause = `AND ac.sector = ANY($2)`;
+      sectorClause = `AND ac.sector = ANY($${params.length + 1})`;
       params.push(sectors);
+    }
+
+    let userIdClause = '';
+    if (userId) {
+      userIdClause = `AND (u_creador.cedula = $${params.length + 1})`;
+      params.push(userId);
     }
 
     const query = /*sql*/ `
@@ -905,13 +911,13 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
             LEFT JOIN empleados u_actualizador ON u_actualizador.usuario_id = ulu.usuario_id  
         WHERE l.mes_lectura = $1
             ${sectorClause}
-            AND (u_creador.cedula = $2);
+            ${userIdClause}
         ORDER BY l.fecha_lectura DESC;
     `;
     const result =
       await this.databaseService.query<TakenReadingConnectionSQLResult>(
         query,
-        params.filter((param) => param !== undefined),
+        params,
       );
     return result.map((r) =>
       ReadingSQLAdapter.fromTakenReadingConnectionPostgreSQLResultToTakenReadingConnectionModel(
@@ -926,11 +932,11 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
     userId?: string | null,
   ): Promise<TakenReadingConnectionModel[]> {
     const dateMonthFormatted = dateMonth.replace('/', '-');
-    const params: any[] = [dateMonthFormatted, userId];
+    const params: any[] = [dateMonthFormatted];
     let sectorClause = '';
     if (sector != null) {
       const sectors = Array.isArray(sector) ? sector : [sector];
-      sectorClause = `AND ac.sector = ANY($2)`;
+      sectorClause = `AND ac.sector = ANY($${params.length + 1})`;
       params.push(sectors);
     }
 
