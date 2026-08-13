@@ -37,17 +37,20 @@ export interface InterfaceReadingRepository {
   getTakenReadingsByMonth(
     dateMonth: string,
     sector?: number,
+    userId?: string,
   ): Promise<TakenReadingConnectionModel[]>;
 
   getTakenReadingEstimatesOrAverage(
     month: string,
     sector?: number,
+    userId?: string,
   ): Promise<TakenReadingConnectionModel[]>;
 
   getReadingByNovelty(
     dateMonth: string,
     novelty?: string,
     sector?: number,
+    userId?: string,
   ): Promise<ReadingNoveltyModel[]>;
 
   calculateReadingValue(

@@ -34,15 +34,13 @@ import {
 } from '../../../../../../shared/connections/database/abstract/abstract.database';
 
 @Injectable()
-export class ReadingReportMySQLPersistence
-  implements InterfaceReadingReportRepository
-{
+export class ReadingReportMySQLPersistence implements InterfaceReadingReportRepository {
   constructor(private readonly databaseService: DatabaseAbstract) {}
 
   async findAdvancedReportReadings(
     month: string,
   ): Promise<AdvancedReportReadingsModel[]> {
-    const query = `
+    const query = /*sql*/ `
       WITH readable_connections AS (
         SELECT
           ac.sector,
@@ -52,6 +50,7 @@ export class ReadingReportMySQLPersistence
         FROM acometida ac
         JOIN cat_estados_acometida est ON ac.estado_id = est.id_estado
         WHERE est.permite_lectura = TRUE
+        AND ac.estado_id = 1
         GROUP BY ac.sector
       ),
       sector_readings AS (
@@ -128,6 +127,7 @@ export class ReadingReportMySQLPersistence
       LEFT JOIN ciudadano ci ON ci.ciudadano_id = c.cliente_id
       LEFT JOIN empresa e ON e.ruc = c.cliente_id
       WHERE l.clave_catastral = ?
+      AND ac.estado_id = 1
       ORDER BY l.fecha_lectura DESC
       LIMIT ?;
     `;
@@ -239,7 +239,7 @@ export class ReadingReportMySQLPersistence
       SELECT
         (SELECT COUNT(*) FROM lectura WHERE fecha_lectura >= ?) AS total_count,
         (SELECT COUNT(*) FROM lectura WHERE fecha_lectura >= ? AND novedad NOT IN ('NORMAL', 'LECTURA NORMAL')) AS novelty_count,
-        (SELECT COUNT(*) FROM acometida ac JOIN cat_estados_acometida est ON ac.estado_id = est.id_estado WHERE est.permite_lectura = TRUE AND NOT EXISTS (SELECT 1 FROM lectura l WHERE l.acometida_id = ac.acometida_id AND l.fecha_lectura >= ?)) AS pending_count;
+        (SELECT COUNT(*) FROM acometida ac JOIN cat_estados_acometida est ON ac.estado_id = est.id_estado WHERE est.permite_lectura = TRUE AND ac.estado_id = 1 AND NOT EXISTS (SELECT 1 FROM lectura l WHERE l.acometida_id = ac.acometida_id AND l.fecha_lectura >= ?)) AS pending_count;
     `;
     const [dashRes] = await this.databaseService.query<any>(dashboardQuery, [
       date,

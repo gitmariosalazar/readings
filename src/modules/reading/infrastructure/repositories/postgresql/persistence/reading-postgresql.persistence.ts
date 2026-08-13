@@ -802,6 +802,7 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
         )  
           AND est.permite_lectura = TRUE
           ${sectorClause}
+          AND ac.estado_id = 1
         ORDER BY ac.sector, ac.acometida_id;
     `;
     const result =
@@ -819,9 +820,10 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
   async getTakenReadingsByMonth(
     dateMonth: string,
     sector?: number | number[] | null,
+    userId?: string | null,
   ): Promise<TakenReadingConnectionModel[]> {
     const dateMonthFormatted = dateMonth.replace('/', '-');
-    const params: any[] = [dateMonthFormatted];
+    const params: any[] = [dateMonthFormatted, userId];
     let sectorClause = '';
     if (sector != null) {
       const sectors = Array.isArray(sector) ? sector : [sector];
@@ -829,26 +831,27 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
       params.push(sectors);
     }
 
-    const query = `
-        SELECT  
-            l.lectura_id AS reading_id,  
-            l.fecha_lectura AS reading_date,  
-            ac.acometida_id AS cadastral_key,  
-            ac.numero_medidor AS meter_number,  
-            ac.direccion AS address,  
-            ac.sector,  
-            ac.cuenta AS account,  
-            COALESCE(ci.nombres || ' ' || ci.apellidos, COALESCE(e.razon_social, e.nombre_comercial)) AS client_name,  
-            c.cliente_id AS card_id,  
-            l.lectura_anterior AS previous_reading,  
-            l.lectura_actual AS current_reading,  
-            l.valor_lectura AS reading_value,  
+    const query = /*sql*/ `
+        SELECT
+            l.lectura_id AS reading_id,
+            l.fecha_lectura AS reading_date,
+            ac.acometida_id AS cadastral_key,
+            ac.numero_medidor AS meter_number,
+            ac.direccion AS address,
+            ac.sector,
+            ac.cuenta AS account,
+            COALESCE(ci.nombres || ' ' || ci.apellidos, COALESCE(e.razon_social, e.nombre_comercial)) AS client_name,
+            c.cliente_id AS card_id,
+            l.lectura_anterior AS previous_reading,
+            l.lectura_actual AS current_reading,
+            l.valor_lectura AS reading_value,
             coalesce(l.lectura_actual - l.lectura_anterior,0) AS calculated_consumption,
-            cp.average_consumption AS average_consumption,  
-            ct.nombre AS rate_name,  
-            l.tipo_novedad_lectura_id AS reading_type,  
-            tnl.nombre as reading_type_name,  
+            cp.average_consumption AS average_consumption,
+            ct.nombre AS rate_name,
+            l.tipo_novedad_lectura_id AS reading_type,
+            tnl.nombre as reading_type_name,
             l.novedad AS novelty,
+            l.codigo_lectura AS reading_code,
             CASE
                 WHEN l.ubicacion_captura IS NOT NULL THEN
                     json_build_object('lat', ST_Y(l.ubicacion_captura), 'lng', ST_X(l.ubicacion_captura))
@@ -869,24 +872,46 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
                 WHEN l.ubicacion_captura IS NOT NULL AND ac.coordenadas IS NOT NULL THEN
                     ST_AsGeoJSON(ST_MakeLine(ac.coordenadas, l.ubicacion_captura))::json
                 ELSE NULL
-            END as "distance_line_geojson"
-        FROM lectura l  
-            INNER JOIN acometida ac ON ac.acometida_id = l.acometida_id  
-            LEFT JOIN cliente c ON ac.cliente_id = c.cliente_id  
-            LEFT JOIN ciudadano ci ON ci.ciudadano_id = c.cliente_id  
-            LEFT JOIN empresa e ON e.ruc = c.cliente_id  
-            LEFT JOIN tarifa t ON t.tarifa_id = ac.tarifa_id  
-            LEFT JOIN categoria ct ON t.categoria_id = ct.categoria_id  
-            LEFT JOIN consumo_promedio cp ON cp.acometida_id = ac.acometida_id  
-            LEFT JOIN public.tipo_novedad_lectura tnl on tnl.tipo_novedad_lectura_id = l.tipo_novedad_lectura_id  
+            END as "distance_line_geojson",
+            -- Información del usuario creador/recolector
+            u_creador.cedula AS creator_card_id,
+            u_creador.nombres AS creator_first_name,
+            u_creador.apellidos AS creator_last_name,
+
+            -- Información del usuario actualizador (si aplica)
+            u_actualizador.cedula AS updater_card_id,
+            u_actualizador.nombres AS updater_first_name,
+            u_actualizador.apellidos AS updater_last_name
+        FROM lectura l
+            INNER JOIN acometida ac ON ac.acometida_id = l.acometida_id
+            LEFT JOIN cliente c ON ac.cliente_id = c.cliente_id
+            LEFT JOIN ciudadano ci ON ci.ciudadano_id = c.cliente_id
+            LEFT JOIN empresa e ON e.ruc = c.cliente_id
+            LEFT JOIN tarifa t ON t.tarifa_id = ac.tarifa_id
+            LEFT JOIN categoria ct ON t.categoria_id = ct.categoria_id
+            LEFT JOIN consumo_promedio cp ON cp.acometida_id = ac.acometida_id
+            LEFT JOIN public.tipo_novedad_lectura tnl on tnl.tipo_novedad_lectura_id = l.tipo_novedad_lectura_id
+
+            -- Join específico para obtener el USUARIO CREADOR
+            LEFT JOIN usuario_lectura ulc ON l.lectura_id = ulc.lectura_id
+                                        AND ulc.action_type_id = 1 -- Sustituir por el ID/Código de la acción "CREAR/REGISTRAR"
+            LEFT JOIN cat_action_types act_c ON act_c.id = ulc.action_type_id
+            LEFT JOIN empleados u_creador ON u_creador.usuario_id = ulc.usuario_id
+
+            -- Join específico para obtener el USUARIO ACTUALIZADOR / MODIFICADOR
+            LEFT JOIN usuario_lectura ulu ON l.lectura_id = ulu.lectura_id
+                                        AND ulu.action_type_id = 2 -- Sustituir por el ID/Código de la acción "ACTUALIZAR/EDITAR"
+            LEFT JOIN cat_action_types act_u ON act_u.id = ulu.action_type_id
+            LEFT JOIN empleados u_actualizador ON u_actualizador.usuario_id = ulu.usuario_id  
         WHERE l.mes_lectura = $1
             ${sectorClause}
+            AND (u_creador.cedula = $2);
         ORDER BY l.fecha_lectura DESC;
     `;
     const result =
       await this.databaseService.query<TakenReadingConnectionSQLResult>(
         query,
-        params,
+        params.filter((param) => param !== undefined),
       );
     return result.map((r) =>
       ReadingSQLAdapter.fromTakenReadingConnectionPostgreSQLResultToTakenReadingConnectionModel(
@@ -898,9 +923,10 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
   async getTakenReadingEstimatesOrAverage(
     dateMonth: string,
     sector?: number | number[] | null,
+    userId?: string | null,
   ): Promise<TakenReadingConnectionModel[]> {
     const dateMonthFormatted = dateMonth.replace('/', '-');
-    const params: any[] = [dateMonthFormatted];
+    const params: any[] = [dateMonthFormatted, userId];
     let sectorClause = '';
     if (sector != null) {
       const sectors = Array.isArray(sector) ? sector : [sector];
@@ -908,25 +934,31 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
       params.push(sectors);
     }
 
-    const query = `
-        SELECT  
-            l.lectura_id AS reading_id,  
-            l.fecha_lectura AS reading_date,  
-            ac.acometida_id AS cadastral_key,  
-            ac.numero_medidor AS meter_number,  
-            ac.direccion AS address,  
-            ac.sector,  
-            ac.cuenta AS account,  
-            COALESCE(ci.nombres || ' ' || ci.apellidos, COALESCE(e.razon_social, e.nombre_comercial)) AS client_name,  
-            c.cliente_id AS card_id,  
-            l.lectura_anterior AS previous_reading,  
-            l.lectura_actual AS current_reading,  
-            l.valor_lectura AS reading_value,  
-            coalesce(l.lectura_actual - l.lectura_anterior,0) AS calculated_consumption, 
-            cp.average_consumption AS average_consumption,  
-            ct.nombre AS rate_name,  
-            l.tipo_novedad_lectura_id AS reading_type,  
-            tnl.nombre as reading_type_name,  
+    let userIdClause = '';
+    if (userId) {
+      userIdClause = `AND u_creador.cedula = $${params.length + 1}`;
+      params.push(userId);
+    }
+
+    const query = /*sql*/ `
+        SELECT
+            l.lectura_id AS reading_id,
+            l.fecha_lectura AS reading_date,
+            ac.acometida_id AS cadastral_key,
+            ac.numero_medidor AS meter_number,
+            ac.direccion AS address,
+            ac.sector,
+            ac.cuenta AS account,
+            COALESCE(ci.nombres || ' ' || ci.apellidos, COALESCE(e.razon_social, e.nombre_comercial)) AS client_name,
+            c.cliente_id AS card_id,
+            l.lectura_anterior AS previous_reading,
+            l.lectura_actual AS current_reading,
+            l.valor_lectura AS reading_value,
+            coalesce(l.lectura_actual - l.lectura_anterior,0) AS calculated_consumption,
+            cp.average_consumption AS average_consumption,
+            ct.nombre AS rate_name,
+            l.tipo_novedad_lectura_id AS reading_type,
+            tnl.nombre as reading_type_name,
             l.novedad AS novelty,
             CASE
                 WHEN l.ubicacion_captura IS NOT NULL THEN
@@ -948,18 +980,41 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
                 WHEN l.ubicacion_captura IS NOT NULL AND ac.coordenadas IS NOT NULL THEN
                     ST_AsGeoJSON(ST_MakeLine(ac.coordenadas, l.ubicacion_captura))::json
                 ELSE NULL
-            END as "distance_line_geojson"
-        FROM lectura l  
-            INNER JOIN acometida ac ON ac.acometida_id = l.acometida_id  
-            LEFT JOIN cliente c ON ac.cliente_id = c.cliente_id  
-            LEFT JOIN ciudadano ci ON ci.ciudadano_id = c.cliente_id  
-            LEFT JOIN empresa e ON e.ruc = c.cliente_id  
-            LEFT JOIN tarifa t ON t.tarifa_id = ac.tarifa_id  
-            LEFT JOIN categoria ct ON t.categoria_id = ct.categoria_id  
-            LEFT JOIN consumo_promedio cp ON cp.acometida_id = ac.acometida_id  
-            LEFT JOIN public.tipo_novedad_lectura tnl on tnl.tipo_novedad_lectura_id = l.tipo_novedad_lectura_id  
+            END as "distance_line_geojson",
+            l.codigo_lectura AS reading_code,
+            -- Información del usuario creador/recolector
+            u_creador.cedula AS creator_card_id,
+            u_creador.nombres AS creator_first_name,
+            u_creador.apellidos AS creator_last_name,
+
+            -- Información del usuario actualizador (si aplica)
+            u_actualizador.cedula AS updater_card_id,
+            u_actualizador.nombres AS updater_first_name,
+            u_actualizador.apellidos AS updater_last_name
+        FROM lectura l
+            INNER JOIN acometida ac ON ac.acometida_id = l.acometida_id
+            LEFT JOIN cliente c ON ac.cliente_id = c.cliente_id
+            LEFT JOIN ciudadano ci ON ci.ciudadano_id = c.cliente_id
+            LEFT JOIN empresa e ON e.ruc = c.cliente_id
+            LEFT JOIN tarifa t ON t.tarifa_id = ac.tarifa_id
+            LEFT JOIN categoria ct ON t.categoria_id = ct.categoria_id
+            LEFT JOIN consumo_promedio cp ON cp.acometida_id = ac.acometida_id
+            LEFT JOIN public.tipo_novedad_lectura tnl on tnl.tipo_novedad_lectura_id = l.tipo_novedad_lectura_id
+
+            -- Join específico para obtener el USUARIO CREADOR
+            LEFT JOIN usuario_lectura ulc ON l.lectura_id = ulc.lectura_id
+                                        AND ulc.action_type_id = 1 -- Sustituir por el ID/Código de la acción "CREAR/REGISTRAR"
+            LEFT JOIN cat_action_types act_c ON act_c.id = ulc.action_type_id
+            LEFT JOIN empleados u_creador ON u_creador.usuario_id = ulc.usuario_id
+
+            -- Join específico para obtener el USUARIO ACTUALIZADOR / MODIFICADOR
+            LEFT JOIN usuario_lectura ulu ON l.lectura_id = ulu.lectura_id
+                                        AND ulu.action_type_id = 2 -- Sustituir por el ID/Código de la acción "ACTUALIZAR/EDITAR"
+            LEFT JOIN cat_action_types act_u ON act_u.id = ulu.action_type_id
+            LEFT JOIN empleados u_actualizador ON u_actualizador.usuario_id = ulu.usuario_id 
         WHERE l.mes_lectura = $1
             ${sectorClause}
+            ${userIdClause}
             AND l.tipo_novedad_lectura_id = 9
         ORDER BY l.fecha_lectura DESC;
     `;
@@ -979,12 +1034,13 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
     dateMonth: string,
     novelty?: string,
     sector?: number,
+    userId?: string | null,
   ): Promise<ReadingNoveltyModel[]> {
     const dateMonthFormatted = dateMonth.replace('/', '-');
 
     // El arreglo inicia solo con el $1 obligatorio
     const params: any[] = [dateMonthFormatted];
-    let paramIndex = 2; // Llevamos la cuenta del próximo $ disponible
+    let paramIndex = 3; // Llevamos la cuenta del próximo $ disponible
     let noveltyClause = '';
     if (novelty) {
       // Usamos el número actual y luego lo incrementamos
@@ -1002,27 +1058,34 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
       paramIndex++;
     }
 
-    const query = `
-        SELECT  
-            l.lectura_id AS                           reading_id,  
+    let userIdClause = '';
+    if (userId) {
+      userIdClause = `AND u_creador.cedula = $${paramIndex}`;
+      params.push(userId);
+      paramIndex++;
+    }
+
+    const query = /*sql*/ `
+        SELECT
+            l.lectura_id AS                           reading_id,
             l.fecha_lectura AS                        reading_date,
             l.mes_lectura AS                          reading_month,
-            l.hora_lectura AS                         reading_time,  
-            ac.acometida_id AS                        cadastral_key,  
-            ac.numero_medidor AS                      meter_number,  
-            ac.direccion AS                           address,  
-            ac.sector,  
-            ac.cuenta AS                              account,  
-            COALESCE(ci.nombres || ' ' || ci.apellidos, COALESCE(e.razon_social, e.nombre_comercial)) AS client_name,  
-            c.cliente_id AS                           card_id,  
-            l.lectura_anterior AS                     previous_reading,  
-            l.lectura_actual AS                       current_reading,  
-            l.valor_lectura AS                        reading_value,  
+            l.hora_lectura AS                         reading_time,
+            ac.acometida_id AS                        cadastral_key,
+            ac.numero_medidor AS                      meter_number,
+            ac.direccion AS                           address,
+            ac.sector,
+            ac.cuenta AS                              account,
+            COALESCE(ci.nombres || ' ' || ci.apellidos, COALESCE(e.razon_social, e.nombre_comercial)) AS client_name,
+            c.cliente_id AS                           card_id,
+            l.lectura_anterior AS                     previous_reading,
+            l.lectura_actual AS                       current_reading,
+            l.valor_lectura AS                        reading_value,
             coalesce(l.lectura_actual - l.lectura_anterior,0) AS calculated_consumption,
-            cp.average_consumption AS                 average_consumption,  
-            ct.nombre AS                              rate_name,  
-            l.tipo_novedad_lectura_id AS              reading_type_id,  
-            tnl.nombre as                             reading_type_name,  
+            cp.average_consumption AS                 average_consumption,
+            ct.nombre AS                              rate_name,
+            l.tipo_novedad_lectura_id AS              reading_type_id,
+            tnl.nombre as                             reading_type_name,
             l.novedad AS                              novelty,
             tnl.tipo_novedad_lectura_id AS            type_novelty_reading_id,
             tnl.nombre AS                             type_novelty_reading_name,
@@ -1048,20 +1111,42 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
                     ST_AsGeoJSON(ST_MakeLine(ac.coordenadas, l.ubicacion_captura))::json
                 ELSE NULL
             END AS distance_line_geojson,
-            ARRAY_AGG(fl.imagen_url)     AS images
-        FROM lectura l  
-            INNER JOIN acometida ac ON ac.acometida_id = l.acometida_id  
-            LEFT JOIN cliente c ON ac.cliente_id = c.cliente_id  
-            LEFT JOIN ciudadano ci ON ci.ciudadano_id = c.cliente_id  
-            LEFT JOIN empresa e ON e.ruc = c.cliente_id  
-            LEFT JOIN tarifa t ON t.tarifa_id = ac.tarifa_id  
-            LEFT JOIN categoria ct ON t.categoria_id = ct.categoria_id  
-            LEFT JOIN consumo_promedio cp ON cp.acometida_id = ac.acometida_id  
+            ARRAY_AGG(fl.imagen_url)     AS images,
+            l.codigo_lectura AS reading_code,
+            -- Información del usuario creador/recolector
+            u_creador.cedula AS creator_card_id,
+            u_creador.nombres AS creator_first_name,
+            u_creador.apellidos AS creator_last_name,
+
+            -- Información del usuario actualizador (si aplica)
+            u_actualizador.cedula AS updater_card_id,
+            u_actualizador.nombres AS updater_first_name,
+            u_actualizador.apellidos AS updater_last_name
+        FROM lectura l
+            INNER JOIN acometida ac ON ac.acometida_id = l.acometida_id
+            LEFT JOIN cliente c ON ac.cliente_id = c.cliente_id
+            LEFT JOIN ciudadano ci ON ci.ciudadano_id = c.cliente_id
+            LEFT JOIN empresa e ON e.ruc = c.cliente_id
+            LEFT JOIN tarifa t ON t.tarifa_id = ac.tarifa_id
+            LEFT JOIN categoria ct ON t.categoria_id = ct.categoria_id
+            LEFT JOIN consumo_promedio cp ON cp.acometida_id = ac.acometida_id
             LEFT JOIN public.tipo_novedad_lectura tnl on tnl.tipo_novedad_lectura_id = l.tipo_novedad_lectura_id
             LEFT JOIN foto_lectura fl ON fl.lectura_id = l.lectura_id AND fl.clave_catastral = ac.acometida_id
+            -- Join específico para obtener el USUARIO CREADOR
+            LEFT JOIN usuario_lectura ulc ON l.lectura_id = ulc.lectura_id
+                                        AND ulc.action_type_id = 1 -- Sustituir por el ID/Código de la acción "CREAR/REGISTRAR"
+            LEFT JOIN cat_action_types act_c ON act_c.id = ulc.action_type_id
+            LEFT JOIN empleados u_creador ON u_creador.usuario_id = ulc.usuario_id
+
+            -- Join específico para obtener el USUARIO ACTUALIZADOR / MODIFICADOR
+            LEFT JOIN usuario_lectura ulu ON l.lectura_id = ulu.lectura_id
+                                        AND ulu.action_type_id = 2 -- Sustituir por el ID/Código de la acción "ACTUALIZAR/EDITAR"
+            LEFT JOIN cat_action_types act_u ON act_u.id = ulu.action_type_id
+            LEFT JOIN empleados u_actualizador ON u_actualizador.usuario_id = ulu.usuario_id
         WHERE l.mes_lectura = $1
             ${noveltyClause}
             ${sectorClause}
+            ${userIdClause}
             GROUP BY
             l.lectura_id,
             l.fecha_lectura,
@@ -1072,7 +1157,7 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
             ac.direccion,
             ac.sector,
             ac.cuenta,
-            client_name,
+            ci.client_name,
             c.cliente_id,
             l.lectura_anterior,
             l.lectura_actual,
@@ -1084,7 +1169,19 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
             l.novedad,
             tnl.tipo_novedad_lectura_id,
             tnl.nombre,
-            tnl.descripcion
+            tnl.descripcion,
+            l.location_capture,
+            l.location_connection,
+            l.distance_meters,
+            l.is_inside_allowed_radius,
+            l.distance_line_geojson,
+            u_creador.cedula,
+            u_creador.nombres,
+            u_creador.apellidos,
+            u_actualizador.cedula,
+            u_actualizador.nombres,
+            u_actualizador.apellidos,
+            l.codigo_lectura
             ORDER BY l.fecha_lectura DESC;
     `;
     const result = await this.databaseService.query<ReadingNoveltySQLResult>(

@@ -271,6 +271,19 @@ export class ReadingSQLAdapter {
       takenReadingConnectionResultSQL.distance_meters ?? null,
       takenReadingConnectionResultSQL.is_inside_allowed_radius ?? null,
       takenReadingConnectionResultSQL.distance_line_geojson ?? null,
+      takenReadingConnectionResultSQL.reading_code ?? null,
+      takenReadingConnectionResultSQL.creator_card_id ?? null,
+      (takenReadingConnectionResultSQL.creator_first_name +
+        ' ' +
+        takenReadingConnectionResultSQL.creator_last_name ||
+        '') ??
+        null,
+      takenReadingConnectionResultSQL.updater_card_id ?? null,
+      (takenReadingConnectionResultSQL.updater_first_name +
+        ' ' +
+        takenReadingConnectionResultSQL.updater_last_name ||
+        '') ??
+        null,
     );
   }
 
@@ -324,6 +337,21 @@ export class ReadingSQLAdapter {
         readingNoveltyResultSQL.is_inside_allowed_radius ?? null,
       distanceLineGeoJSON:
         readingNoveltyResultSQL.distance_line_geojson ?? null,
+      readingCode: readingNoveltyResultSQL.reading_code ?? null,
+      userCreatedId: readingNoveltyResultSQL.creator_card_id ?? null,
+      userCreatedName:
+        (readingNoveltyResultSQL.creator_first_name +
+          ' ' +
+          readingNoveltyResultSQL.creator_last_name ||
+          '') ??
+        null,
+      userUpdatedId: readingNoveltyResultSQL.updater_card_id ?? null,
+      userUpdatedName:
+        (readingNoveltyResultSQL.updater_first_name +
+          ' ' +
+          readingNoveltyResultSQL.updater_last_name ||
+          '') ??
+        null,
     };
     return response;
   }

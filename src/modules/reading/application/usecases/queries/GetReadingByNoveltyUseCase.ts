@@ -15,6 +15,7 @@ export class GetReadingByNoveltyUseCase {
     dateMonth: string,
     novelty?: string,
     sector?: number,
+    userId?: string,
   ): Promise<ReadingNoveltyResponse[]> {
     if (!dateMonth) {
       throw new Error('Date month is required');
@@ -34,6 +35,7 @@ export class GetReadingByNoveltyUseCase {
         dateMonth,
         novelty,
         sector,
+        userId,
       );
     return readings.map(
       ReadingMapper.fromReadingNoveltyModelToReadingNoveltyResponse,

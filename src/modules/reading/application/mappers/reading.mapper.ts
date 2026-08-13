@@ -187,6 +187,11 @@ export class ReadingMapper {
       isInsideAllowedRadius:
         takenReadingConnection.isInsideAllowedRadius ?? null,
       distanceLineGeoJSON: takenReadingConnection.distanceLineGeoJSON ?? null,
+      readingCode: takenReadingConnection.readingCode ?? null,
+      userCreatedId: takenReadingConnection.userCreatedId ?? null,
+      userCreatedName: takenReadingConnection.userCreatedName ?? null,
+      userUpdatedId: takenReadingConnection.userUpdatedId ?? null,
+      userUpdatedName: takenReadingConnection.userUpdatedName ?? null,
     };
     return response;
   }
@@ -240,6 +245,11 @@ export class ReadingMapper {
       distanceMeters: readingNovelty.distanceMeters ?? null,
       isInsideAllowedRadius: readingNovelty.isInsideAllowedRadius ?? null,
       distanceLineGeoJSON: readingNovelty.distanceLineGeoJSON ?? null,
+      readingCode: readingNovelty.readingCode ?? null,
+      userCreatedId: readingNovelty.userCreatedId ?? null,
+      userCreatedName: readingNovelty.userCreatedName ?? null,
+      userUpdatedId: readingNovelty.userUpdatedId ?? null,
+      userUpdatedName: readingNovelty.userUpdatedName ?? null,
     };
     return response;
   }

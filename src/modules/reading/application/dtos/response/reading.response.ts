@@ -53,6 +53,11 @@ export interface TakenReadingConnectionResponse {
   distanceMeters?: number | null;
   isInsideAllowedRadius?: boolean | null;
   distanceLineGeoJSON?: any | null;
+  readingCode?: string | null;
+  userCreatedId?: string | null;
+  userCreatedName?: string | null;
+  userUpdatedId?: string | null;
+  userUpdatedName?: string | null;
 }
 
 export interface MonthlySummaryResponse {
@@ -96,4 +101,9 @@ export interface ReadingNoveltyResponse {
   distanceMeters?: number | null;
   isInsideAllowedRadius?: boolean | null;
   distanceLineGeoJSON?: any | null;
+  readingCode?: string | null;
+  userCreatedId?: string | null;
+  userCreatedName?: string | null;
+  userUpdatedId?: string | null;
+  userUpdatedName?: string | null;
 }

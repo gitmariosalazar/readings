@@ -98,29 +98,45 @@ export class ReadingController {
   @Get('get-taken-reading-estimates-or-average')
   @MessagePattern('reading.get-taken-reading-estimates-or-average')
   async getTakenReadingEstimatesOrAverage(
-    @Payload() data: { month: string; sector?: number },
+    @Payload() data: { month: string; sector?: number; userId?: string },
   ) {
     return this.getTakenReadingEstimatesOrAverageUseCase.execute(
       data.month,
       data.sector,
+      data.userId,
     );
   }
 
   @Get('get-taken-readings-by-month')
   @MessagePattern('reading.get-taken-readings-by-month')
   async getTakenReadingsByMonth(
-    @Payload() data: { month: string; sector?: number },
+    @Payload() data: { month: string; sector?: number; userId?: string },
   ) {
-    return this.getTakenReadingsByMonthUseCase.execute(data.month, data.sector);
+    return this.getTakenReadingsByMonthUseCase.execute(
+      data.month,
+      data.sector,
+      data.userId,
+    );
   }
 
   @Get('get-reading-by-novelty')
   @MessagePattern('reading.get-reading-by-novelty')
   async getReadingByNovelty(
-    @Payload() data: { month: string; novelty?: string; sector?: number },
+    @Payload()
+    data: {
+      month: string;
+      novelty?: string;
+      sector?: number;
+      userId?: string;
+    },
   ) {
-    const { month, novelty, sector } = data;
-    return this.getReadingByNoveltyUseCase.execute(month, novelty, sector);
+    const { month, novelty, sector, userId } = data;
+    return this.getReadingByNoveltyUseCase.execute(
+      month,
+      novelty,
+      sector,
+      userId,
+    );
   }
 
   @Get('find-all-novelties')

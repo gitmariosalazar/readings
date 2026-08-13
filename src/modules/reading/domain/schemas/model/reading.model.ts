@@ -58,5 +58,9 @@ export class ReadingNoveltyModel {
     public readonly isInsideAllowedRadius?: boolean | null,
     public readonly distanceLineGeoJSON?: any | null,
     public readonly readingCode?: string | null,
+    public readonly userCreatedId?: string | null,
+    public readonly userCreatedName?: string | null,
+    public readonly userUpdatedId?: string | null,
+    public readonly userUpdatedName?: string | null,
   ) {}
 }

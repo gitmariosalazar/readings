@@ -1,9 +1,9 @@
-import { Inject, Injectable } from "@nestjs/common";
-import { InterfaceReadingRepository } from "../../../domain/contracts/reading.interface.repository";
-import { ReadingMapper } from "../../mappers/reading.mapper";
-import { TakenReadingConnectionResponse } from "../../dtos/response/reading.response";
-import { statusCode } from "../../../../../settings/environments/status-code";
-import { RpcException } from "@nestjs/microservices";
+import { Inject, Injectable } from '@nestjs/common';
+import { InterfaceReadingRepository } from '../../../domain/contracts/reading.interface.repository';
+import { ReadingMapper } from '../../mappers/reading.mapper';
+import { TakenReadingConnectionResponse } from '../../dtos/response/reading.response';
+import { statusCode } from '../../../../../settings/environments/status-code';
+import { RpcException } from '@nestjs/microservices';
 
 @Injectable()
 export class GetTakenReadingEstimatesOrAverageUseCase {
@@ -15,6 +15,7 @@ export class GetTakenReadingEstimatesOrAverageUseCase {
   async execute(
     month: string,
     sector?: number,
+    userId?: string,
   ): Promise<TakenReadingConnectionResponse[]> {
     if (!month) {
       throw new RpcException({
@@ -23,10 +24,16 @@ export class GetTakenReadingEstimatesOrAverageUseCase {
       });
     }
 
-    const takenReadings = await this.readingRepository.getTakenReadingEstimatesOrAverage(
-      month,
-      sector,
+    const takenReadings =
+      await this.readingRepository.getTakenReadingEstimatesOrAverage(
+        month,
+        sector,
+        userId,
+      );
+    return takenReadings.map((takenReading) =>
+      ReadingMapper.fromTakenReadingConnectionModelToTakenReadingConnectionResponse(
+        takenReading,
+      ),
     );
-    return takenReadings.map((takenReading) => ReadingMapper.fromTakenReadingConnectionModelToTakenReadingConnectionResponse(takenReading));
   }
 }

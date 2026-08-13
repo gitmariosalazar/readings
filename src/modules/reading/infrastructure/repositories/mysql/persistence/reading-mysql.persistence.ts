@@ -257,7 +257,24 @@ export class ReadingPersistenceMySQL implements InterfaceReadingRepository {
         [updateUserId, readingId],
       );
 
-      const selectQuery = `SELECT lectura_id as "reading_id", acometida_id as "connection_id", fecha_lectura as "reading_date", hora_lectura as "reading_time", sector as "sector", cuenta as "account", clave_catastral as "cadastral_key", valor_lectura as "reading_value", tasa_alcantarillado as "sewer_rate", lectura_anterior as "previous_reading", lectura_actual as "current_reading", codigo_ingreso_renta as "rental_income_code", novedad as "novelty", codigo_ingreso as "income_code" FROM lectura WHERE lectura_id = ?`;
+      const selectQuery = `
+      SELECT
+        lectura_id as "reading_id",
+        acometida_id as "connection_id",
+        fecha_lectura as "reading_date",
+        hora_lectura as "reading_time",
+        sector as "sector",
+        cuenta as "account",
+        clave_catastral as "cadastral_key",
+        valor_lectura as "reading_value",
+        tasa_alcantarillado as "sewer_rate",
+        lectura_anterior as "previous_reading",
+        lectura_actual as "current_reading",
+        codigo_ingreso_renta as "rental_income_code",
+        novedad as "novelty",
+        codigo_ingreso as "income_code",
+        codigo_lectura as "reading_code"
+        FROM lectura WHERE lectura_id = ?`;
       const rows = await client.query<ReadingSQLResult>(selectQuery, [
         readingId,
       ]);
@@ -401,12 +418,19 @@ export class ReadingPersistenceMySQL implements InterfaceReadingRepository {
         observationFinal = observation || 'LECTURA SIN PERIODO DEFINIDO';
       }
 
+      // Autogenerar sec_id y codigo_lectura (ya que MySQL no soporta 2 AUTO_INCREMENT ni triggers sobre la misma tabla insertada)
+      const maxSecResult = await client.query<any>(
+        'SELECT COALESCE(MAX(sec_id), 0) as max_sec FROM lectura;',
+      );
+      const nextSecId = Number(maxSecResult[0].max_sec) + 1;
+      const codigoLectura = `L-EPAA-${String(nextSecId).padStart(12, '0')}`;
+
       const insertQuery = `
         INSERT INTO lectura(
-          acometida_id, fecha_lectura, hora_lectura, sector, cuenta, clave_catastral,
+          sec_id, codigo_lectura, acometida_id, fecha_lectura, hora_lectura, sector, cuenta, clave_catastral,
           valor_lectura, tasa_alcantarillado, lectura_anterior, lectura_actual,
-          codigo_ingreso_renta, novedad, codigo_ingreso, tipo_novedad_lectura_id, lectura_estado_id, mes_lectura, observacion
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+          codigo_ingreso_renta, novedad, codigo_ingreso, tipo_novedad_lectura_id, lectura_estado_id, mes_lectura, observacion,ubicacion_captura
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
       `;
 
       const horaLectura =
@@ -420,6 +444,8 @@ export class ReadingPersistenceMySQL implements InterfaceReadingRepository {
         }).format(new Date());
 
       const params = [
+        nextSecId,
+        codigoLectura,
         acometidaId,
         fechaLecturaInput,
         horaLectura,
@@ -437,11 +463,29 @@ export class ReadingPersistenceMySQL implements InterfaceReadingRepository {
         estadoId,
         mesLectura,
         observationFinal,
+        reading.locationCapture ?? null,
       ];
 
       const { insertId } = await client.execute(insertQuery, params);
 
-      const selectQuery = `SELECT lectura_id as "reading_id", acometida_id as "connection_id", fecha_lectura as "reading_date", hora_lectura as "reading_time", sector as "sector", cuenta as "account", clave_catastral as "cadastral_key", valor_lectura as "reading_value", tasa_alcantarillado as "sewer_rate", lectura_anterior as "previous_reading", lectura_actual as "current_reading", codigo_ingreso_renta as "rental_income_code", novedad as "novelty", codigo_ingreso as "income_code" FROM lectura WHERE lectura_id = ?`;
+      const selectQuery = `
+      SELECT 
+        lectura_id as "reading_id",
+        acometida_id as "connection_id",
+        fecha_lectura as "reading_date",
+        hora_lectura as "reading_time",
+        sector as "sector",
+        cuenta as "account",
+        clave_catastral as "cadastral_key",
+        valor_lectura as "reading_value",
+        tasa_alcantarillado as "sewer_rate",
+        lectura_anterior as "previous_reading",
+        lectura_actual as "current_reading",
+        codigo_ingreso_renta as "rental_income_code",
+        novedad as "novelty",
+        codigo_ingreso as "income_code",
+        codigo_lectura as "reading_code"
+      FROM lectura WHERE lectura_id = ?`;
       const selectRows = await client.query<any>(selectQuery, [insertId]);
 
       await client.query(
@@ -604,7 +648,7 @@ export class ReadingPersistenceMySQL implements InterfaceReadingRepository {
       LEFT JOIN tarifa t ON t.tarifa_id = ac.tarifa_id
       LEFT JOIN categoria ct ON t.categoria_id = ct.categoria_id
       LEFT JOIN consumo_promedio cp ON cp.acometida_id = ac.acometida_id
-      WHERE NOT EXISTS (SELECT 1 FROM lectura l WHERE l.acometida_id = ac.acometida_id AND DATE_FORMAT(l.fecha_lectura, '%Y-%m') = ?) ${sectorClause};
+      WHERE NOT EXISTS (SELECT 1 FROM lectura l WHERE l.acometida_id = ac.acometida_id AND DATE_FORMAT(l.fecha_lectura, '%Y-%m') = ?) ${sectorClause} AND ac.estado_id = 1;
     `;
     const result =
       await this.databaseService.query<PendingReadingConnectionSQLResult>(
@@ -621,6 +665,7 @@ export class ReadingPersistenceMySQL implements InterfaceReadingRepository {
   async getTakenReadingsByMonth(
     dateMonth: string,
     sector?: number | number[] | null,
+    userId?: string | null,
   ): Promise<TakenReadingConnectionModel[]> {
     const dateMonthFormatted = dateMonth.replace('/', '-');
     const params: any[] = [dateMonthFormatted];
@@ -631,36 +676,66 @@ export class ReadingPersistenceMySQL implements InterfaceReadingRepository {
       params.push(...sectors);
     }
 
-    const query = `
-      SELECT 
-        l.lectura_id AS reading_id, 
-        l.fecha_lectura AS reading_date, 
-        ac.acometida_id AS cadastral_key, 
-        ac.numero_medidor AS meter_number, 
-        ac.direccion AS address, 
-        ac.sector, 
-        ac.cuenta AS account, 
-        COALESCE(CONCAT(ci.nombres, ' ', ci.apellidos), e.razon_social, 'Sin nombre') AS client_name, 
-        c.cliente_id AS card_id, 
-        l.lectura_anterior AS previous_reading, 
-        l.lectura_actual AS current_reading, 
-        l.valor_lectura AS reading_value, 
-        (l.lectura_actual - l.lectura_anterior) AS calculated_consumption, 
-        cp.average_consumption AS average_consumption, 
-        ct.nombre AS rate_name, 
-        l.tipo_novedad_lectura_id AS reading_type_id, 
-        l.novedad AS reading_type_name, 
-        l.novedad AS novelty
-      FROM acometida ac
-      INNER JOIN lectura l ON l.acometida_id = ac.acometida_id
-      LEFT JOIN cliente c ON ac.cliente_id = c.cliente_id
-      LEFT JOIN ciudadano ci ON ci.ciudadano_id = c.cliente_id
-      LEFT JOIN empresa e ON e.ruc = c.cliente_id
-      LEFT JOIN tarifa t ON t.tarifa_id = ac.tarifa_id
-      LEFT JOIN categoria ct ON t.categoria_id = ct.categoria_id
-      LEFT JOIN consumo_promedio cp ON cp.acometida_id = ac.acometida_id
+    let userIdClause = '';
+    if (userId) {
+      userIdClause = `AND u_creador.cedula = ?`;
+      params.push(userId);
+    }
+
+    const query = /*sql*/ `
+      SELECT
+        l.lectura_id AS reading_id,
+        l.fecha_lectura AS reading_date,
+        ac.acometida_id AS cadastral_key,
+        ac.numero_medidor AS meter_number,
+        ac.direccion AS address,
+        ac.sector,
+        ac.cuenta AS account,
+        COALESCE(CONCAT(ci.nombres, ' ', ci.apellidos), e.razon_social, 'Sin nombre') AS client_name,
+        c.cliente_id AS card_id,
+        l.lectura_anterior AS previous_reading,
+        l.lectura_actual AS current_reading,
+        l.valor_lectura AS reading_value,
+        (l.lectura_actual - l.lectura_anterior) AS calculated_consumption,
+        cp.average_consumption AS average_consumption,
+        ct.nombre AS rate_name,
+        l.tipo_novedad_lectura_id AS reading_type_id,
+        l.novedad AS reading_type_name,
+        l.novedad AS novelty,
+        l.codigo_lectura AS reading_code,
+        -- Información del usuario creador/recolector
+        u_creador.cedula AS creator_card_id,
+        u_creador.nombres AS creator_first_name,
+        u_creador.apellidos AS creator_last_name,
+
+        -- Información del usuario actualizador (si aplica)
+        u_actualizador.cedula AS updater_card_id,
+        u_actualizador.nombres AS updater_first_name,
+        u_actualizador.apellidos AS updater_last_name
+        FROM acometida ac
+        INNER JOIN lectura l ON l.acometida_id = ac.acometida_id
+        LEFT JOIN cliente c ON ac.cliente_id = c.cliente_id
+        LEFT JOIN ciudadano ci ON ci.ciudadano_id = c.cliente_id
+        LEFT JOIN empresa e ON e.ruc = c.cliente_id
+        LEFT JOIN tarifa t ON t.tarifa_id = ac.tarifa_id
+        LEFT JOIN categoria ct ON t.categoria_id = ct.categoria_id
+        LEFT JOIN consumo_promedio cp ON cp.acometida_id = ac.acometida_id
+
+        -- Join específico para obtener el USUARIO CREADOR
+        LEFT JOIN usuario_lectura ulc ON l.lectura_id = ulc.lectura_id
+                                    AND ulc.action_type_id = 1 -- Sustituir por el ID/Código de la acción "CREAR/REGISTRAR"
+        LEFT JOIN cat_action_types act_c ON act_c.id = ulc.action_type_id
+        LEFT JOIN empleados u_creador ON u_creador.usuario_id = ulc.usuario_id
+
+        -- Join específico para obtener el USUARIO ACTUALIZADOR / MODIFICADOR
+        LEFT JOIN usuario_lectura ulu ON l.lectura_id = ulu.lectura_id
+                                    AND ulu.action_type_id = 2 -- Sustituir por el ID/Código de la acción "ACTUALIZAR/EDITAR"
+        LEFT JOIN cat_action_types act_u ON act_u.id = ulu.action_type_id
+        LEFT JOIN empleados u_actualizador ON u_actualizador.usuario_id = ulu.usuario_id
       WHERE DATE_FORMAT(l.fecha_lectura, '%Y-%m') = ? 
-        AND l.novedad NOT IN ('NORMAL', 'LECTURA NORMAL') ${sectorClause};
+        -- AND l.novedad NOT IN ('NORMAL', 'LECTURA NORMAL')
+        ${sectorClause}
+        ${userIdClause};
     `;
     const result =
       await this.databaseService.query<TakenReadingConnectionSQLResult>(
@@ -677,14 +752,16 @@ export class ReadingPersistenceMySQL implements InterfaceReadingRepository {
   async getTakenReadingEstimatesOrAverage(
     dateMonth: string,
     sector?: number | number[] | null,
+    userId?: string | null,
   ): Promise<TakenReadingConnectionModel[]> {
-    return this.getTakenReadingsByMonth(dateMonth, sector);
+    return this.getTakenReadingsByMonth(dateMonth, sector, userId);
   }
 
   async getReadingByNovelty(
     dateMonth: string,
     novelty?: string,
     sector?: number,
+    userId?: string | null,
   ): Promise<ReadingNoveltyModel[]> {
     const dateMonthFormatted = dateMonth.replace('/', '-');
 
@@ -714,32 +791,48 @@ export class ReadingPersistenceMySQL implements InterfaceReadingRepository {
       params.push(Number(sector));
     }
 
-    const query = `
-      SELECT 
-        l.lectura_id AS                       reading_id, 
+    let userIdClause = '';
+    if (userId) {
+      userIdClause = `AND u_creador.cedula = ?`;
+      params.push(userId);
+    }
+
+    const query = /*sql*/ `
+      SELECT
+        l.lectura_id AS                       reading_id,
         l.fecha_lectura AS                    reading_date,
         l.mes_lectura AS                      reading_month,
         l.hora_lectura AS                     reading_time,
-        ac.acometida_id AS                    cadastral_key, 
-        ac.numero_medidor AS                  meter_number, 
-        ac.direccion AS                       address, 
-        ac.sector, 
-        ac.cuenta AS                          account, 
-        COALESCE(CONCAT(ci.nombres, ' ', ci.apellidos), e.razon_social, 'Sin nombre') AS client_name, 
-        c.cliente_id AS                       card_id, 
-        l.lectura_anterior AS                 previous_reading, 
-        l.lectura_actual AS                   current_reading, 
-        l.valor_lectura AS                    reading_value, 
-        (l.lectura_actual - l.lectura_anterior) AS calculated_consumption, 
-        cp.average_consumption AS             average_consumption, 
-        ct.nombre AS                          rate_name, 
-        l.tipo_novedad_lectura_id AS          reading_type_id, 
-        l.novedad AS                          reading_type_name, 
+        ac.acometida_id AS                    cadastral_key,
+        ac.numero_medidor AS                  meter_number,
+        ac.direccion AS                       address,
+        ac.sector,
+        ac.cuenta AS                          account,
+        COALESCE(CONCAT(ci.nombres, ' ', ci.apellidos), e.razon_social, 'Sin nombre') AS client_name,
+        c.cliente_id AS                       card_id,
+        l.lectura_anterior AS                 previous_reading,
+        l.lectura_actual AS                   current_reading,
+        l.valor_lectura AS                    reading_value,
+        (l.lectura_actual - l.lectura_anterior) AS calculated_consumption,
+        cp.average_consumption AS             average_consumption,
+        ct.nombre AS                          rate_name,
+        l.tipo_novedad_lectura_id AS          reading_type_id,
+        l.novedad AS                          reading_type_name,
         l.novedad AS                          novelty,
         tnl.tipo_novedad_lectura_id AS        novelty_type_id,
         tnl.nombre AS                         novelty_type_name,
         tnl.descripcion AS                    novelty_type_description,
-        JSON_ARRAYAGG(fl.imagen_url) AS       images
+        JSON_ARRAYAGG(fl.imagen_url) AS       images,
+        l.codigo_lectura AS                   reading_code,
+        -- Información del usuario creador/recolector
+        u_creador.cedula AS creator_card_id,
+        u_creador.nombres AS creator_first_name,
+        u_creador.apellidos AS creator_last_name,
+
+        -- Información del usuario actualizador (si aplica)
+        u_actualizador.cedula AS updater_card_id,
+        u_actualizador.nombres AS updater_first_name,
+        u_actualizador.apellidos AS updater_last_name
       FROM acometida ac
       INNER JOIN lectura l ON l.acometida_id = ac.acometida_id
       LEFT JOIN cliente c ON ac.cliente_id = c.cliente_id
@@ -750,10 +843,22 @@ export class ReadingPersistenceMySQL implements InterfaceReadingRepository {
       LEFT JOIN consumo_promedio cp ON cp.acometida_id = ac.acometida_id
       LEFT JOIN tipo_novedad_lectura tnl ON tnl.tipo_novedad_lectura_id = l.tipo_novedad_lectura_id
       LEFT JOIN foto_lectura fl ON fl.lectura_id = l.lectura_id AND fl.clave_catastral = ac.acometida_id
+        -- Join específico para obtener el USUARIO CREADOR
+        LEFT JOIN usuario_lectura ulc ON l.lectura_id = ulc.lectura_id
+                                    AND ulc.action_type_id = 1 -- Sustituir por el ID/Código de la acción "CREAR/REGISTRAR"
+        LEFT JOIN cat_action_types act_c ON act_c.id = ulc.action_type_id
+        LEFT JOIN empleados u_creador ON u_creador.usuario_id = ulc.usuario_id
+
+        -- Join específico para obtener el USUARIO ACTUALIZADOR / MODIFICADOR
+        LEFT JOIN usuario_lectura ulu ON l.lectura_id = ulu.lectura_id
+                                    AND ulu.action_type_id = 2 -- Sustituir por el ID/Código de la acción "ACTUALIZAR/EDITAR"
+        LEFT JOIN cat_action_types act_u ON act_u.id = ulu.action_type_id
+        LEFT JOIN empleados u_actualizador ON u_actualizador.usuario_id = ulu.usuario_id
       WHERE l.mes_lectura = ? 
         ${noveltyCondition} 
         ${sectorClause}
-      GROUP BY l.lectura_id, ac.acometida_id, ac.numero_medidor, ac.direccion, ac.sector, ac.cuenta, c.cliente_id, ci.nombres, ci.apellidos, e.razon_social, l.lectura_anterior, l.lectura_actual, l.valor_lectura, cp.average_consumption, ct.nombre, l.tipo_novedad_lectura_id, l.novedad, tnl.tipo_novedad_lectura_id, tnl.nombre, tnl.descripcion
+        ${userIdClause}
+      GROUP BY l.lectura_id, ac.acometida_id, ac.numero_medidor, ac.direccion, ac.sector, ac.cuenta, c.cliente_id, ci.nombres, ci.apellidos, e.razon_social, l.lectura_anterior, l.lectura_actual, l.valor_lectura, cp.average_consumption, ct.nombre, l.tipo_novedad_lectura_id, l.novedad, tnl.tipo_novedad_lectura_id, tnl.nombre, tnl.descripcion, u_creador.cedula, u_creador.nombres, u_creador.apellidos, u_actualizador.cedula, u_actualizador.nombres, u_actualizador.apellidos, l.codigo_lectura
       ORDER BY l.fecha_lectura DESC;
     `;
 

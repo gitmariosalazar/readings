@@ -35,6 +35,8 @@ import { ReadingReportMySQLPersistence } from '../../repositories/mysql/persiste
 import { ReadingImagesPersistenceMySQL } from '../../repositories/mysql/persistence/reading-images-mysql.persistence';
 import { GetReadingByNoveltyUseCase } from '../../../application/usecases/queries/GetReadingByNoveltyUseCase';
 import { CalculateReadingValueUseCase } from '../../../application/usecases/queries/CalculateReadingValueUseCase';
+import { FindAllNoveltiesUseCase } from '../../../application/usecases/novelties/FindAllNoveltiesUseCase';
+import { NoveltyPersistenceMySQL } from '../../repositories/mysql/persistence/novelty.mysql.persistence';
 
 @Module({
   controllers: [
@@ -72,6 +74,7 @@ import { CalculateReadingValueUseCase } from '../../../application/usecases/quer
     GetAuditBySectorAndMonthUseCase,
     CloseAuditSectorUseCase,
     GetAuditHistoryBySectorUseCase,
+    FindAllNoveltiesUseCase,
     CalculateReadingValueUseCase,
 
     {
@@ -89,6 +92,10 @@ import { CalculateReadingValueUseCase } from '../../../application/usecases/quer
     {
       provide: 'ReadingImagesRepository',
       useClass: ReadingImagesPersistenceMySQL,
+    },
+    {
+      provide: 'NoveltyRepository',
+      useClass: NoveltyPersistenceMySQL,
     },
   ],
   exports: [],

@@ -1,9 +1,9 @@
-import { Inject, Injectable } from "@nestjs/common";
-import { InterfaceReadingRepository } from "../../../domain/contracts/reading.interface.repository";
-import { ReadingMapper } from "../../mappers/reading.mapper";
-import { TakenReadingConnectionResponse } from "../../dtos/response/reading.response";
-import { statusCode } from "../../../../../settings/environments/status-code";
-import { RpcException } from "@nestjs/microservices";
+import { Inject, Injectable } from '@nestjs/common';
+import { InterfaceReadingRepository } from '../../../domain/contracts/reading.interface.repository';
+import { ReadingMapper } from '../../mappers/reading.mapper';
+import { TakenReadingConnectionResponse } from '../../dtos/response/reading.response';
+import { statusCode } from '../../../../../settings/environments/status-code';
+import { RpcException } from '@nestjs/microservices';
 
 @Injectable()
 export class GetTakenReadingsByMonthUseCase {
@@ -12,7 +12,11 @@ export class GetTakenReadingsByMonthUseCase {
     private readonly readingRepository: InterfaceReadingRepository,
   ) {}
 
-  async execute(month: string, sector?: number): Promise<TakenReadingConnectionResponse[]> {
+  async execute(
+    month: string,
+    sector?: number,
+    userId?: string,
+  ): Promise<TakenReadingConnectionResponse[]> {
     if (!month) {
       throw new RpcException({
         statusCode: statusCode.BAD_REQUEST,
@@ -20,7 +24,15 @@ export class GetTakenReadingsByMonthUseCase {
       });
     }
 
-    const takenReadings = await this.readingRepository.getTakenReadingsByMonth(month, sector);
-    return takenReadings.map((takenReading) => ReadingMapper.fromTakenReadingConnectionModelToTakenReadingConnectionResponse(takenReading));
+    const takenReadings = await this.readingRepository.getTakenReadingsByMonth(
+      month,
+      sector,
+      userId,
+    );
+    return takenReadings.map((takenReading) =>
+      ReadingMapper.fromTakenReadingConnectionModelToTakenReadingConnectionResponse(
+        takenReading,
+      ),
+    );
   }
 }

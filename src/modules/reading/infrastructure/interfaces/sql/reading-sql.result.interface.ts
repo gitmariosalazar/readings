@@ -160,6 +160,13 @@ export interface TakenReadingConnectionSQLResult {
   distance_meters?: number | null;
   is_inside_allowed_radius?: boolean | null;
   distance_line_geojson?: any | null;
+  reading_code?: string | null;
+  creator_card_id?: string | null;
+  creator_first_name?: string | null;
+  creator_last_name?: string | null;
+  updater_card_id?: string | null;
+  updater_first_name?: string | null;
+  updater_last_name?: string | null;
 }
 
 export interface MonthlySummarySQLResult {
@@ -203,6 +210,13 @@ export interface ReadingNoveltySQLResult {
   distance_meters?: number | null;
   is_inside_allowed_radius?: boolean | null;
   distance_line_geojson?: any | null;
+  reading_code?: string | null;
+  creator_card_id?: string | null;
+  creator_first_name?: string | null;
+  creator_last_name?: string | null;
+  updater_card_id?: string | null;
+  updater_first_name?: string | null;
+  updater_last_name?: string | null;
 }
 
 export interface TarifaSQLResult {

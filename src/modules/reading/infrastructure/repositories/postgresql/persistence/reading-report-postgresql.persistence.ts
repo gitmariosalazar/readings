@@ -34,9 +34,7 @@ import {
 } from '../../../../../../shared/connections/database/abstract/abstract.database';
 
 @Injectable()
-export class ReadingReportPostgreSQLPersistence
-  implements InterfaceReadingReportRepository
-{
+export class ReadingReportPostgreSQLPersistence implements InterfaceReadingReportRepository {
   constructor(private readonly databaseService: DatabaseAbstract) {}
 
   async findAdvancedReportReadings(
@@ -52,6 +50,7 @@ export class ReadingReportPostgreSQLPersistence
         FROM acometida ac
         JOIN cat_estados_acometida est ON ac.estado_id = est.id_estado
         WHERE est.permite_lectura = TRUE
+        AND ac.estado_id = 1
         GROUP BY ac.sector
       ),
       sector_readings AS (
@@ -128,6 +127,7 @@ export class ReadingReportPostgreSQLPersistence
       LEFT JOIN  ciudadano ci        ON ci.ciudadano_id = c.cliente_id
       LEFT JOIN  empresa e           ON e.ruc = c.cliente_id
       WHERE l.clave_catastral = $1
+        AND ac.estado_id = 1
       ORDER BY l.fecha_lectura DESC
       LIMIT $2;
     `;
