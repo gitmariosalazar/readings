@@ -18,6 +18,7 @@ import { IncidentAdapter } from '../../../adapters/incident.adapter';
 import { IncidentDetailRowSQLResult } from '../../../interfaces/sql/view_incidents.sql-result';
 import { IncidentDashboardResponseDto } from '../../../../application/dtos/response/incident-dashboard.dto';
 import { IncidentDashboardMapper } from '../../../../application/mappers/incident-dashboard.mapper';
+import { IncidentChangeDetail } from '../../../../application/dtos/request/resolve-incident.request';
 
 @Injectable()
 export class IncidentPersistencePostgreSQL implements InterfaceIncidentRepository {
@@ -248,6 +249,7 @@ export class IncidentPersistencePostgreSQL implements InterfaceIncidentRepositor
     repairCost: number,
     chargeToUser: boolean,
     images: string[],
+    changeDetails?: IncidentChangeDetail[] | null,
   ): Promise<IncidentModel | null> {
     try {
       return await this.databaseService.transaction(
@@ -262,8 +264,9 @@ export class IncidentPersistencePostgreSQL implements InterfaceIncidentRepositor
             descripcion_resolucion = $2,
             costo_reparacion = $3,
             cobrar_a_usuario = $4,
+            detalles_cambio = $5,
             updated_at = NOW()
-          WHERE incidente_id = $5
+          WHERE incidente_id = $6
           RETURNING
             incidente_id AS incident_id, acometida_id, lectura_id, tipo_incidente_id, descripcion_reporte,
             direccion_referencia, estado, origen_reporte, prioridad, fecha_reporte, usuario_reporta_id,
@@ -271,11 +274,18 @@ export class IncidentPersistencePostgreSQL implements InterfaceIncidentRepositor
             fecha_resolucion, usuario_resuelve_id, descripcion_resolucion, cobrar_a_usuario, costo_reparacion;
         `;
 
+          // Solo se guarda si el usuario realmente envió detalles de cambio; caso contrario queda null
+          const changeDetailsJson =
+            changeDetails && changeDetails.length > 0
+              ? JSON.stringify(changeDetails)
+              : null;
+
           const result = await client.query<IncidentSQLResult>(updateQuery, [
             resolverUserId,
             description,
             repairCost,
             chargeToUser,
+            changeDetailsJson,
             incidentId,
           ]);
 

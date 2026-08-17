@@ -3,6 +3,7 @@ import { IncidentModel } from '../schemas/model/incident.model';
 import { IncidentCategoryModel } from '../schemas/model/incident-category-type.model';
 import { IncidentDetailRowResponse } from '../schemas/response/view_incident.response';
 import { IncidentDashboardResponseDto } from '../../application/dtos/response/incident-dashboard.dto';
+import { IncidentChangeDetail } from '../../application/dtos/request/resolve-incident.request';
 
 /**
  * Repository interface for Incident operations.
@@ -22,6 +23,7 @@ export interface InterfaceIncidentRepository {
     repairCost: number,
     chargeToUser: boolean,
     images: string[],
+    changeDetails?: IncidentChangeDetail[] | null,
   ): Promise<IncidentModel | null>;
 
   findIncidentsByConnection(

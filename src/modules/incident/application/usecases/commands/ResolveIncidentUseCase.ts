@@ -62,6 +62,7 @@ export class ResolveIncidentUseCase {
         request.repairCost,
         request.chargeToUser,
         request.images ?? [],
+        request.changeDetails ?? null,
       );
 
       if (!resolvedModel) {
