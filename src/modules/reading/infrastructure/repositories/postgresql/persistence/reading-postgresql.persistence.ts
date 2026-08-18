@@ -32,6 +32,7 @@ import { ReadingImagesModel } from '../../../../domain/schemas/model/reading-ima
 import { PendingReadingConnectionModel } from '../../../../domain/schemas/model/pending-reading-connection.model';
 import { TakenReadingConnectionModel } from '../../../../domain/schemas/model/taken-reading-connection.model';
 import { UUID } from 'crypto';
+import { MapRouteFeatureCollection } from '../../../../domain/schemas/response/map-geojson';
 
 @Injectable()
 export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository {
@@ -1312,6 +1313,121 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
     } catch (error) {
       console.error('Error al calcular ValorPagarConsumo:', error);
       throw error; // o retornar 0 según tu política
+    }
+  }
+
+  async getMapGeojsonByDayAndByUser(
+    date: string,
+    userId?: string,
+  ): Promise<MapRouteFeatureCollection> {
+    try {
+      const params: any[] = [date];
+      let userIdClause = '';
+      if (userId) {
+        userIdClause = `AND u.usuario_id = $2`;
+        params.push(userId);
+      }
+
+      const query = /*sql*/ `
+        WITH lecturas_ordenadas AS (
+            SELECT
+                l.lectura_id,
+                l.acometida_id,
+                l.clave_catastral,
+                l.hora_lectura,
+                l.fecha_lectura,
+                l.novedad,
+                l.ubicacion_captura,
+                a.coordenadas,
+                u.usuario_id,
+                emp.cedula,
+                -- Numeramos las lecturas cronológicamente (1, 2, 3...)
+                ROW_NUMBER() OVER(ORDER BY l.fecha_lectura ASC) AS orden,
+                -- Contamos el total para poder detectar cuál es la última
+                COUNT(*) OVER() AS total_lecturas
+            FROM lectura l
+            JOIN acometida a ON l.acometida_id = a.acometida_id
+            LEFT JOIN usuario_lectura u on u.lectura_id = l.lectura_id
+            LEFT JOIN empleados emp on emp.usuario_id = u.usuario_id
+            WHERE l.ubicacion_captura IS NOT NULL
+              AND a.coordenadas IS NOT NULL
+              AND DATE(l.fecha_lectura) = $1
+              ${userIdClause}
+              -- AND l.sector = 1
+              -- AND U.usuario_id = '9d131562-c443-43c1-af24-2a20356c44a4'
+        )
+        SELECT json_build_object(
+            'type', 'FeatureCollection',
+            'features', (
+                SELECT json_agg(feature)
+                FROM (
+
+                    -- 1. LINESTRING: La ruta del lector (Línea Roja)
+                    SELECT json_build_object(
+                        'type', 'Feature',
+                        'geometry', ST_AsGeoJSON(ST_MakeLine(ubicacion_captura ORDER BY fecha_lectura))::json,
+                        'properties', json_build_object('tipo', 'ruta_lector', 'stroke', '#ff0000', 'stroke-width', 2)
+                    ) AS feature
+                    FROM lecturas_ordenadas
+
+                    UNION ALL
+
+                    -- 2. POINTS: Medidores/Casas (Puntos Azules)
+                    SELECT json_build_object(
+                        'type', 'Feature',
+                        'geometry', ST_AsGeoJSON(coordenadas)::json,
+                        'properties', json_build_object(
+                            'tipo', 'medidor',
+                            'clave_catastral', acometida_id,
+                            'marker-color', '#0000ff'
+                        )
+                    )
+                    FROM lecturas_ordenadas
+
+                    UNION ALL
+
+                    -- 3. POINTS: Capturas de las lecturas (Puntos Verdes, Inicial Negro, Final Naranja)
+                    SELECT json_build_object(
+                        'type', 'Feature',
+                        'geometry', ST_AsGeoJSON(ubicacion_captura)::json,
+                        'properties', json_build_object(
+                            'tipo', CASE
+                                        WHEN orden = 1 THEN 'punto_inicio'
+                                        WHEN orden = total_lecturas THEN 'punto_final'
+                                        ELSE 'captura'
+                                    END,
+                            'orden_visita', orden,
+                            'es_inicio', orden = 1,
+                            'es_fin', orden = total_lecturas,
+                            'clave_catastral', clave_catastral,
+                            'hora_lectura', hora_lectura,
+                            'usuario_lectura', cedula,
+                            'novedad', novedad,
+                            'marker-color', CASE
+                                                WHEN orden = 1 THEN '#000000' -- Negro para el Inicio
+                                                WHEN orden = total_lecturas THEN '#ff9900' -- Naranja para el Fin
+                                                ELSE '#008000' -- Verde para los demás
+                                            END,
+                            'marker-size', CASE
+                                                WHEN orden = 1 OR orden = total_lecturas THEN 'medium'
+                                                ELSE 'small'
+                                          END
+                        )
+                    )
+                    FROM lecturas_ordenadas
+
+                ) AS todas_las_geometrias
+            )
+        ) AS map_geojson;
+      `;
+
+      const result = await this.databaseService.query<{
+        geojson: MapRouteFeatureCollection;
+      }>(query, params);
+      return result[0]?.geojson || { type: 'FeatureCollection', features: [] };
+    } catch (error) {
+      console.error('Error fetching map geojson:', error);
+      throw error;
     }
   }
 }

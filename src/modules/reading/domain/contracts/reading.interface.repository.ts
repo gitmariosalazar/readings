@@ -9,6 +9,7 @@ import { ReadingImagesModel } from '../schemas/model/reading-images.model';
 import { PendingReadingConnectionModel } from '../schemas/model/pending-reading-connection.model';
 import { TakenReadingConnectionModel } from '../schemas/model/taken-reading-connection.model';
 import { UUID } from 'crypto';
+import { MapRouteFeatureCollection } from '../schemas/response/map-geojson';
 
 export interface InterfaceReadingRepository {
   findReadingBasicInfo(cadastralKey: string): Promise<ReadingBasicInfoModel[]>;
@@ -57,4 +58,9 @@ export interface InterfaceReadingRepository {
     cadastralKey: string,
     consumptionM3: number,
   ): Promise<number>;
+
+  getMapGeojsonByDayAndByUser(
+    date: string,
+    userId?: string,
+  ): Promise<MapRouteFeatureCollection>; // Replace 'any' with the appropriate GeoJSON type if available
 }

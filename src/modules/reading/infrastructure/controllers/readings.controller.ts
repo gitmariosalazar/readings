@@ -13,6 +13,7 @@ import { GetTakenReadingEstimatesOrAverageUseCase } from '../../application/usec
 import { UUID } from 'crypto';
 import { GetReadingByNoveltyUseCase } from '../../application/usecases/queries/GetReadingByNoveltyUseCase';
 import { FindAllNoveltiesUseCase } from '../../application/usecases/novelties/FindAllNoveltiesUseCase';
+import { GetMapGeojsonByDayAndByUserUseCase } from '../../application/usecases/queries/GetMapGeojsonByDayAndByUserUseCase';
 
 @Controller('Readings')
 export class ReadingController {
@@ -27,6 +28,7 @@ export class ReadingController {
     private readonly getTakenReadingsByMonthUseCase: GetTakenReadingsByMonthUseCase,
     private readonly getReadingByNoveltyUseCase: GetReadingByNoveltyUseCase,
     private readonly findAllNoveltiesUseCase: FindAllNoveltiesUseCase,
+    private readonly getMapGeojsonByDayAndByUserUseCase: GetMapGeojsonByDayAndByUserUseCase,
   ) {}
 
   @Get('find-basic-reading/:catastralCode')
@@ -143,5 +145,16 @@ export class ReadingController {
   @MessagePattern('reading.find-all-novelties')
   async findAllNovelties() {
     return this.findAllNoveltiesUseCase.execute();
+  }
+
+  @Get('get-map-geojson-by-day-and-by-user')
+  @MessagePattern('reading.get-map-geojson-by-day-and-by-user')
+  async getMapGeojsonByDayAndByUser(
+    @Payload() data: { date: string; userId?: string },
+  ) {
+    return this.getMapGeojsonByDayAndByUserUseCase.execute(
+      data.date,
+      data.userId,
+    );
   }
 }

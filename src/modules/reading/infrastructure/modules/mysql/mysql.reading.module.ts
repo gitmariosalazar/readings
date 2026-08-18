@@ -37,6 +37,7 @@ import { GetReadingByNoveltyUseCase } from '../../../application/usecases/querie
 import { CalculateReadingValueUseCase } from '../../../application/usecases/queries/CalculateReadingValueUseCase';
 import { FindAllNoveltiesUseCase } from '../../../application/usecases/novelties/FindAllNoveltiesUseCase';
 import { NoveltyPersistenceMySQL } from '../../repositories/mysql/persistence/novelty.mysql.persistence';
+import { GetMapGeojsonByDayAndByUserUseCase } from '../../../application/usecases/queries/GetMapGeojsonByDayAndByUserUseCase';
 
 @Module({
   controllers: [
@@ -76,6 +77,7 @@ import { NoveltyPersistenceMySQL } from '../../repositories/mysql/persistence/no
     GetAuditHistoryBySectorUseCase,
     FindAllNoveltiesUseCase,
     CalculateReadingValueUseCase,
+    GetMapGeojsonByDayAndByUserUseCase,
 
     {
       provide: 'ReadingRepository',
