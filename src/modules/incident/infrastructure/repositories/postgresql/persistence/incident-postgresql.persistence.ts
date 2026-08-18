@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
 import { UUID } from 'crypto';
 import { InterfaceIncidentRepository } from '../../../../domain/contracts/incident.interface.repository';
@@ -19,10 +19,15 @@ import { IncidentDetailRowSQLResult } from '../../../interfaces/sql/view_inciden
 import { IncidentDashboardResponseDto } from '../../../../application/dtos/response/incident-dashboard.dto';
 import { IncidentDashboardMapper } from '../../../../application/mappers/incident-dashboard.mapper';
 import { IncidentChangeDetail } from '../../../../application/dtos/request/resolve-incident.request';
+import { IMeterHistoryRecorder } from '../../../services/meter-history-recorder.interface';
 
 @Injectable()
 export class IncidentPersistencePostgreSQL implements InterfaceIncidentRepository {
-  constructor(private readonly databaseService: DatabaseAbstract) {}
+  constructor(
+    private readonly databaseService: DatabaseAbstract,
+    @Inject('MeterHistoryRecorder')
+    private readonly meterHistoryRecorder: IMeterHistoryRecorder,
+  ) {}
 
   async getIncidentDashboardKpis(): Promise<IncidentDashboardResponseDto | null> {
     try {
@@ -300,6 +305,16 @@ export class IncidentPersistencePostgreSQL implements InterfaceIncidentRepositor
           `;
             for (const url of images) {
               await client.query(insertPhotoQuery, [incidentId, url]);
+            }
+          }
+
+          // 3. Registrar en historial_medidores cada reemplazo físico de medidor reportado
+          if (resolvedIncident.acometida_id && changeDetails?.length) {
+            for (const changeDetail of changeDetails) {
+              await this.meterHistoryRecorder.recordMeterReplacement(client, {
+                connectionId: resolvedIncident.acometida_id,
+                changeDetail,
+              });
             }
           }
 

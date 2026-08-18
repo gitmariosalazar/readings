@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { IncidentController } from '../../controllers/incident.controller';
 import { IncidentPersistencePostgreSQL } from '../../repositories/postgresql/persistence/incident-postgresql.persistence';
+import { MeterHistoryPostgresRecorder } from '../../services/postgresql/meter-history-recorder.service';
 import { CreateIncidentUseCase } from '../../../application/usecases/commands/CreateIncidentUseCase';
 import { ResolveIncidentUseCase } from '../../../application/usecases/commands/ResolveIncidentUseCase';
 import { FindIncidentsByConnectionUseCase } from '../../../application/usecases/queries/FindIncidentsByConnectionUseCase';
@@ -22,6 +23,10 @@ import { SearchIncidentsByClientIdUseCase } from '../../../application/usecases/
     {
       provide: 'IncidentRepository',
       useClass: IncidentPersistencePostgreSQL,
+    },
+    {
+      provide: 'MeterHistoryRecorder',
+      useClass: MeterHistoryPostgresRecorder,
     },
   ],
   exports: [
