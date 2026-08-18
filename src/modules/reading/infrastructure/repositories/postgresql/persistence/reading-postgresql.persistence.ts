@@ -1323,7 +1323,7 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
     try {
       const params: any[] = [date];
       let userIdClause = '';
-      if (userId) {
+      if (userId && userId !== 'ALL') {
         userIdClause = `AND u.usuario_id = $2`;
         params.push(userId);
       }
@@ -1353,12 +1353,10 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
               AND a.coordenadas IS NOT NULL
               AND DATE(l.fecha_lectura) = $1
               ${userIdClause}
-              -- AND l.sector = 1
-              -- AND U.usuario_id = '9d131562-c443-43c1-af24-2a20356c44a4'
         )
         SELECT json_build_object(
             'type', 'FeatureCollection',
-            'features', (
+            'features', COALESCE((
                 SELECT json_agg(feature)
                 FROM (
 
@@ -1369,6 +1367,7 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
                         'properties', json_build_object('tipo', 'ruta_lector', 'stroke', '#ff0000', 'stroke-width', 2)
                     ) AS feature
                     FROM lecturas_ordenadas
+                    HAVING count(ubicacion_captura) > 0
 
                     UNION ALL
 
@@ -1417,14 +1416,16 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
                     FROM lecturas_ordenadas
 
                 ) AS todas_las_geometrias
-            )
+            ), '[]'::json)
         ) AS map_geojson;
       `;
 
       const result = await this.databaseService.query<{
-        geojson: MapRouteFeatureCollection;
+        map_geojson: MapRouteFeatureCollection;
       }>(query, params);
-      return result[0]?.geojson || { type: 'FeatureCollection', features: [] };
+      return (
+        result[0]?.map_geojson || { type: 'FeatureCollection', features: [] }
+      );
     } catch (error) {
       console.error('Error fetching map geojson:', error);
       throw error;
