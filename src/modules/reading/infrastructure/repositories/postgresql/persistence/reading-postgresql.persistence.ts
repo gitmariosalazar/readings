@@ -1360,15 +1360,18 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
                 SELECT json_agg(feature)
                 FROM (
 
-                    -- 1. LINESTRING: La ruta del lector separada por usuario (Línea Roja)
+                    -- 1. LINESTRING: La ruta del lector separada por usuario (Línea Roja/Diferente color)
                     SELECT json_build_object(
                         'type', 'Feature',
                         'geometry', ST_AsGeoJSON(ST_MakeLine(ubicacion_captura ORDER BY fecha_lectura))::json,
                         'properties', json_build_object(
                             'tipo', 'ruta_lector', 
                             'usuario_lectura', cedula, 
-                            'stroke', '#ff0000', 
-                            'stroke-width', 2
+                            'stroke', CASE 
+                                          WHEN cedula IS NULL THEN '#ff0000'
+                                          ELSE '#' || substring(md5(cedula) from 1 for 6) 
+                                      END, 
+                            'stroke-width', 3
                         )
                     ) AS feature
                     FROM lecturas_ordenadas
@@ -1384,14 +1387,15 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
                         'properties', json_build_object(
                             'tipo', 'medidor',
                             'clave_catastral', acometida_id,
-                            'marker-color', '#0000ff'
+                            'usuario_lectura', cedula,
+                            'marker-color', '#3b82f6' -- Azul estándar
                         )
                     )
                     FROM lecturas_ordenadas
 
                     UNION ALL
 
-                    -- 3. POINTS: Capturas de las lecturas (Puntos Verdes, Inicial Negro, Final Naranja)
+                    -- 3. POINTS: Capturas de las lecturas (Puntos de colores según usuario)
                     SELECT json_build_object(
                         'type', 'Feature',
                         'geometry', ST_AsGeoJSON(ubicacion_captura)::json,
@@ -1411,7 +1415,10 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
                             'marker-color', CASE
                                                 WHEN orden = 1 THEN '#000000' -- Negro para el Inicio
                                                 WHEN orden = total_lecturas THEN '#ff9900' -- Naranja para el Fin
-                                                ELSE '#008000' -- Verde para los demás
+                                                ELSE CASE 
+                                                          WHEN cedula IS NULL THEN '#10b981'
+                                                          ELSE '#' || substring(md5(cedula) from 1 for 6) 
+                                                     END
                                             END,
                             'marker-size', CASE
                                                 WHEN orden = 1 OR orden = total_lecturas THEN 'medium'
