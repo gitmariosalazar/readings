@@ -1341,10 +1341,10 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
                 a.coordenadas,
                 u.usuario_id,
                 emp.cedula,
-                -- Numeramos las lecturas cronológicamente (1, 2, 3...)
-                ROW_NUMBER() OVER(ORDER BY l.fecha_lectura ASC) AS orden,
-                -- Contamos el total para poder detectar cuál es la última
-                COUNT(*) OVER() AS total_lecturas
+                -- Numeramos las lecturas cronológicamente (1, 2, 3...) por usuario
+                ROW_NUMBER() OVER(PARTITION BY emp.cedula ORDER BY l.fecha_lectura ASC) AS orden,
+                -- Contamos el total para poder detectar cuál es la última por usuario
+                COUNT(*) OVER(PARTITION BY emp.cedula) AS total_lecturas
             FROM lectura l
             JOIN acometida a ON l.acometida_id = a.acometida_id
             LEFT JOIN usuario_lectura u on u.lectura_id = l.lectura_id
@@ -1360,13 +1360,19 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
                 SELECT json_agg(feature)
                 FROM (
 
-                    -- 1. LINESTRING: La ruta del lector (Línea Roja)
+                    -- 1. LINESTRING: La ruta del lector separada por usuario (Línea Roja)
                     SELECT json_build_object(
                         'type', 'Feature',
                         'geometry', ST_AsGeoJSON(ST_MakeLine(ubicacion_captura ORDER BY fecha_lectura))::json,
-                        'properties', json_build_object('tipo', 'ruta_lector', 'stroke', '#ff0000', 'stroke-width', 2)
+                        'properties', json_build_object(
+                            'tipo', 'ruta_lector', 
+                            'usuario_lectura', cedula, 
+                            'stroke', '#ff0000', 
+                            'stroke-width', 2
+                        )
                     ) AS feature
                     FROM lecturas_ordenadas
+                    GROUP BY cedula
                     HAVING count(ubicacion_captura) > 0
 
                     UNION ALL
