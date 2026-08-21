@@ -1367,7 +1367,7 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
                         'properties', json_build_object(
                             'tipo', 'ruta_lector', 
                             'usuario_lectura', cedula, 
-                            'fecha_lectura', fecha_lectura,
+                            'fecha_lectura', DATE(MAX(fecha_lectura)),
                             'stroke', CASE 
                                           WHEN cedula IS NULL THEN '#ff0000'
                                           ELSE '#' || substring(md5(cedula) from 1 for 6) 
@@ -1376,7 +1376,7 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
                         )
                     ) AS feature
                     FROM lecturas_ordenadas
-                    GROUP BY cedula, fecha_lectura
+                    GROUP BY cedula
                     HAVING count(ubicacion_captura) > 0
 
                     UNION ALL
