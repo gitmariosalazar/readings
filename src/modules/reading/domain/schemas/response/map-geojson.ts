@@ -10,6 +10,7 @@ export interface RouteMapProperties {
   acometida_id?: string;
   numero_medidor?: string;
   hora_lectura?: string;
+  fecha_lectura?: string;
   novedad?: string;
   orden_visita?: number;
   es_inicio?: boolean;

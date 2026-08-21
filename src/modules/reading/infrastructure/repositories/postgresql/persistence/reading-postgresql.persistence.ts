@@ -1388,6 +1388,7 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
                             'tipo', 'medidor',
                             'clave_catastral', acometida_id,
                             'usuario_lectura', cedula,
+                            'fecha_lectura', fecha_lectura,
                             'marker-color', '#3b82f6' -- Azul estándar
                         )
                     )
