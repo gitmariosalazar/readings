@@ -13,6 +13,7 @@ export class ReadingInfoModel {
     public readonly readingId: number,
     public readonly previousReadingDate: Date | null,
     public readonly readingTime: Date | null,
+    public readonly readingDate: Date | null,
     public readonly cadastralKey: string,
     public readonly cardId: string,
     public readonly clientName: string,

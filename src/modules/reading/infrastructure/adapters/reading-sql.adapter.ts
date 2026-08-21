@@ -134,6 +134,7 @@ export class ReadingSQLAdapter {
       readingResultSQL.reading_id,
       readingResultSQL.previous_reading_date,
       readingResultSQL.reading_time,
+      readingResultSQL.reading_date,
       readingResultSQL.cadastral_key,
       readingResultSQL.card_id,
       readingResultSQL.client_name,

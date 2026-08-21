@@ -51,6 +51,7 @@ export interface ReadingInfoSQLResult {
   reading_id: number;
   previous_reading_date: Date | null;
   reading_time: Date | null;
+  reading_date: Date | null;
   cadastral_key: string;
   card_id: string;
   client_name: string;

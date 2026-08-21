@@ -39,6 +39,7 @@ export class ReadingInfoMapper {
       readingId: domainModel.readingId,
       previousReadingDate: domainModel.previousReadingDate,
       readingTime: domainModel.readingTime,
+      readingDate: domainModel.readingDate,
       cadastralKey: domainModel.cadastralKey,
       cardId: domainModel.cardId,
       clientName: domainModel.clientName,
