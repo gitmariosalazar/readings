@@ -1367,6 +1367,7 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
                         'properties', json_build_object(
                             'tipo', 'ruta_lector', 
                             'usuario_lectura', cedula, 
+                            'fecha_lectura', fecha_lectura,
                             'stroke', CASE 
                                           WHEN cedula IS NULL THEN '#ff0000'
                                           ELSE '#' || substring(md5(cedula) from 1 for 6) 
@@ -1375,7 +1376,7 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
                         )
                     ) AS feature
                     FROM lecturas_ordenadas
-                    GROUP BY cedula
+                    GROUP BY cedula, fecha_lectura
                     HAVING count(ubicacion_captura) > 0
 
                     UNION ALL
@@ -1412,6 +1413,7 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
                             'clave_catastral', clave_catastral,
                             'hora_lectura', hora_lectura,
                             'usuario_lectura', cedula,
+                            'fecha_lectura', fecha_lectura,
                             'novedad', novedad,
                             'marker-color', CASE
                                                 WHEN orden = 1 THEN '#000000' -- Negro para el Inicio
