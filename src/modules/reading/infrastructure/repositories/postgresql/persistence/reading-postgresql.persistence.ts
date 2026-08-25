@@ -100,7 +100,7 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
   }
 
   async findReadingInfo(cadastralKey: string): Promise<ReadingInfoModel[]> {
-    const query: string = `
+    const query: string = /*sql*/ `
       WITH ultima_lectura_valida AS (
         -- 1. Obtenemos de forma segura las últimas 5 lecturas reales
         SELECT
