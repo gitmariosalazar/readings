@@ -1655,6 +1655,7 @@ LEFT JOIN cliente_contacto cc ON cc.cliente_id = c.cliente_id;
 
       const result = await this.databaseService.query<ReadingInfoModel>(query, [
         cadastralKey,
+        yearAndMonth,
       ]);
 
       if (result.length === 0) {
