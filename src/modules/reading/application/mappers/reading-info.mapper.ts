@@ -70,6 +70,17 @@ export class ReadingInfoMapper {
       connectionStateDescription: domainModel.connectionStateDescription,
       permitReading: domainModel.permitReading,
       connectionLocation: domainModel.connectionLocation,
+      images: domainModel.images?.map((img) => ({
+        id: img.id,
+        path: img.path,
+        novelty: img.novelty,
+      })),
+      observations: domainModel.observations?.map((obs) => ({
+        id: obs.id,
+        title: obs.title,
+        observation: obs.observation,
+      })),
+      readingLocation: domainModel.readingLocation,
     };
   }
 

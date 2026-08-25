@@ -165,6 +165,9 @@ export class ReadingSQLAdapter {
       readingResultSQL.permit_reading === true ||
         readingResultSQL.permit_reading === 1, // Convert to boolean if it's a number
       readingResultSQL.connection_location ?? null,
+      readingResultSQL.images ?? [],
+      readingResultSQL.observations ?? [],
+      readingResultSQL.readingLocation ?? null,
     );
   }
 

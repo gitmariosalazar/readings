@@ -42,6 +42,7 @@ import { FindAllNoveltiesUseCase } from '../../../application/usecases/novelties
 import { NoveltyPersistencePostgreSQL } from '../../repositories/postgresql/persistence/novelty.postgresql.persistence';
 import { CalculateReadingValueUseCase } from '../../../application/usecases/queries/CalculateReadingValueUseCase';
 import { GetMapGeojsonByDayAndByUserUseCase } from '../../../application/usecases/queries/GetMapGeojsonByDayAndByUserUseCase';
+import { GetDetailedReadingInfoByCadastralKeyUseCase } from '../../../application/usecases/queries/GetDetailedReadingInfoByCadastralKeyUseCase';
 
 @Module({
   controllers: [
@@ -82,6 +83,7 @@ import { GetMapGeojsonByDayAndByUserUseCase } from '../../../application/usecase
     FindAllNoveltiesUseCase,
     CalculateReadingValueUseCase,
     GetMapGeojsonByDayAndByUserUseCase,
+    GetDetailedReadingInfoByCadastralKeyUseCase,
 
     {
       provide: 'ReadingRepository',

@@ -76,6 +76,9 @@ export interface ReadingInfoSQLResult {
   connection_state_description: string;
   permit_reading: boolean | null | number;
   connection_location?: { lat: number; lng: number } | null;
+  images?: { id: number; path: string; novelty: string }[];
+  observations?: { id: number; title: string; observation: string }[];
+  readingLocation?: { lat: number; lng: number } | null;
 }
 
 export interface AdvancedReportReadingsSQLResult {

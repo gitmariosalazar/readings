@@ -63,4 +63,9 @@ export interface InterfaceReadingRepository {
     date: string,
     userId?: string,
   ): Promise<MapRouteFeatureCollection>; // Replace 'any' with the appropriate GeoJSON type if available
+
+  getDetailedReadingInfoByCadastralKey(
+    cadastralKey: string,
+    yearAndMonth: string,
+  ): Promise<ReadingInfoModel | null>;
 }

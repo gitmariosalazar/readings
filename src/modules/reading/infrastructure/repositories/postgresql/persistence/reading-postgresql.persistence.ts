@@ -41,7 +41,7 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
   async findReadingBasicInfo(
     cadastralKey: string,
   ): Promise<ReadingBasicInfoModel[]> {
-    const query: string = `
+    const query: string = /*sql*/ `
         SELECT
             l.lectura_id AS "reading_id",
             l.fecha_lectura AS "previous_reading_date",
@@ -602,7 +602,7 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
     limit: number,
     offset: number,
   ): Promise<ReadingHistoryModel[]> {
-    const query: string = `
+    const query: string = /*sql*/ `
         SELECT
             l.lectura_id                  AS reading_id,
             l.acometida_id                AS connection_id,
@@ -647,7 +647,7 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
   }
 
   async getAllReadingsImages(): Promise<ReadingImagesModel[]> {
-    const query: string = `
+    const query: string = /*sql*/ `
         SELECT
             fl.clave_catastral           AS cadastral_key,
             fl.lectura_id                AS reading_id,
@@ -702,7 +702,7 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
   async findReadingsImagesByCadastralKey(
     cadastralKey: string,
   ): Promise<ReadingImagesModel[]> {
-    const query: string = `
+    const query: string = /*sql*/ `
         SELECT
             fl.clave_catastral           AS cadastral_key,
             fl.lectura_id                AS reading_id,
@@ -770,7 +770,7 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
       params.push(sectors);
     }
 
-    const query = `
+    const query = /*sql*/ `
         SELECT  
             ac.acometida_id          AS cadastral_key,  
             ac.numero_medidor        AS meter_number,  
@@ -1444,6 +1444,226 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
       );
     } catch (error) {
       console.error('Error fetching map geojson:', error);
+      throw error;
+    }
+  }
+
+  async getDetailedReadingInfoByCadastralKey(
+    cadastralKey: string,
+    yearAndMonth: string,
+  ): Promise<ReadingInfoModel | null> {
+    try {
+      const query = /*sql*/ `
+WITH vars AS (
+    -- 0. AQUI DEFINES TU VARIABLE
+    SELECT $1::varchar(10) AS cadastralKey,
+           $2::varchar(7) AS yearAndMonth
+),
+ultima_lectura_valida AS (
+    -- 1. Traemos la última lectura (añadidos novedad y observacion)
+    SELECT
+      l.lectura_id,
+      l.acometida_id,
+      l.fecha_lectura,
+      l.hora_lectura,
+      l.lectura_anterior,
+      l.lectura_actual,
+      l.valor_lectura,
+      l.mes_lectura,
+      l.novedad,      -- << Añadido para mostrar en el SELECT final
+      l.observacion,  -- << Añadido para mostrar en el SELECT final
+      date_trunc('month', l.fecha_lectura)::date AS mes_lectura_trunc,
+      l.ubicacion_captura
+    FROM lectura l
+    WHERE l.acometida_id = (SELECT cadastralKey FROM vars)
+      AND l.mes_lectura = (SELECT yearAndMonth FROM vars)
+    ORDER BY l.fecha_lectura DESC
+    LIMIT 1
+),
+mes_actual AS (
+    SELECT date_trunc('month', CURRENT_DATE)::date AS mes_hoy
+),
+lectura_mes_actual_existe AS (
+    SELECT
+      EXISTS (
+        SELECT 1 FROM lectura l
+        WHERE l.acometida_id = (SELECT cadastralKey FROM vars)
+          AND date_trunc('month', l.fecha_lectura)::date = date_trunc('month', CURRENT_DATE)::date
+          AND l.novedad NOT ILIKE '%INICIAL AUTOMÁTICA%'
+          AND l.novedad NOT ILIKE '%CAMBIO MEDIDOR%'
+          AND l.novedad NOT ILIKE '%CAMBIO DE MEDIDOR%'
+          AND l.mes_lectura = (SELECT yearAndMonth FROM vars)
+      ) AS ya_tomada_mes_actual
+),
+proximo_mes_esperado AS (
+    SELECT
+      CASE
+        WHEN MAX(l.mes_lectura) IS NULL THEN date_trunc('month', CURRENT_DATE)::date
+        WHEN (to_date(MAX(l.mes_lectura), 'YYYY-MM') + INTERVAL '1 month')::date < date_trunc('month', CURRENT_DATE)::date
+        THEN date_trunc('month', CURRENT_DATE)::date
+        ELSE (to_date(MAX(l.mes_lectura), 'YYYY-MM') + INTERVAL '1 month')::date
+      END AS mes_que_toca
+    FROM lectura l
+    WHERE l.acometida_id = (SELECT cadastralKey FROM vars)
+      AND l.novedad NOT ILIKE '%INICIAL AUTOMÁTICA%'
+      AND l.novedad NOT ILIKE '%CAMBIO MEDIDOR%'
+      AND l.novedad NOT ILIKE '%CAMBIO DE MEDIDOR%'
+      AND l.mes_lectura = (SELECT yearAndMonth FROM vars)
+),
+periodo AS (
+    SELECT
+      COALESCE(sl.fecha_inicio_periodo, CURRENT_DATE - INTERVAL '1 month') AS inicio,
+      sl.fecha_siguiente_lectura AS fecha_mitad,
+      COALESCE(sl.fecha_fin_periodo, CURRENT_DATE + INTERVAL '1 month') AS fin
+    FROM siguiente_lectura sl
+    WHERE sl.acometida_id = (SELECT cadastralKey FROM vars)
+),
+lectura_en_periodo AS (
+    SELECT
+      p.inicio,
+      p.fin,
+      (CURRENT_DATE BETWEEN p.inicio AND p.fin) AS en_periodo,
+      EXISTS (
+        SELECT 1 FROM lectura l2
+        WHERE l2.acometida_id = (SELECT cadastralKey FROM vars)
+          AND l2.fecha_lectura::date >= COALESCE(p.fecha_mitad, p.inicio)::date
+          AND l2.novedad NOT ILIKE '%INICIAL AUTOMÁTICA%'
+          AND l2.novedad NOT ILIKE '%CAMBIO MEDIDOR%'
+          AND l2.novedad NOT ILIKE '%CAMBIO DE MEDIDOR%'
+          AND l2.mes_lectura = (SELECT yearAndMonth FROM vars)
+      ) AS ya_tomada_en_periodo_actual
+    FROM periodo p
+)
+
+-- ==========================================
+-- RESULTADO FINAL CON IMÁGENES Y CÁLCULOS
+-- ==========================================
+SELECT
+  l.lectura_id AS "reading_id",
+  l.fecha_lectura AS "previous_reading_date",
+  l.hora_lectura AS "reading_time",
+  ac.acometida_id AS "cadastral_key",
+  c.cliente_id AS "card_id",
+  COALESCE(ci.nombres || ' ' || ci.apellidos, e.razon_social) AS "client_name",
+  cc.phones AS "client_phones",
+  cc.correos AS "client_emails",
+  ac.direccion AS address,
+  l.lectura_anterior AS "previous_reading",
+  l.lectura_actual AS "current_reading",
+  l.valor_lectura AS "reading_value",
+  ac.sector,
+  ac.cuenta AS account,
+  cp.average_consumption AS "average_consumption",
+  ac.numero_medidor AS "meter_number",
+  ac.tarifa_id AS "rate_id",
+  ct.nombre AS "rate_name",
+
+  -- ==========================================
+  -- 📸 IMÁGENES Y CAMPOS SOLICITADOS
+  -- ==========================================
+  (
+    SELECT jsonb_agg(
+           json_build_object(
+            'id', fl.foto_lectura_id,
+            'path', fl.imagen_url,
+            'novelty', fl.descripcion
+           )
+        )
+    FROM foto_lectura fl
+    WHERE fl.lectura_id = l.lectura_id
+  ) AS "images",
+
+  l.mes_lectura AS "reading_month",
+  substring(l.mes_lectura FROM 1 FOR 4)::integer AS "reading_year",
+  CASE substring(l.mes_lectura FROM 6 FOR 2)::integer
+      WHEN 1  THEN 'ENERO'
+      WHEN 2  THEN 'FEBRERO'
+      WHEN 3  THEN 'MARZO'
+      WHEN 4  THEN 'ABRIL'
+      WHEN 5  THEN 'MAYO'
+      WHEN 6  THEN 'JUNIO'
+      WHEN 7  THEN 'JULIO'
+      WHEN 8  THEN 'AGOSTO'
+      WHEN 9  THEN 'SEPTIEMBRE'
+      WHEN 10 THEN 'OCTUBRE'
+      WHEN 11 THEN 'NOVIEMBRE'
+      WHEN 12 THEN 'DICIEMBRE'
+      ELSE 'Mes inválido'
+  END AS "reading_month_name",
+  l.novedad AS "novelty",
+  (l.lectura_actual - l.lectura_anterior) AS "consumption",
+  l.observacion AS "observation",
+  -- ==========================================
+
+  -- LÓGICA DE NEGOCIO
+  CASE
+    WHEN pme.mes_que_toca = ma.mes_hoy
+         AND NOT COALESCE(lmae.ya_tomada_mes_actual, false)
+    THEN true
+    ELSE false
+  END AS "has_current_reading",
+
+  -- DEBUG
+  pme.mes_que_toca AS "next_month_to_take_debug",
+  ma.mes_hoy AS "current_month_debug",
+  COALESCE(lmae.ya_tomada_mes_actual, false) AS "already_taken_current_month_debug",
+  l.mes_lectura_trunc AS "reading_month_debug",
+  lep.inicio AS "start_date_period",
+  lep.fin AS "end_date_period",
+  COALESCE(lep.en_periodo, false) AS "in_period_debug",
+  est.id_estado AS "connection_state_id",
+  est.nombre AS "connection_state_name",
+  est.permite_lectura AS "permit_reading",
+  CASE
+    WHEN ac.coordenadas IS NOT NULL THEN
+      json_build_object('lat', ST_Y(ac.coordenadas), 'lng', ST_X(ac.coordenadas))
+      ELSE NULL
+  END as "connection_location",
+  CASE
+    WHEN l.ubicacion_captura IS NOT NULL THEN
+      json_build_object('lat', ST_Y(l.ubicacion_captura), 'lng', ST_X(l.ubicacion_captura))
+      ELSE NULL
+  END as "reading_location",
+  (
+    SELECT jsonb_agg(
+        json_build_object(
+            'id', ob.observacion_id,
+            'title', ob.titulo_observacion,
+            'observation', ob.detalle_observacion
+        )
+    ) FROM observacion ob inner join observacion_lectura ol
+      on ob.observacion_id = ol.observacion_id
+      where l.lectura_id = ol.lectura_id
+  ) AS observations
+
+FROM ultima_lectura_valida l
+CROSS JOIN proximo_mes_esperado pme
+CROSS JOIN mes_actual ma
+CROSS JOIN lectura_mes_actual_existe lmae
+LEFT JOIN periodo p ON true
+LEFT JOIN lectura_en_periodo lep ON true
+JOIN acometida ac ON ac.acometida_id = l.acometida_id
+LEFT JOIN cat_estados_acometida est ON ac.estado_id = est.id_estado
+LEFT JOIN cliente c ON c.cliente_id = ac.cliente_id
+LEFT JOIN ciudadano ci ON ci.ciudadano_id = c.cliente_id
+LEFT JOIN empresa e ON e.ruc = c.cliente_id
+LEFT JOIN tarifa t ON t.tarifa_id = ac.tarifa_id
+LEFT JOIN categoria ct ON ct.categoria_id = t.categoria_id
+LEFT JOIN consumo_promedio cp ON cp.acometida_id = ac.acometida_id
+LEFT JOIN cliente_contacto cc ON cc.cliente_id = c.cliente_id;
+      `;
+
+      const result = await this.databaseService.query<ReadingInfoModel>(query, [
+        cadastralKey,
+      ]);
+
+      if (result.length === 0) {
+        return null;
+      }
+
+      return result[0];
+    } catch (error) {
+      console.error('Error fetching detailed reading info:', error);
       throw error;
     }
   }

@@ -14,6 +14,7 @@ import { UUID } from 'crypto';
 import { GetReadingByNoveltyUseCase } from '../../application/usecases/queries/GetReadingByNoveltyUseCase';
 import { FindAllNoveltiesUseCase } from '../../application/usecases/novelties/FindAllNoveltiesUseCase';
 import { GetMapGeojsonByDayAndByUserUseCase } from '../../application/usecases/queries/GetMapGeojsonByDayAndByUserUseCase';
+import { GetDetailedReadingInfoByCadastralKeyUseCase } from '../../application/usecases/queries/GetDetailedReadingInfoByCadastralKeyUseCase';
 
 @Controller('Readings')
 export class ReadingController {
@@ -29,6 +30,7 @@ export class ReadingController {
     private readonly getReadingByNoveltyUseCase: GetReadingByNoveltyUseCase,
     private readonly findAllNoveltiesUseCase: FindAllNoveltiesUseCase,
     private readonly getMapGeojsonByDayAndByUserUseCase: GetMapGeojsonByDayAndByUserUseCase,
+    private readonly getDetailedReadingInfoByCadastralKeyUseCase: GetDetailedReadingInfoByCadastralKeyUseCase,
   ) {}
 
   @Get('find-basic-reading/:catastralCode')
@@ -155,6 +157,17 @@ export class ReadingController {
     return this.getMapGeojsonByDayAndByUserUseCase.execute(
       data.date,
       data.userId,
+    );
+  }
+
+  @Get('get-detailed-reading-info-by-cadastral-key')
+  @MessagePattern('reading.get-detailed-reading-info-by-cadastral-key')
+  async getDetailedReadingInfoByCadastralKey(
+    @Payload() data: { cadastralKey: string; yearAndMonth: string },
+  ) {
+    return this.getDetailedReadingInfoByCadastralKeyUseCase.execute(
+      data.cadastralKey,
+      data.yearAndMonth,
     );
   }
 }

@@ -8,6 +8,18 @@ export interface ClientEmailModel {
   email: string;
 }
 
+export interface ImagesModel {
+  id: number;
+  path: string;
+  novelty: string;
+}
+
+export interface ObservationModel {
+  id: number;
+  title: string;
+  observation: string;
+}
+
 export class ReadingInfoModel {
   constructor(
     public readonly readingId: number,
@@ -38,5 +50,8 @@ export class ReadingInfoModel {
     public readonly connectionStateDescription: string,
     public readonly permitReading: boolean,
     public readonly connectionLocation?: { lat: number; lng: number } | null,
+    public readonly images?: ImagesModel[],
+    public readonly observations?: ObservationModel[],
+    public readonly readingLocation?: { lat: number; lng: number } | null,
   ) {}
 }

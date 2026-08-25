@@ -8,13 +8,11 @@ import { statusCode } from '../../../../../../settings/environments/status-code'
 import { DatabaseAbstract } from '../../../../../../shared/connections/database/abstract/abstract.database';
 
 @Injectable()
-export class ReadingImagesPersistencePostgreSQL
-  implements InterfaceReadingImagesRepository
-{
+export class ReadingImagesPersistencePostgreSQL implements InterfaceReadingImagesRepository {
   constructor(private readonly databaseService: DatabaseAbstract) {}
 
   async getAllReadingsImages(): Promise<ReadingImagesModel[]> {
-    const query: string = `
+    const query: string = /*sql*/ `
         SELECT
             fl.clave_catastral           AS cadastral_key,
             fl.lectura_id                AS reading_id,
@@ -74,7 +72,7 @@ export class ReadingImagesPersistencePostgreSQL
   async findReadingImagesByCadastralKey(
     cadastralKey: string,
   ): Promise<ReadingImagesModel[]> {
-    const query: string = `
+    const query: string = /*sql*/ `
         SELECT
             fl.clave_catastral           AS cadastral_key,
             fl.lectura_id                AS reading_id,
@@ -135,7 +133,7 @@ export class ReadingImagesPersistencePostgreSQL
   }
 
   async findReadingImagesByMonth(month: string): Promise<ReadingImagesModel[]> {
-    const query: string = `
+    const query: string = /*sql*/ `
       SELECT
             fl.clave_catastral           AS cadastral_key,
             fl.lectura_id                AS reading_id,
@@ -197,7 +195,7 @@ export class ReadingImagesPersistencePostgreSQL
     month: string,
     sector: number,
   ): Promise<ReadingImagesModel[]> {
-    const query: string = `
+    const query: string = /*sql*/ `
         SELECT
             fl.clave_catastral           AS cadastral_key,
             fl.lectura_id                AS reading_id,
