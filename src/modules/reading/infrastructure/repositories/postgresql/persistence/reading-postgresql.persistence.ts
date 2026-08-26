@@ -1653,16 +1653,21 @@ LEFT JOIN consumo_promedio cp ON cp.acometida_id = ac.acometida_id
 LEFT JOIN cliente_contacto cc ON cc.cliente_id = c.cliente_id;
       `;
 
-      const result = await this.databaseService.query<ReadingInfoModel>(query, [
-        cadastralKey,
-        yearAndMonth,
-      ]);
+      const result = await this.databaseService.query<ReadingInfoSQLResult>(
+        query,
+        [cadastralKey, yearAndMonth],
+      );
 
       if (result.length === 0) {
-        return null;
+        throw new RpcException({
+          statusCode: 404,
+          message: `No se encontró información de lectura para la clave catastral '${cadastralKey}' y mes '${yearAndMonth}'.`,
+        });
       }
 
-      return result[0];
+      return result.map((r) =>
+        ReadingSQLAdapter.fromReadingPostgreSQLResultToReadingInfoModel(r),
+      )[0];
     } catch (error) {
       console.error('Error fetching detailed reading info:', error);
       throw error;
