@@ -1,5 +1,8 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { ReadingInfoModel } from '../../../domain/schemas/model/reading-info.model';
+import {
+  ReadingDetailedModel,
+  ReadingInfoModel,
+} from '../../../domain/schemas/model/reading-info.model';
 import { InterfaceReadingRepository } from '../../../domain/contracts/reading.interface.repository';
 
 @Injectable()
@@ -12,7 +15,7 @@ export class GetDetailedReadingInfoByCadastralKeyUseCase {
   async execute(
     cadastralKey: string,
     yearAndMonth: string,
-  ): Promise<ReadingInfoModel | null> {
+  ): Promise<ReadingDetailedModel | null> {
     try {
       if (!cadastralKey) {
         throw new Error('Cadastral key is required');

@@ -5,6 +5,7 @@ import {
   PendingReadingConnectionSQLResult,
   RangoTarifaSQLResult,
   ReadingBasicInfoSQLResult,
+  ReadingDetailedSQLResult,
   ReadingHistorySQLResult,
   ReadingImagesSQLResult,
   ReadingInfoSQLResult,
@@ -19,7 +20,10 @@ import {
   IDatabaseClient,
 } from '../../../../../../shared/connections/database/abstract/abstract.database';
 import { ReadingBasicInfoModel } from '../../../../domain/schemas/model/reading-basic-info.model';
-import { ReadingInfoModel } from '../../../../domain/schemas/model/reading-info.model';
+import {
+  ReadingDetailedModel,
+  ReadingInfoModel,
+} from '../../../../domain/schemas/model/reading-info.model';
 import {
   ReadingModel,
   ReadingNoveltyModel,
@@ -1103,7 +1107,7 @@ export class ReadingPersistenceMySQL implements InterfaceReadingRepository {
   async getDetailedReadingInfoByCadastralKey(
     cadastralKey: string,
     yearAndMonth: string,
-  ): Promise<ReadingInfoModel | null> {
+  ): Promise<ReadingDetailedModel | null> {
     try {
       const query = /*sql*/ `
 WITH vars AS (
@@ -1305,15 +1309,21 @@ LEFT JOIN consumo_promedio cp ON cp.acometida_id = ac.acometida_id
 LEFT JOIN cliente_contacto cc ON cc.cliente_id = c.cliente_id;
       `;
 
-      const result = await this.databaseService.query<ReadingInfoModel>(query, [
-        cadastralKey,
-      ]);
+      const result = await this.databaseService.query<ReadingDetailedSQLResult>(
+        query,
+        [cadastralKey, yearAndMonth],
+      );
 
       if (result.length === 0) {
-        return null;
+        throw new RpcException({
+          statusCode: 404,
+          message: `No se encontró información de lectura para la clave catastral '${cadastralKey}' y mes '${yearAndMonth}'.`,
+        });
       }
 
-      return result[0];
+      return result.map((r) =>
+        ReadingSQLAdapter.fromReadingPostgreSQLResultToReadingDetailedModel(r),
+      )[0];
     } catch (error) {
       console.error('Error fetching detailed reading info:', error);
       throw error;

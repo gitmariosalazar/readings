@@ -81,6 +81,42 @@ export interface ReadingInfoSQLResult {
   readingLocation?: { lat: number; lng: number } | null;
 }
 
+export interface ReadingDetailedSQLResult {
+  reading_id: number;
+  reading_time: Date | null;
+  reading_date: Date | null;
+  cadastral_key: string;
+  card_id: string;
+  client_name: string;
+  client_phones: ClientPhoneSQLResult[];
+  client_emails: ClientEmailSQLResult[];
+  address: string;
+  previous_reading: number;
+  current_reading: number | null;
+  sector: number;
+  account: number;
+  reading_value: number;
+  average_consumption: number;
+  meter_number: string;
+  rate_id: number;
+  rate_name: string;
+  has_current_reading: boolean | null | number;
+  reading_month: string;
+  reading_month_name: string;
+  novelty: string;
+  consumption: number;
+  start_date_period: Date;
+  end_date_period: Date;
+  connection_state_id: number;
+  connection_state_name: string;
+  connection_state_description: string;
+  permit_reading: boolean | null | number;
+  connection_location?: { lat: number; lng: number } | null;
+  images?: { id: number; path: string; novelty: string }[];
+  observations?: { id: number; title: string; observation: string }[];
+  readingLocation?: { lat: number; lng: number } | null;
+}
+
 export interface AdvancedReportReadingsSQLResult {
   sector: number;
   total_connections: number;

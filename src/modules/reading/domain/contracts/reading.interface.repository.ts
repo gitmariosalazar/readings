@@ -3,7 +3,10 @@ import {
   ReadingNoveltyModel,
 } from '../schemas/model/reading.model';
 import { ReadingBasicInfoModel } from '../schemas/model/reading-basic-info.model';
-import { ReadingInfoModel } from '../schemas/model/reading-info.model';
+import {
+  ReadingDetailedModel,
+  ReadingInfoModel,
+} from '../schemas/model/reading-info.model';
 import { ReadingHistoryModel } from '../schemas/model/reading-history.model';
 import { ReadingImagesModel } from '../schemas/model/reading-images.model';
 import { PendingReadingConnectionModel } from '../schemas/model/pending-reading-connection.model';
@@ -67,5 +70,5 @@ export interface InterfaceReadingRepository {
   getDetailedReadingInfoByCadastralKey(
     cadastralKey: string,
     yearAndMonth: string,
-  ): Promise<ReadingInfoModel | null>;
+  ): Promise<ReadingDetailedModel | null>;
 }

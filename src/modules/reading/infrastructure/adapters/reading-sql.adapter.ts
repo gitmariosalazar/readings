@@ -13,6 +13,7 @@ import {
   ReadingInfoModel,
   ClientPhoneModel,
   ClientEmailModel,
+  ReadingDetailedModel,
 } from '../../domain/schemas/model/reading-info.model';
 import { ReadingResponse } from '../../application/dtos/response/reading.response';
 import {
@@ -22,6 +23,7 @@ import {
   MonthlySummarySQLResult,
   PendingReadingConnectionSQLResult,
   ReadingBasicInfoSQLResult,
+  ReadingDetailedSQLResult,
   ReadingHistorySQLResult,
   ReadingImagesSQLResult,
   ReadingInfoSQLResult,
@@ -157,6 +159,52 @@ export class ReadingSQLAdapter {
       readingResultSQL.has_current_reading === true ||
         readingResultSQL.has_current_reading === 1, // Convert to boolean if it's a number
       readingResultSQL.month_reading,
+      readingResultSQL.start_date_period,
+      readingResultSQL.end_date_period,
+      readingResultSQL.connection_state_id,
+      readingResultSQL.connection_state_name,
+      readingResultSQL.connection_state_description,
+      readingResultSQL.permit_reading === true ||
+        readingResultSQL.permit_reading === 1, // Convert to boolean if it's a number
+      readingResultSQL.connection_location ?? null,
+      readingResultSQL.images ?? [],
+      readingResultSQL.observations ?? [],
+      readingResultSQL.readingLocation ?? null,
+    );
+  }
+
+  static fromReadingPostgreSQLResultToReadingDetailedModel(
+    readingResultSQL: ReadingDetailedSQLResult,
+  ): ReadingDetailedModel {
+    return new ReadingDetailedModel(
+      readingResultSQL.reading_id,
+      readingResultSQL.reading_time,
+      readingResultSQL.reading_date,
+      readingResultSQL.cadastral_key,
+      readingResultSQL.card_id,
+      readingResultSQL.client_name,
+      this.fromReadingPhonesPostgreSQLResultsToReadingPhonesModels(
+        readingResultSQL.client_phones,
+      ),
+      this.fromReadingEmailsPostgreSQLResultsToReadingEmailsModels(
+        readingResultSQL.client_emails,
+      ),
+      readingResultSQL.address,
+      readingResultSQL.previous_reading,
+      readingResultSQL.current_reading,
+      readingResultSQL.sector,
+      readingResultSQL.account,
+      readingResultSQL.reading_value,
+      readingResultSQL.average_consumption,
+      readingResultSQL.meter_number,
+      readingResultSQL.rate_id,
+      readingResultSQL.rate_name,
+      readingResultSQL.has_current_reading === true ||
+        readingResultSQL.has_current_reading === 1, // Convert to boolean if it's a number
+      readingResultSQL.reading_month,
+      readingResultSQL.reading_month_name,
+      readingResultSQL.novelty,
+      readingResultSQL.consumption,
       readingResultSQL.start_date_period,
       readingResultSQL.end_date_period,
       readingResultSQL.connection_state_id,

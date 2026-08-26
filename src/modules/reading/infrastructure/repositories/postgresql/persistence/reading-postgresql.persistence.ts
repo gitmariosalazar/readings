@@ -5,6 +5,7 @@ import {
   PendingReadingConnectionSQLResult,
   RangoTarifaSQLResult,
   ReadingBasicInfoSQLResult,
+  ReadingDetailedSQLResult,
   ReadingHistorySQLResult,
   ReadingImagesSQLResult,
   ReadingInfoSQLResult,
@@ -19,7 +20,10 @@ import {
   IDatabaseClient,
 } from '../../../../../../shared/connections/database/abstract/abstract.database';
 import { ReadingBasicInfoModel } from '../../../../domain/schemas/model/reading-basic-info.model';
-import { ReadingInfoModel } from '../../../../domain/schemas/model/reading-info.model';
+import {
+  ReadingDetailedModel,
+  ReadingInfoModel,
+} from '../../../../domain/schemas/model/reading-info.model';
 import {
   ReadingModel,
   ReadingNoveltyModel,
@@ -1451,7 +1455,7 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
   async getDetailedReadingInfoByCadastralKey(
     cadastralKey: string,
     yearAndMonth: string,
-  ): Promise<ReadingInfoModel | null> {
+  ): Promise<ReadingDetailedModel | null> {
     try {
       const query = /*sql*/ `
 WITH vars AS (
@@ -1540,7 +1544,7 @@ lectura_en_periodo AS (
 -- ==========================================
 SELECT
   l.lectura_id AS "reading_id",
-  l.fecha_lectura AS "previous_reading_date",
+  l.fecha_lectura AS "reading_date",
   l.hora_lectura AS "reading_time",
   ac.acometida_id AS "cadastral_key",
   c.cliente_id AS "card_id",
@@ -1653,7 +1657,7 @@ LEFT JOIN consumo_promedio cp ON cp.acometida_id = ac.acometida_id
 LEFT JOIN cliente_contacto cc ON cc.cliente_id = c.cliente_id;
       `;
 
-      const result = await this.databaseService.query<ReadingInfoSQLResult>(
+      const result = await this.databaseService.query<ReadingDetailedSQLResult>(
         query,
         [cadastralKey, yearAndMonth],
       );
@@ -1666,7 +1670,7 @@ LEFT JOIN cliente_contacto cc ON cc.cliente_id = c.cliente_id;
       }
 
       return result.map((r) =>
-        ReadingSQLAdapter.fromReadingPostgreSQLResultToReadingInfoModel(r),
+        ReadingSQLAdapter.fromReadingPostgreSQLResultToReadingDetailedModel(r),
       )[0];
     } catch (error) {
       console.error('Error fetching detailed reading info:', error);
