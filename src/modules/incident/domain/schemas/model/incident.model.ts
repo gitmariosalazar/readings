@@ -50,6 +50,11 @@ export class IncidentModel {
       correo: string | null;
       celular: string | null;
     } | null,
+
+    // NUEVOS CAMPOS OPCIONALES
+    public readonly meterCondition?: string | null,
+    public readonly meterPhysicalState?: string | null,
+    public readonly requiresImmediateAction?: boolean,
   ) {}
 
   public isChargeableToUser(): boolean {

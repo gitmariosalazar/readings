@@ -50,6 +50,9 @@ export class IncidentMapper {
             celular: request.reportClient.cellPhone,
           }
         : null,
+      request.meterCondition ?? null,
+      request.meterPhysicalState ?? null,
+      request.requiresImmediateAction ?? false,
     );
   }
 

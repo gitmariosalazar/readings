@@ -24,6 +24,7 @@ export class SearchIncidentsUseCase {
     reportDate?: Date | null;
     internalUserId?: string | null;
     externalUserId?: string | null;
+    categoryCode?: string | null;
   }): Promise<IncidentDetailRowResponse[]> {
     try {
       const models = await this.incidentRepository.findIncidents(filters);

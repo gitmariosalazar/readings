@@ -40,6 +40,7 @@ export interface InterfaceIncidentRepository {
     reportDate?: Date | null;
     internalUserId?: string | null;
     externalUserId?: string | null;
+    categoryCode?: string | null;
   }): Promise<IncidentDetailRowResponse[]>;
   findIncidentsByClientUserId(filters: {
     externalUserId: string | null;

@@ -167,12 +167,13 @@ export class IncidentPersistencePostgreSQL implements InterfaceIncidentRepositor
           INSERT INTO public.incidente_medidor (
             acometida_id, lectura_id, tipo_incidente_id, descripcion_reporte,
             direccion_referencia, origen_reporte, prioridad, usuario_reporta_id,
-            cliente_usuario_reporta_id, coordenadas, datos_reportante
+            cliente_usuario_reporta_id, coordenadas, datos_reportante,
+            condicion_medidor, estado_fisico, requiere_accion_inmediata
           ) VALUES (
             $1, $2, $3, $4, $5, $6, $7, $8, $9,
             CASE WHEN $10::double precision IS NOT NULL AND $11::double precision IS NOT NULL
                  THEN ST_SetSRID(ST_MakePoint($11, $10), 4326) ELSE NULL END,
-            $12
+            $12, $13, $14, $15
           )
           RETURNING
             incidente_id AS incident_id,
@@ -216,6 +217,9 @@ export class IncidentPersistencePostgreSQL implements InterfaceIncidentRepositor
             incident.reportClient
               ? JSON.stringify(incident.reportClient)
               : null,
+            incident.meterCondition ?? null,
+            incident.meterPhysicalState ?? null,
+            incident.requiresImmediateAction ?? false,
           ]);
 
           if (result.length === 0) return null;
@@ -397,6 +401,7 @@ export class IncidentPersistencePostgreSQL implements InterfaceIncidentRepositor
     reportDate?: Date | null;
     internalUserId?: string | null;
     externalUserId?: string | null;
+    categoryCode?: string | null;
   }): Promise<IncidentDetailRowResponse[]> {
     let query = /* sql */ `
       SELECT
@@ -478,6 +483,12 @@ export class IncidentPersistencePostgreSQL implements InterfaceIncidentRepositor
     if (filters.reportDate) {
       query += /* sql */ ` AND a.report_date::date = $${paramIndex}`;
       values.push(filters.reportDate);
+      paramIndex++;
+    }
+
+    if (filters.categoryCode) {
+      query += /* sql */ ` AND a.category_code = $${paramIndex}`;
+      values.push(filters.categoryCode);
       paramIndex++;
     }
 

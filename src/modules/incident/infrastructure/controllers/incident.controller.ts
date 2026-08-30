@@ -83,6 +83,7 @@ export class IncidentController {
       reportDate?: Date | null;
       internalUserId?: string | null;
       externalUserId?: string | null;
+      categoryCode?: string | null;
     },
   ) {
     return this.searchIncidentsUseCase.execute(filters);

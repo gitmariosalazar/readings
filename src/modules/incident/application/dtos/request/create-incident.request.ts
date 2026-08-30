@@ -14,6 +14,11 @@ export class CreateIncidentRequest {
   longitude?: number | null;
   images?: string[];
   reportClient?: reportClient | null;
+
+  // NUEVOS CAMPOS (Opcionales para cumplir OCP)
+  meterCondition?: string | null;
+  meterPhysicalState?: string | null;
+  requiresImmediateAction?: boolean;
 }
 
 interface reportClient {

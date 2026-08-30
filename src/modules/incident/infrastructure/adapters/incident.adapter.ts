@@ -102,6 +102,10 @@ export class IncidentAdapter {
       openDays: sql.open_days,
       pendingDays: sql.pending_days,
 
+      // Condicion del medidor
+      meterCondition: sql.meter_condition,
+      physicalState: sql.physical_state,
+
       // Auditoría
       createdAt: sql.created_at,
       updatedAt: sql.updated_at,
