@@ -1039,9 +1039,13 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
             LEFT JOIN cat_action_types act_c ON act_c.id = ulc.action_type_id
             LEFT JOIN empleados u_creador ON u_creador.usuario_id = ulc.usuario_id
 
-            -- Join específico para obtener el USUARIO ACTUALIZADOR / MODIFICADOR
-            LEFT JOIN usuario_lectura ulu ON l.lectura_id = ulu.lectura_id
-                                        AND ulu.action_type_id = 2 -- Sustituir por el ID/Código de la acción "ACTUALIZAR/EDITAR"
+            -- Join específico para obtener el ÚLTIMO USUARIO ACTUALIZADOR / MODIFICADOR
+            LEFT JOIN LATERAL (
+                SELECT * FROM usuario_lectura
+                WHERE lectura_id = l.lectura_id AND action_type_id = 2
+                ORDER BY usuario_lectura_id DESC
+                LIMIT 1
+            ) ulu ON true
             LEFT JOIN cat_action_types act_u ON act_u.id = ulu.action_type_id
             LEFT JOIN empleados u_actualizador ON u_actualizador.usuario_id = ulu.usuario_id  
         WHERE l.mes_lectura = $1
@@ -1148,9 +1152,13 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
             LEFT JOIN cat_action_types act_c ON act_c.id = ulc.action_type_id
             LEFT JOIN empleados u_creador ON u_creador.usuario_id = ulc.usuario_id
 
-            -- Join específico para obtener el USUARIO ACTUALIZADOR / MODIFICADOR
-            LEFT JOIN usuario_lectura ulu ON l.lectura_id = ulu.lectura_id
-                                        AND ulu.action_type_id = 2 -- Sustituir por el ID/Código de la acción "ACTUALIZAR/EDITAR"
+            -- Join específico para obtener el ÚLTIMO USUARIO ACTUALIZADOR / MODIFICADOR
+            LEFT JOIN LATERAL (
+                SELECT * FROM usuario_lectura
+                WHERE lectura_id = l.lectura_id AND action_type_id = 2
+                ORDER BY usuario_lectura_id DESC
+                LIMIT 1
+            ) ulu ON true
             LEFT JOIN cat_action_types act_u ON act_u.id = ulu.action_type_id
             LEFT JOIN empleados u_actualizador ON u_actualizador.usuario_id = ulu.usuario_id 
         WHERE l.mes_lectura = $1
@@ -1279,9 +1287,13 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
             LEFT JOIN cat_action_types act_c ON act_c.id = ulc.action_type_id
             LEFT JOIN empleados u_creador ON u_creador.usuario_id = ulc.usuario_id
 
-            -- Join específico para obtener el USUARIO ACTUALIZADOR / MODIFICADOR
-            LEFT JOIN usuario_lectura ulu ON l.lectura_id = ulu.lectura_id
-                                        AND ulu.action_type_id = 2 -- Sustituir por el ID/Código de la acción "ACTUALIZAR/EDITAR"
+            -- Join específico para obtener el ÚLTIMO USUARIO ACTUALIZADOR / MODIFICADOR
+            LEFT JOIN LATERAL (
+                SELECT * FROM usuario_lectura
+                WHERE lectura_id = l.lectura_id AND action_type_id = 2
+                ORDER BY usuario_lectura_id DESC
+                LIMIT 1
+            ) ulu ON true
             LEFT JOIN cat_action_types act_u ON act_u.id = ulu.action_type_id
             LEFT JOIN empleados u_actualizador ON u_actualizador.usuario_id = ulu.usuario_id
         WHERE l.mes_lectura = $1
@@ -1481,7 +1493,12 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
                 COUNT(*) OVER(PARTITION BY emp.cedula) AS total_lecturas
             FROM lectura l
             JOIN acometida a ON l.acometida_id = a.acometida_id
-            LEFT JOIN usuario_lectura u on u.lectura_id = l.lectura_id
+            LEFT JOIN LATERAL (
+                SELECT * FROM usuario_lectura
+                WHERE lectura_id = l.lectura_id
+                ORDER BY usuario_lectura_id DESC
+                LIMIT 1
+            ) u ON true
             LEFT JOIN empleados emp on emp.usuario_id = u.usuario_id
             WHERE l.ubicacion_captura IS NOT NULL
               AND a.coordenadas IS NOT NULL
