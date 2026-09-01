@@ -4,6 +4,7 @@ import { UpdateReadingRequest } from '../../application/dtos/request/update-read
 import { CreateReadingRequest } from '../../application/dtos/request/create-reading.request';
 import { CreateReadingUseCase } from '../../application/usecases/commands/CreateReadingUseCase';
 import { UpdateReadingUseCase } from '../../application/usecases/commands/UpdateReadingUseCase';
+import { UpdateSpecialReadingUseCase } from '../../application/usecases/commands/UpdateSpecialReadingUseCase';
 import { FindReadingUseCase } from '../../application/usecases/queries/FindReadingUseCase';
 import { FindBasicReadingUseCase } from '../../application/usecases/queries/FindBasicReadingUseCase';
 import { FindReadingHistoryByCadastralKeyUseCase } from '../../application/usecases/queries/FindReadingHistoryByCadastralKeyUseCase';
@@ -15,12 +16,14 @@ import { GetReadingByNoveltyUseCase } from '../../application/usecases/queries/G
 import { FindAllNoveltiesUseCase } from '../../application/usecases/novelties/FindAllNoveltiesUseCase';
 import { GetMapGeojsonByDayAndByUserUseCase } from '../../application/usecases/queries/GetMapGeojsonByDayAndByUserUseCase';
 import { GetDetailedReadingInfoByCadastralKeyUseCase } from '../../application/usecases/queries/GetDetailedReadingInfoByCadastralKeyUseCase';
+import { UpdateSpecialReadingRequest } from '../../application/dtos/request/update-special-reading.request';
 
 @Controller('Readings')
 export class ReadingController {
   constructor(
     private readonly createReadingUseCase: CreateReadingUseCase,
     private readonly updateReadingUseCase: UpdateReadingUseCase,
+    private readonly updateSpecialReadingUseCase: UpdateSpecialReadingUseCase,
     private readonly findReadingUseCase: FindReadingUseCase,
     private readonly findBasicReadingUseCase: FindBasicReadingUseCase,
     private readonly findReadingHistoryUseCase: FindReadingHistoryByCadastralKeyUseCase,
@@ -50,6 +53,23 @@ export class ReadingController {
     },
   ) {
     return this.updateReadingUseCase.execute(
+      data.readingId,
+      data.readingRequest,
+      data.updateUserId,
+    );
+  }
+
+  @Put('update-special-reading/:readingId')
+  @MessagePattern('reading.update-special-reading')
+  async updateSpecialReading(
+    @Payload()
+    data: {
+      readingId: number;
+      readingRequest: UpdateSpecialReadingRequest;
+      updateUserId: UUID;
+    },
+  ) {
+    return this.updateSpecialReadingUseCase.execute(
       data.readingId,
       data.readingRequest,
       data.updateUserId,

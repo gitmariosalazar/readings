@@ -2,6 +2,7 @@ import { Get, Module } from '@nestjs/common';
 import { ReadingController } from '../../controllers/readings.controller';
 import { CreateReadingUseCase } from '../../../application/usecases/commands/CreateReadingUseCase';
 import { UpdateReadingUseCase } from '../../../application/usecases/commands/UpdateReadingUseCase';
+import { UpdateSpecialReadingUseCase } from '../../../application/usecases/commands/UpdateSpecialReadingUseCase';
 import { FindReadingUseCase } from '../../../application/usecases/queries/FindReadingUseCase';
 import { FindBasicReadingUseCase } from '../../../application/usecases/queries/FindBasicReadingUseCase';
 import { ReadingReportController } from '../../controllers/reading-report.controller';
@@ -49,6 +50,7 @@ import { GetMapGeojsonByDayAndByUserUseCase } from '../../../application/usecase
   providers: [
     CreateReadingUseCase,
     UpdateReadingUseCase,
+    UpdateSpecialReadingUseCase,
     FindReadingUseCase,
     FindBasicReadingUseCase,
     GetConnectionLastReadingsReportUseCase,

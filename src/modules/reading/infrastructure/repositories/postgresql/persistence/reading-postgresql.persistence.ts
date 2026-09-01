@@ -14,6 +14,7 @@ import {
   TakenReadingConnectionSQLResult,
   TarifaSQLResult,
 } from '../../../interfaces/sql/reading-sql.result.interface';
+import { ReadingAdjustmentModel } from '../../../../domain/schemas/model/reading-adjustment.model';
 import { ReadingSQLAdapter } from '../../../adapters/reading-sql.adapter';
 import {
   DatabaseAbstract,
@@ -314,21 +315,32 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
     readingId: number,
     reading: ReadingModel,
     updateUserId: UUID,
+    auditData?: ReadingAdjustmentModel,
   ): Promise<ReadingModel | null> {
     console.log(
       `Updating reading with ID: ${readingId}, Reading: ${JSON.stringify(reading)}, Update User ID: ${updateUserId}`,
     );
 
     return this.databaseService.transaction(async (client: IDatabaseClient) => {
+      const oldReadingQuery = `SELECT lectura_anterior, lectura_actual FROM lectura WHERE lectura_id = $1`;
+      const oldReadingResult = await client.query<any>(oldReadingQuery, [readingId]);
+      if (oldReadingResult.length === 0) return null;
+
+      const lecturaAnteriorPrevia = Number(oldReadingResult[0].lectura_anterior) || 0;
+      const lecturaActualPrevia = Number(oldReadingResult[0].lectura_actual) || 0;
+      const consumoPrevio = lecturaActualPrevia - lecturaAnteriorPrevia;
+
+      const lecturaAnteriorNueva = auditData?.lecturaAnteriorNueva ?? lecturaAnteriorPrevia;
+      const lecturaActualNueva = auditData?.lecturaActualNueva ?? lecturaActualPrevia;
+      const consumoNuevo = lecturaActualNueva - lecturaAnteriorNueva;
+
       const updateQuery: string = `
         UPDATE lectura
         SET
             valor_lectura = $1,
             tasa_alcantarillado = $2,
             lectura_actual = $3,
-            --codigo_ingreso_renta = $4,
             novedad = $4,
-            --codigo_ingreso = $6,
             tipo_novedad_lectura_id = $5
         WHERE lectura_id = $6
         RETURNING
@@ -368,6 +380,124 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
         [updateUserId, readingId],
       );
 
+      if (auditData) {
+        const auditQuery = `
+          INSERT INTO historial_ajuste_lectura (
+            lectura_id, tipo_ajuste_id,
+            lectura_anterior_previa, lectura_actual_previa, consumo_previo,
+            lectura_anterior_nueva, lectura_actual_nueva, consumo_nuevo,
+            justificacion, usuario_id
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        `;
+        await client.query(auditQuery, [
+          readingId,
+          auditData.tipoAjusteId,
+          lecturaAnteriorPrevia,
+          lecturaActualPrevia,
+          consumoPrevio,
+          lecturaAnteriorNueva,
+          lecturaActualNueva,
+          consumoNuevo,
+          auditData.justificacion ?? 'Actualización Normal',
+          auditData.usuarioId,
+        ]);
+      }
+
+      return ReadingSQLAdapter.fromReadingSQLResultToReadingModel(rows[0]);
+    });
+  }
+
+  async updateSpecialReading(
+    readingId: number,
+    reading: ReadingModel,
+    auditData: ReadingAdjustmentModel,
+  ): Promise<ReadingModel | null> {
+    console.log(
+      `Special updating reading with ID: ${readingId}, Reading: ${JSON.stringify(reading)}, AuditData: ${JSON.stringify(auditData)}`,
+    );
+
+    return this.databaseService.transaction(async (client: IDatabaseClient) => {
+      const oldReadingQuery = `SELECT lectura_anterior, lectura_actual FROM lectura WHERE lectura_id = $1`;
+      const oldReadingResult = await client.query<any>(oldReadingQuery, [readingId]);
+      if (oldReadingResult.length === 0) return null;
+
+      const lecturaAnteriorPrevia = Number(oldReadingResult[0].lectura_anterior) || 0;
+      const lecturaActualPrevia = Number(oldReadingResult[0].lectura_actual) || 0;
+      const consumoPrevio = lecturaActualPrevia - lecturaAnteriorPrevia;
+
+      const lecturaAnteriorNueva = auditData.lecturaAnteriorNueva ?? 0;
+      const lecturaActualNueva = auditData.lecturaActualNueva ?? 0;
+      const consumoNuevo = lecturaActualNueva - lecturaAnteriorNueva;
+
+      const updateQuery: string = `
+        UPDATE lectura
+        SET
+            valor_lectura = $1,
+            tasa_alcantarillado = $2,
+            lectura_actual = $3,
+            lectura_anterior = $4,
+            novedad = $5,
+            tipo_novedad_lectura_id = $6
+        WHERE lectura_id = $7
+        RETURNING
+          lectura_id as "reading_id",
+          acometida_id as "connection_id",
+          fecha_lectura as "reading_date",
+          hora_lectura as "reading_time",
+          sector as "sector",
+          cuenta as "account",
+          clave_catastral as "cadastral_key",
+          valor_lectura as "reading_value",
+          tasa_alcantarillado as "sewer_rate",
+          lectura_anterior as "previous_reading",
+          lectura_actual as "current_reading",
+          codigo_ingreso_renta as "rental_income_code",
+          novedad as "novelty",
+          codigo_ingreso as "income_code",
+          codigo_lectura as "reading_code";
+      `;
+      const updateParams = [
+        reading.readingValue ?? 0,
+        reading.sewerRate ?? 0,
+        reading.currentReading ?? 0,
+        reading.previousReading ?? 0,
+        reading.novelty ?? 'NO NOVELTY',
+        reading.typeNoveltyReadingId ?? 1,
+        readingId,
+      ];
+
+      const rows = await client.query<ReadingSQLResult>(
+        updateQuery,
+        updateParams,
+      );
+      if (rows.length === 0) return null;
+
+      await client.query(
+        `INSERT INTO usuario_lectura(usuario_id, lectura_id, action_type_id) VALUES ($1, $2, (SELECT id FROM cat_action_types cat where cat.code LIKE '%UPDATE%' LIMIT 1))`,
+        [auditData.usuarioId, readingId],
+      );
+
+      const auditQuery = `
+        INSERT INTO historial_ajuste_lectura (
+          lectura_id, tipo_ajuste_id,
+          lectura_anterior_previa, lectura_actual_previa, consumo_previo,
+          lectura_anterior_nueva, lectura_actual_nueva, consumo_nuevo,
+          justificacion, usuario_id
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      `;
+      await client.query(auditQuery, [
+        readingId,
+        auditData.tipoAjusteId,
+        lecturaAnteriorPrevia,
+        lecturaActualPrevia,
+        consumoPrevio,
+        lecturaAnteriorNueva,
+        lecturaActualNueva,
+        consumoNuevo,
+        auditData.justificacion,
+        auditData.usuarioId,
+      ]);
+
       return ReadingSQLAdapter.fromReadingSQLResultToReadingModel(rows[0]);
     });
   }
@@ -382,9 +512,9 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
       const result = await this.databaseService.transaction(
         async (client: IDatabaseClient) => {
           // 1. Obtener IDs de estados
-          const [pendRows, fuerRows, estadoAcometidaRows] = await Promise.all([
+          const [realRows, fuerRows, estadoAcometidaRows] = await Promise.all([
             client.query<any>(
-              `SELECT lectura_estado_id FROM lectura_estado WHERE codigo = 'PEND' LIMIT 1;`,
+              `SELECT lectura_estado_id FROM lectura_estado WHERE codigo = 'REAL' LIMIT 1;`,
             ),
             client.query<any>(
               `SELECT lectura_estado_id FROM lectura_estado WHERE codigo = 'FUER' LIMIT 1;`,
@@ -414,10 +544,10 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
             });
           }
 
-          const pendId = pendRows[0]?.lectura_estado_id;
+          const realId = realRows[0]?.lectura_estado_id;
           const fuerId = fuerRows[0]?.lectura_estado_id;
 
-          if (!pendId || !fuerId) {
+          if (!realId || !fuerId) {
             throw new RpcException({
               statusCode: 500,
               message: 'IDs de estado no encontrados.',
@@ -491,7 +621,7 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
             `SELECT fecha_inicio_periodo, fecha_fin_periodo FROM siguiente_lectura WHERE acometida_id = $1;`,
             [acometidaId],
           );
-          let estadoId = pendId;
+          let estadoId = realId;
           let observationFinal = reading.novelty || 'NORMAL';
 
           const hoy = new Date(fechaLecturaInput);

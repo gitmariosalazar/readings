@@ -8,6 +8,7 @@ import { ObservationReadingPostgreSQLPersistence } from '../../../../observation
 
 import { CreateReadingUseCase } from '../../../application/usecases/commands/CreateReadingUseCase';
 import { UpdateReadingUseCase } from '../../../application/usecases/commands/UpdateReadingUseCase';
+import { UpdateSpecialReadingUseCase } from '../../../application/usecases/commands/UpdateSpecialReadingUseCase';
 import { FindReadingUseCase } from '../../../application/usecases/queries/FindReadingUseCase';
 import { FindBasicReadingUseCase } from '../../../application/usecases/queries/FindBasicReadingUseCase';
 
@@ -54,6 +55,7 @@ import { GetDetailedReadingInfoByCadastralKeyUseCase } from '../../../applicatio
   providers: [
     CreateReadingUseCase,
     UpdateReadingUseCase,
+    UpdateSpecialReadingUseCase,
     FindReadingUseCase,
     FindBasicReadingUseCase,
     GetConnectionLastReadingsReportUseCase,

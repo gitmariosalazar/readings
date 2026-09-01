@@ -1,7 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { ClientGrpcProxy, RpcException } from '@nestjs/microservices';
-import { UpdateReadingRequest } from '../../dtos/request/update-reading.request';
-import { CreateReadingRequest } from '../../dtos/request/create-reading.request';
+import { RpcException } from '@nestjs/microservices';
+import { UpdateSpecialReadingRequest } from '../../dtos/request/update-special-reading.request';
 import { ReadingResponse } from '../../dtos/response/reading.response';
 import { InterfaceReadingRepository } from '../../../domain/contracts/reading.interface.repository';
 import { ReadingModel } from '../../../domain/schemas/model/reading.model';
@@ -14,7 +13,7 @@ import { UUID } from 'crypto';
 import { InterfaceNoveltyRepository } from '../../../domain/contracts/novelty.interface.repository';
 
 @Injectable()
-export class UpdateReadingUseCase {
+export class UpdateSpecialReadingUseCase {
   constructor(
     @Inject('ReadingRepository')
     private readonly readingRepository: InterfaceReadingRepository,
@@ -24,25 +23,20 @@ export class UpdateReadingUseCase {
 
   async execute(
     readingId: number,
-    readinRequest: UpdateReadingRequest,
+    request: UpdateSpecialReadingRequest,
     updateUserId: UUID,
   ): Promise<ReadingResponse | null> {
     try {
       const requiredFields: string[] = [
+        'tipoAjusteId',
+        'justificacion',
         'previousReading',
         'currentReading',
-        'rentalIncomeCode',
-        //'novelty',
-        'incomeCode',
-        'cadastralKey',
-        'connectionId',
-        'account',
-        'sector',
         'averageConsumption',
-        'readingMonth',
+        'cadastralKey',
       ];
       const missingFieldMessages: string[] = validateFields(
-        readinRequest,
+        request,
         requiredFields,
       );
 
@@ -62,11 +56,9 @@ export class UpdateReadingUseCase {
         });
       }
 
-      const novelty: string | null = readinRequest.novelty ?? null;
-
       if (
-        typeof readinRequest.currentReading !== 'number' ||
-        readinRequest.currentReading < 0
+        typeof request.currentReading !== 'number' ||
+        request.currentReading < 0
       ) {
         throw new RpcException({
           statusCode: statusCode.BAD_REQUEST,
@@ -74,8 +66,8 @@ export class UpdateReadingUseCase {
         });
       }
       if (
-        typeof readinRequest.previousReading !== 'number' ||
-        readinRequest.previousReading < 0
+        typeof request.previousReading !== 'number' ||
+        request.previousReading < 0
       ) {
         throw new RpcException({
           statusCode: statusCode.BAD_REQUEST,
@@ -83,8 +75,8 @@ export class UpdateReadingUseCase {
         });
       }
       if (
-        readinRequest.averageConsumption === undefined ||
-        readinRequest.averageConsumption! < 0
+        request.averageConsumption === undefined ||
+        request.averageConsumption! < 0
       ) {
         throw new RpcException({
           statusCode: statusCode.BAD_REQUEST,
@@ -92,7 +84,7 @@ export class UpdateReadingUseCase {
         });
       }
 
-      if (readinRequest.currentReading! < readinRequest.previousReading!) {
+      if (request.currentReading! < request.previousReading!) {
         throw new RpcException({
           statusCode: statusCode.BAD_REQUEST,
           message: `The current reading cannot be less than the previous reading!`,
@@ -102,28 +94,27 @@ export class UpdateReadingUseCase {
       const novelties = await this.noveltyRepository.findAllNovelties();
 
       const consumoActual: NoveltyModel = getTypeCurrentConsumption(
-        readinRequest.previousReading,
-        readinRequest.currentReading,
-        readinRequest.averageConsumption!,
+        request.previousReading,
+        request.currentReading,
+        request.averageConsumption!,
         novelties,
       );
 
-      readinRequest.typeNoveltyReadingId = consumoActual.id;
-      readinRequest.novelty = consumoActual.title;
+      request.typeNoveltyReadingId = consumoActual.id;
+      request.novelty = consumoActual.title;
 
       const consumption: number =
-        (readinRequest.currentReading ?? 0) -
-        (readinRequest.previousReading ?? 0);
+        (request.currentReading ?? 0) - (request.previousReading ?? 0);
 
       const valueConsumoAgua =
         await this.readingRepository.calculateReadingValue(
-          readinRequest.cadastralKey,
+          request.cadastralKey,
           consumption,
         );
 
-      readinRequest.readingValue = valueConsumoAgua;
+      request.readingValue = valueConsumoAgua;
       const sewerRateValue = this.CalculateSewerRate(valueConsumoAgua);
-      readinRequest.sewerRate = sewerRateValue;
+      request.sewerRate = sewerRateValue;
 
       if (valueConsumoAgua < 0) {
         throw new RpcException({
@@ -132,47 +123,43 @@ export class UpdateReadingUseCase {
         });
       }
 
-      const toUpdate: ReadingModel =
-        ReadingMapper.fromUpdateReadingRequestToReadingModel(readinRequest);
-
       const updatedReading = new ReadingModel(
-        toUpdate.id,
-        toUpdate.connectionId,
-        toUpdate.readingDate,
-        toUpdate.readingTime,
-        toUpdate.sector,
-        toUpdate.account,
-        toUpdate.cadastralKey,
+        readingId,
+        'UNKNOWN', // connectionId
+        new Date(), // readingDate
+        '00:00', // readingTime
+        1, // sector
+        1, // account
+        request.cadastralKey, // cadastralKey
         valueConsumoAgua,
-        toUpdate.sewerRate,
-        toUpdate.previousReading,
-        toUpdate.currentReading,
-        toUpdate.rentalIncomeCode,
-        toUpdate.novelty,
-        toUpdate.incomeCode,
-        toUpdate.typeNoveltyReadingId,
-        toUpdate.currentMonthReading,
-        toUpdate.locationCapture,
-        toUpdate.readingCode,
+        sewerRateValue,
+        request.previousReading!,
+        request.currentReading!,
+        1, // rentalIncomeCode
+        request.novelty,
+        1, // incomeCode
+        request.typeNoveltyReadingId ?? 1,
+        'UNKNOWN',
+        null,
+        '1',
       );
 
-      //console.log(`Updated reading: ${JSON.stringify(updatedReading)}`);
-      //console.log(`Reading ID: ${readingId}`);
+      const auditData = {
+        lecturaId: readingId,
+        tipoAjusteId: request.tipoAjusteId,
+        lecturaAnteriorPrevia: null, // Will be filled in repository
+        lecturaAnteriorNueva: request.previousReading,
+        lecturaActualPrevia: null, // Will be filled in repository
+        lecturaActualNueva: request.currentReading,
+        justificacion: request.justificacion,
+        usuarioId: updateUserId,
+      };
+
       const updatedReadingEntity: ReadingModel | null =
-        await this.readingRepository.updateCurrentReading(
+        await this.readingRepository.updateSpecialReading(
           readingId,
           updatedReading,
-          updateUserId,
-          {
-            lecturaId: readingId,
-            tipoAjusteId: 1, // ACTUALIZACION_NORMAL
-            lecturaAnteriorPrevia: null,
-            lecturaAnteriorNueva: null,
-            lecturaActualPrevia: null,
-            lecturaActualNueva: updatedReading.currentReading,
-            justificacion: 'Actualización Normal (desde App móvil o web)',
-            usuarioId: updateUserId,
-          },
+          auditData,
         );
 
       if (updatedReadingEntity !== null) {
@@ -182,7 +169,7 @@ export class UpdateReadingUseCase {
       } else {
         throw new RpcException({
           statusCode: statusCode.INTERNAL_SERVER_ERROR,
-          message: `Error updating reading with ID ${readingId}!`,
+          message: `Error special updating reading with ID ${readingId}!`,
         });
       }
     } catch (error) {

@@ -11,6 +11,7 @@ import { ReadingHistoryModel } from '../schemas/model/reading-history.model';
 import { ReadingImagesModel } from '../schemas/model/reading-images.model';
 import { PendingReadingConnectionModel } from '../schemas/model/pending-reading-connection.model';
 import { TakenReadingConnectionModel } from '../schemas/model/taken-reading-connection.model';
+import { ReadingAdjustmentModel } from '../schemas/model/reading-adjustment.model';
 import { UUID } from 'crypto';
 import { MapRouteFeatureCollection } from '../schemas/response/map-geojson';
 
@@ -20,6 +21,12 @@ export interface InterfaceReadingRepository {
     readingId: number,
     readingModel: ReadingModel,
     updateUserId: UUID,
+    auditData?: ReadingAdjustmentModel,
+  ): Promise<ReadingModel | null>;
+  updateSpecialReading(
+    readingId: number,
+    readingModel: ReadingModel,
+    auditData: ReadingAdjustmentModel,
   ): Promise<ReadingModel | null>;
   verifyReadingIfExist(readingId: number): Promise<boolean>;
   createReading(
