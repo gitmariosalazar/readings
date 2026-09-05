@@ -138,4 +138,5 @@ export interface IncidentDetailRowSQLResult {
   updated_at: string; // ISO 8601 Date string
   previous_order_state: string | null;
   current_order_state: string | null;
+  updated_status: boolean | null;
 }

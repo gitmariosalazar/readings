@@ -111,6 +111,7 @@ export class IncidentAdapter {
       updatedAt: sql.updated_at,
       previousOrderState: sql.previous_order_state,
       currentOrderState: sql.current_order_state,
+      updatedStatus: sql.updated_status,
     };
   }
 

@@ -31,7 +31,7 @@ export class IncidentPersistencePostgreSQL implements InterfaceIncidentRepositor
 
   async getIncidentDashboardKpis(): Promise<IncidentDashboardResponseDto | null> {
     try {
-      const query = `
+      const query = /*sql */ `
         SELECT jsonb_build_object(
             
             -- 1. KPIs GLOBALES (Tarjetas Superiores)
@@ -341,10 +341,13 @@ export class IncidentPersistencePostgreSQL implements InterfaceIncidentRepositor
       SELECT
           a.*,
           b.estado_anterior AS previous_order_state,
-          b.estado_nuevo AS current_order_state
+          b.estado_nuevo AS current_order_state,
+          aco.estado_actualizacion AS updated_status
       FROM public.view_incidentes_detalle a
       LEFT JOIN work_orders.orden_trabajo c
           ON c.id_entidad_origen = a.incident_id
+      LEFT JOIN acometida aco
+          ON aco.acometida_id = a.connection_id
       LEFT JOIN LATERAL (
           SELECT estado_anterior, estado_nuevo
           FROM work_orders.historial_estado_orden_trabajo
@@ -369,10 +372,13 @@ export class IncidentPersistencePostgreSQL implements InterfaceIncidentRepositor
       SELECT
           a.*,
           b.estado_anterior AS previous_order_state,
-          b.estado_nuevo AS current_order_state
+          b.estado_nuevo AS current_order_state,
+          aco.estado_actualizacion AS updated_status
       FROM public.view_incidentes_detalle a
       LEFT JOIN work_orders.orden_trabajo c
           ON c.id_entidad_origen = a.incident_id
+      LEFT JOIN acometida aco
+          ON aco.acometida_id = a.connection_id
       LEFT JOIN LATERAL (
           SELECT estado_anterior, estado_nuevo
           FROM work_orders.historial_estado_orden_trabajo
@@ -407,10 +413,13 @@ export class IncidentPersistencePostgreSQL implements InterfaceIncidentRepositor
       SELECT
           a.*,
           b.estado_anterior AS previous_order_state,
-          b.estado_nuevo AS current_order_state
+          b.estado_nuevo AS current_order_state,
+          aco.estado_actualizacion AS updated_status
       FROM public.view_incidentes_detalle a
       INNER JOIN public.incidente_medidor im
           ON im.codigo_incidente = a.incident_code
+      LEFT JOIN acometida aco
+          ON aco.acometida_id = a.connection_id
       LEFT JOIN work_orders.orden_trabajo c
           ON c.id_entidad_origen = a.incident_id
       LEFT JOIN LATERAL (
@@ -516,12 +525,15 @@ export class IncidentPersistencePostgreSQL implements InterfaceIncidentRepositor
       SELECT
           a.*,
           b.estado_anterior AS previous_order_state,
-          b.estado_nuevo AS current_order_state
+          b.estado_nuevo AS current_order_state,
+          aco.estado_actualizacion AS updated_status
       FROM public.view_incidentes_detalle a
       INNER JOIN public.incidente_medidor im
           ON im.codigo_incidente = a.incident_code
       LEFT JOIN work_orders.orden_trabajo c
           ON c.id_entidad_origen = a.incident_id
+      LEFT JOIN acometida aco
+          ON aco.acometida_id = a.connection_id
       LEFT JOIN LATERAL (
           SELECT estado_anterior, estado_nuevo
           FROM work_orders.historial_estado_orden_trabajo
