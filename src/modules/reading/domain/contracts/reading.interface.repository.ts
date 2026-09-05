@@ -78,4 +78,13 @@ export interface InterfaceReadingRepository {
     cadastralKey: string,
     yearAndMonth: string,
   ): Promise<ReadingDetailedModel | null>;
+
+  generateInitialReadingOnMeterChange(
+    acometidaId: string,
+    nuevoNumeroMedidor: string,
+    sector: number,
+    cuenta: number,
+    claveCatastral: string,
+    fechaInicioLecturas: Date | string,
+  ): Promise<void>;
 }

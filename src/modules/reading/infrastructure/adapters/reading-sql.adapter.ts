@@ -276,6 +276,7 @@ export class ReadingSQLAdapter {
       novelty: readingResultSQL.novelty,
       consumption: readingResultSQL.consumption,
       observation: readingResultSQL.observation,
+      updatedStatus: readingResultSQL.updated_status,
     };
     return response;
   }
@@ -336,6 +337,7 @@ export class ReadingSQLAdapter {
         takenReadingConnectionResultSQL.updater_last_name ||
         '') ??
         null,
+      takenReadingConnectionResultSQL.updated_status ?? false,
     );
   }
 

@@ -10,4 +10,5 @@ export interface ReadingImagesResponse {
   novelty: string;
   consumption: number;
   observation: string;
+  updatedStatus: boolean;
 }

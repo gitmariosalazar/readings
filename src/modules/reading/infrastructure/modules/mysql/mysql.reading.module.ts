@@ -18,6 +18,9 @@ import { GetNoveltyStatsReportUseCase } from '../../../application/usecases/repo
 import { GetAdvancedReportReadingsUseCase } from '../../../application/usecases/reports/GetAdvancedReportReadingsUseCase';
 import { FindReadingHistoryByCadastralKeyUseCase } from '../../../application/usecases/queries/FindReadingHistoryByCadastralKeyUseCase';
 import { GetAllReadingImagesUseCase } from '../../../application/usecases/queries/GetAllReadingImagesUseCase';
+import { GetDetailedReadingInfoByCadastralKeyUseCase } from '../../../application/usecases/queries/GetDetailedReadingInfoByCadastralKeyUseCase';
+import { GenerateInitialReadingOnMeterChangeUseCase } from '../../../application/use-cases/generate-initial-reading-on-meter-change.usecase';
+import { ConnectionEventsKafkaController } from '../../controllers/connection-events-kafka.controller';
 import { FindReadingImagesByCadastralKeyUseCase } from '../../../application/usecases/queries/FindReadingImagesByCadastralKeyUseCase';
 import { GetTakenReadingEstimatesOrAverageUseCase } from '../../../application/usecases/queries/GetTakenReadingEstimatesOrAverageUseCase';
 import { GetPendingReadingsByMonthUseCase } from '../../../application/usecases/queries/GetPendingReadingsByMonthUseCase';
@@ -46,6 +49,7 @@ import { GetMapGeojsonByDayAndByUserUseCase } from '../../../application/usecase
     ReadingReportController,
     ReadingImagesController,
     ReadingAuditController,
+    ConnectionEventsKafkaController,
   ],
   providers: [
     CreateReadingUseCase,
@@ -80,6 +84,8 @@ import { GetMapGeojsonByDayAndByUserUseCase } from '../../../application/usecase
     FindAllNoveltiesUseCase,
     CalculateReadingValueUseCase,
     GetMapGeojsonByDayAndByUserUseCase,
+    GetDetailedReadingInfoByCadastralKeyUseCase,
+    GenerateInitialReadingOnMeterChangeUseCase,
 
     {
       provide: 'ReadingRepository',

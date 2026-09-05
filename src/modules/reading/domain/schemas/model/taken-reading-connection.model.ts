@@ -28,5 +28,6 @@ export class TakenReadingConnectionModel {
     public readonly userCreatedName?: string | null,
     public readonly userUpdatedId?: string | null,
     public readonly userUpdatedName?: string | null,
+    public readonly updatedStatus?: boolean,
   ) {}
 }

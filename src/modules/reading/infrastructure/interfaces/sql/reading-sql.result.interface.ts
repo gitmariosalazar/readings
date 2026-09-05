@@ -162,6 +162,7 @@ export interface ReadingImagesSQLResult {
   novelty: string;
   consumption: number;
   observation: string;
+  updated_status: boolean;
 }
 
 export interface PendingReadingConnectionSQLResult {
@@ -207,6 +208,7 @@ export interface TakenReadingConnectionSQLResult {
   updater_card_id?: string | null;
   updater_first_name?: string | null;
   updater_last_name?: string | null;
+  updated_status: boolean;
 }
 
 export interface MonthlySummarySQLResult {

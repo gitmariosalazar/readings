@@ -11,5 +11,6 @@ export class ReadingImagesModel {
     public readonly novelty: string,
     public readonly consumption: number,
     public readonly observation: string,
+    public readonly updatedStatus: boolean,
   ) {}
 }

@@ -44,6 +44,8 @@ import { NoveltyPersistencePostgreSQL } from '../../repositories/postgresql/pers
 import { CalculateReadingValueUseCase } from '../../../application/usecases/queries/CalculateReadingValueUseCase';
 import { GetMapGeojsonByDayAndByUserUseCase } from '../../../application/usecases/queries/GetMapGeojsonByDayAndByUserUseCase';
 import { GetDetailedReadingInfoByCadastralKeyUseCase } from '../../../application/usecases/queries/GetDetailedReadingInfoByCadastralKeyUseCase';
+import { GenerateInitialReadingOnMeterChangeUseCase } from '../../../application/use-cases/generate-initial-reading-on-meter-change.usecase';
+import { ConnectionEventsKafkaController } from '../../controllers/connection-events-kafka.controller';
 
 @Module({
   controllers: [
@@ -51,6 +53,7 @@ import { GetDetailedReadingInfoByCadastralKeyUseCase } from '../../../applicatio
     ReadingReportController,
     ReadingImagesController,
     ReadingAuditController,
+    ConnectionEventsKafkaController,
   ],
   providers: [
     CreateReadingUseCase,
@@ -86,6 +89,7 @@ import { GetDetailedReadingInfoByCadastralKeyUseCase } from '../../../applicatio
     CalculateReadingValueUseCase,
     GetMapGeojsonByDayAndByUserUseCase,
     GetDetailedReadingInfoByCadastralKeyUseCase,
+    GenerateInitialReadingOnMeterChangeUseCase,
 
     {
       provide: 'ReadingRepository',

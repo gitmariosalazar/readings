@@ -38,11 +38,14 @@ export class ReadingImagesPersistencePostgreSQL implements InterfaceReadingImage
             END AS reading_month_name,
             l.novedad AS novelty,
             (l.lectura_actual - l.lectura_anterior) as consumption,
-            l.observacion AS observation
+            l.observacion AS observation,
+            a.estado_actualizacion AS updated_status
         FROM foto_lectura fl
         INNER JOIN lectura l
             ON l.clave_catastral = fl.clave_catastral
             AND l.lectura_id     = fl.lectura_id
+        INNER JOIN acometida a
+            ON a.acometida_id = l.acometida_id
         GROUP BY
             fl.clave_catastral,
             fl.lectura_id,
@@ -53,7 +56,8 @@ export class ReadingImagesPersistencePostgreSQL implements InterfaceReadingImage
             l.lectura_actual,
             l.novedad,
             l.observacion,
-            consumption
+            consumption,
+            a.estado_actualizacion
         ORDER BY
             fl.clave_catastral;
     `;
@@ -98,11 +102,14 @@ export class ReadingImagesPersistencePostgreSQL implements InterfaceReadingImage
             END AS reading_month_name,
             l.novedad AS novelty,
             (l.lectura_actual - l.lectura_anterior) AS consumption,
-            l.observacion AS observation
+            l.observacion AS observation,
+            a.estado_actualizacion AS updated_status
         FROM foto_lectura fl
         INNER JOIN lectura l
             ON l.clave_catastral = fl.clave_catastral
             AND l.lectura_id     = fl.lectura_id
+        INNER JOIN acometida a
+            ON a.acometida_id = l.acometida_id
         WHERE fl.clave_catastral = $1
         GROUP BY
             fl.clave_catastral,
@@ -114,7 +121,8 @@ export class ReadingImagesPersistencePostgreSQL implements InterfaceReadingImage
             l.lectura_actual,
             l.novedad,
             l.observacion,
-            consumption
+            consumption,
+            a.estado_actualizacion
         ORDER BY
             fl.clave_catastral DESC, l.mes_lectura DESC;
     `;
@@ -159,11 +167,14 @@ export class ReadingImagesPersistencePostgreSQL implements InterfaceReadingImage
             END AS reading_month_name,
             l.novedad AS novelty,
             (l.lectura_actual - l.lectura_anterior) AS consumption,
-            l.observacion AS observation
+            l.observacion AS observation,
+            a.estado_actualizacion AS updated_status
         FROM foto_lectura fl
         INNER JOIN lectura l
             ON l.clave_catastral = fl.clave_catastral
             AND l.lectura_id     = fl.lectura_id
+        INNER JOIN acometida a
+            ON a.acometida_id = l.acometida_id
         -- Double filter: mes_lectura + real fecha_lectura range (guards against mis-tagged legacy rows)
         WHERE l.mes_lectura = $1
           AND l.fecha_lectura >= date_trunc('month', ($1::text || '-01')::date)
@@ -178,7 +189,8 @@ export class ReadingImagesPersistencePostgreSQL implements InterfaceReadingImage
             l.lectura_actual,
             l.novedad,
             l.observacion,
-            consumption
+            consumption,
+            a.estado_actualizacion
         ORDER BY
             fl.clave_catastral;
     `;
@@ -221,11 +233,14 @@ export class ReadingImagesPersistencePostgreSQL implements InterfaceReadingImage
             END AS reading_month_name,
             l.novedad AS novelty,
             (l.lectura_actual - l.lectura_anterior) AS consumption,
-            l.observacion AS observation
+            l.observacion AS observation,
+            a.estado_actualizacion AS updated_status
         FROM foto_lectura fl
         INNER JOIN lectura l
             ON l.clave_catastral = fl.clave_catastral
             AND l.lectura_id     = fl.lectura_id
+        INNER JOIN acometida a
+            ON a.acometida_id = l.acometida_id
         -- Double filter: mes_lectura + real fecha_lectura range (guards against mis-tagged legacy rows)
         WHERE l.mes_lectura = $1
           AND l.sector = $2
@@ -241,7 +256,8 @@ export class ReadingImagesPersistencePostgreSQL implements InterfaceReadingImage
             l.lectura_actual,
             l.novedad,
             l.observacion,
-            consumption
+            consumption,
+            a.estado_actualizacion
         ORDER BY
             fl.clave_catastral;
     `;

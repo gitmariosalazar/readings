@@ -323,15 +323,21 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
 
     return this.databaseService.transaction(async (client: IDatabaseClient) => {
       const oldReadingQuery = `SELECT lectura_anterior, lectura_actual FROM lectura WHERE lectura_id = $1`;
-      const oldReadingResult = await client.query<any>(oldReadingQuery, [readingId]);
+      const oldReadingResult = await client.query<any>(oldReadingQuery, [
+        readingId,
+      ]);
       if (oldReadingResult.length === 0) return null;
 
-      const lecturaAnteriorPrevia = Number(oldReadingResult[0].lectura_anterior) || 0;
-      const lecturaActualPrevia = Number(oldReadingResult[0].lectura_actual) || 0;
+      const lecturaAnteriorPrevia =
+        Number(oldReadingResult[0].lectura_anterior) || 0;
+      const lecturaActualPrevia =
+        Number(oldReadingResult[0].lectura_actual) || 0;
       const consumoPrevio = lecturaActualPrevia - lecturaAnteriorPrevia;
 
-      const lecturaAnteriorNueva = auditData?.lecturaAnteriorNueva ?? lecturaAnteriorPrevia;
-      const lecturaActualNueva = auditData?.lecturaActualNueva ?? lecturaActualPrevia;
+      const lecturaAnteriorNueva =
+        auditData?.lecturaAnteriorNueva ?? lecturaAnteriorPrevia;
+      const lecturaActualNueva =
+        auditData?.lecturaActualNueva ?? lecturaActualPrevia;
       const consumoNuevo = lecturaActualNueva - lecturaAnteriorNueva;
 
       const updateQuery: string = `
@@ -418,11 +424,15 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
 
     return this.databaseService.transaction(async (client: IDatabaseClient) => {
       const oldReadingQuery = `SELECT lectura_anterior, lectura_actual FROM lectura WHERE lectura_id = $1`;
-      const oldReadingResult = await client.query<any>(oldReadingQuery, [readingId]);
+      const oldReadingResult = await client.query<any>(oldReadingQuery, [
+        readingId,
+      ]);
       if (oldReadingResult.length === 0) return null;
 
-      const lecturaAnteriorPrevia = Number(oldReadingResult[0].lectura_anterior) || 0;
-      const lecturaActualPrevia = Number(oldReadingResult[0].lectura_actual) || 0;
+      const lecturaAnteriorPrevia =
+        Number(oldReadingResult[0].lectura_anterior) || 0;
+      const lecturaActualPrevia =
+        Number(oldReadingResult[0].lectura_actual) || 0;
       const consumoPrevio = lecturaActualPrevia - lecturaAnteriorPrevia;
 
       const lecturaAnteriorNueva = auditData.lecturaAnteriorNueva ?? 0;
@@ -1022,7 +1032,8 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
             -- Información del usuario actualizador (si aplica)
             u_actualizador.cedula AS updater_card_id,
             u_actualizador.nombres AS updater_first_name,
-            u_actualizador.apellidos AS updater_last_name
+            u_actualizador.apellidos AS updater_last_name,
+            ac.estado_actualizacion AS updated_status
         FROM lectura l
             INNER JOIN acometida ac ON ac.acometida_id = l.acometida_id
             LEFT JOIN cliente c ON ac.cliente_id = c.cliente_id
@@ -1823,5 +1834,140 @@ LEFT JOIN cliente_contacto cc ON cc.cliente_id = c.cliente_id;
       console.error('Error fetching detailed reading info:', error);
       throw error;
     }
+  }
+
+  async generateInitialReadingOnMeterChange(
+    acometidaId: string,
+    nuevoNumeroMedidor: string,
+    sector: number,
+    cuenta: number,
+    claveCatastral: string,
+    fechaInicioLecturas: Date | string,
+  ): Promise<void> {
+    await this.databaseService.transaction(async (client: IDatabaseClient) => {
+      // 1. Obtener ID del estado PEND
+      const stateQuery = `SELECT lectura_estado_id FROM lectura_estado WHERE codigo = 'PEND' LIMIT 1;`;
+      const stateResult = await client.query<{ lectura_estado_id: number }>(
+        stateQuery,
+      );
+      if (!stateResult || stateResult.length === 0) {
+        throw new RpcException({
+          statusCode: statusCode.INTERNAL_SERVER_ERROR,
+          message: 'Estado PEND no encontrado',
+        });
+      }
+      const pendId = stateResult[0].lectura_estado_id;
+
+      console.log(
+        'pendId:',
+        pendId,
+        'acometidaId:',
+        acometidaId,
+        'nuevoNumeroMedidor:',
+        nuevoNumeroMedidor,
+      );
+
+      // 2. Buscar si ya existe una lectura en estado PEND para esta acometida
+      const findQuery = `
+        SELECT lectura_id 
+        FROM lectura 
+        WHERE acometida_id = $1 AND lectura_estado_id = $2
+        ORDER BY fecha_lectura DESC, lectura_id DESC 
+        LIMIT 1;
+      `;
+      const findResult = await client.query<{ lectura_id: number }>(findQuery, [
+        acometidaId,
+        pendId,
+      ]);
+
+      let v_lectura_id: number;
+      const novedad = `LECTURA INICIAL POR CAMBIO DE MEDIDOR: ${nuevoNumeroMedidor}`;
+
+      console.log('findResult:', findResult);
+
+      if (findResult.length > 0 && findResult[0].lectura_id) {
+        console.log('Existing PEND reading found, updating it.');
+        v_lectura_id = findResult[0].lectura_id;
+        const updateQuery = `
+          UPDATE lectura
+          SET novedad = $1,
+              fecha_lectura = CURRENT_DATE,
+              hora_lectura = CURRENT_TIME,
+              valor_lectura = 0,
+              lectura_anterior = 0,
+              lectura_actual = 0,
+              updated_at = NOW()
+          WHERE lectura_id = $2;
+        `;
+        await client.execute(updateQuery, [novedad, v_lectura_id]);
+      } else {
+        console.log('No existing PEND reading found, inserting new one.');
+        const insertQuery = `
+          INSERT INTO lectura (
+            acometida_id, fecha_lectura, hora_lectura, sector, cuenta, clave_catastral,
+            valor_lectura, tasa_alcantarillado, lectura_anterior, lectura_actual,
+            novedad, tipo_novedad_lectura_id, lectura_estado_id
+          ) VALUES (
+            $1, CURRENT_DATE, CURRENT_TIME, $2, $3, $4, 0, 0, 0, 0, $5, 8, $6
+          ) RETURNING lectura_id;
+        `;
+        const insertResult = await client.query<{ lectura_id: number }>(
+          insertQuery,
+          [acometidaId, sector, cuenta, claveCatastral, novedad, pendId],
+        );
+        v_lectura_id = insertResult[0].lectura_id;
+      }
+
+      // 3. Contar lecturas completadas (REAL o FACT)
+      const countQuery = `
+        SELECT COUNT(*) as count_completadas
+        FROM lectura l
+        JOIN lectura_estado le ON le.lectura_estado_id = l.lectura_estado_id
+        WHERE l.acometida_id = $1 AND le.codigo IN ('REAL', 'FACT');
+      `;
+      const countResult = await client.query<{ count_completadas: string }>(
+        countQuery,
+        [acometidaId],
+      );
+      const countCompletadas = parseInt(countResult[0].count_completadas, 10);
+
+      // 4. Calcular e insertar en siguiente_lectura
+      const upsertSiguienteLecturaQuery = `
+        WITH calc AS (
+          SELECT ($2::date + (INTERVAL '1 month' * ($3::int + 1))) AS proxima_ideal
+        )
+        INSERT INTO siguiente_lectura (
+            acometida_id,
+            ultima_lectura_id,
+            fecha_siguiente_lectura,
+            fecha_inicio_periodo,
+            fecha_fin_periodo
+        ) 
+        SELECT 
+            $1, 
+            $4, 
+            proxima_ideal, 
+            date_trunc('month', proxima_ideal), 
+            (date_trunc('month', proxima_ideal) + INTERVAL '1 month' - INTERVAL '1 day')
+        FROM calc
+        ON CONFLICT (acometida_id) DO UPDATE SET
+            ultima_lectura_id = EXCLUDED.ultima_lectura_id,
+            fecha_siguiente_lectura = EXCLUDED.fecha_siguiente_lectura,
+            fecha_inicio_periodo = EXCLUDED.fecha_inicio_periodo,
+            fecha_fin_periodo = EXCLUDED.fecha_fin_periodo;
+      `;
+
+      const fechaBaseStr =
+        fechaInicioLecturas instanceof Date
+          ? fechaInicioLecturas.toISOString()
+          : fechaInicioLecturas;
+
+      await client.execute(upsertSiguienteLecturaQuery, [
+        acometidaId,
+        fechaBaseStr,
+        countCompletadas,
+        v_lectura_id,
+      ]);
+    });
   }
 }

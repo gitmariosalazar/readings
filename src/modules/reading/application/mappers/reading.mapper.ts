@@ -136,6 +136,7 @@ export class ReadingMapper {
       novelty: readingImages.novelty,
       consumption: readingImages.consumption,
       observation: readingImages.observation,
+      updatedStatus: readingImages.updatedStatus,
     };
     return response;
   }
@@ -192,6 +193,7 @@ export class ReadingMapper {
       userCreatedName: takenReadingConnection.userCreatedName ?? null,
       userUpdatedId: takenReadingConnection.userUpdatedId ?? null,
       userUpdatedName: takenReadingConnection.userUpdatedName ?? null,
+      updatedStatus: takenReadingConnection.updatedStatus ?? false,
     };
     return response;
   }
