@@ -55,4 +55,6 @@ export interface HistorialAjusteLectura {
   fechaAprobacion: string | null;
   observacionAprobacion: string | null;
   createdAt: string;
+  tipoAjuste: string;
+  descripcionTipoAjuste: string;
 }

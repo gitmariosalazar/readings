@@ -290,4 +290,6 @@ export interface HistorialAjusteLecturaSqlResult {
   fecha_aprobacion: string | null; // o Date
   observacion_aprobacion: string | null;
   created_at: string; // o Date
+  tipo_ajuste: string;
+  descripcion_tipo_ajuste: string;
 }

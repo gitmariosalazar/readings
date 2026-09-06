@@ -1993,9 +1993,12 @@ LEFT JOIN cliente_contacto cc ON cc.cliente_id = c.cliente_id;
           l.estado_aprobacion,
           l.fecha_aprobacion,
           l.observacion_aprobacion,
-          l.created_at
+          l.created_at,
+          ctal.nombre as tipo_ajuste,
+          ctal.descripcion as descripcion_tipo_ajuste
       FROM
           historial_ajuste_lectura l
+      inner join public.cat_tipo_ajuste_lectura ctal on ctal.tipo_ajuste_id = l.tipo_ajuste_id
       WHERE
           l.lectura_id = $1;
     `;

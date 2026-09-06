@@ -437,6 +437,9 @@ export class ReadingSQLAdapter {
       observacionAprobacion:
         historialAjusteLecturaResultSQL.observacion_aprobacion,
       createdAt: historialAjusteLecturaResultSQL.created_at,
+      tipoAjuste: historialAjusteLecturaResultSQL.tipo_ajuste,
+      descripcionTipoAjuste:
+        historialAjusteLecturaResultSQL.descripcion_tipo_ajuste,
     };
     return response;
   }
