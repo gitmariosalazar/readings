@@ -1468,18 +1468,15 @@ LEFT JOIN cliente_contacto cc ON cc.cliente_id = c.cliente_id;
       ]);
 
       let v_lectura_id: number;
-      const novedad = `LECTURA INICIAL POR CAMBIO DE MEDIDOR: ${nuevoNumeroMedidor}`;
+      let novedad = `LECTURA INICIAL POR CAMBIO DE MEDIDOR: ${nuevoNumeroMedidor}`;
 
       if (findResult && findResult.length > 0) {
         v_lectura_id = findResult[0].lectura_id;
+        console.log('Existing PEND reading found, updating it.', v_lectura_id);
+        novedad = `ACTUALIZACIÓN DE LECTURA POR CAMBIO DE MEDIDOR: ${nuevoNumeroMedidor}`;
         const updateQuery = `
           UPDATE lectura
-          SET novedad = ?,
-              fecha_lectura = CURRENT_DATE(),
-              hora_lectura = CURRENT_TIME(),
-              valor_lectura = 0,
-              lectura_anterior = 0,
-              lectura_actual = 0,
+          SET observacion = ?,
               updated_at = NOW()
           WHERE lectura_id = ?;
         `;
