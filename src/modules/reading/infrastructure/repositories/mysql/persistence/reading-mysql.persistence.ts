@@ -2,6 +2,7 @@ import { InterfaceReadingRepository } from '../../../../domain/contracts/reading
 import { Injectable } from '@nestjs/common';
 import { toZonedTime } from 'date-fns-tz';
 import {
+  HistorialAjusteLecturaSqlResult,
   PendingReadingConnectionSQLResult,
   RangoTarifaSQLResult,
   ReadingBasicInfoSQLResult,
@@ -37,7 +38,10 @@ import { PendingReadingConnectionModel } from '../../../../domain/schemas/model/
 import { TakenReadingConnectionModel } from '../../../../domain/schemas/model/taken-reading-connection.model';
 import { ReadingAdjustmentModel } from '../../../../domain/schemas/model/reading-adjustment.model';
 import { UUID } from 'crypto';
-import { MapRouteFeatureCollection } from '../../../../domain/schemas/response/map-geojson';
+import {
+  HistorialAjusteLectura,
+  MapRouteFeatureCollection,
+} from '../../../../domain/schemas/response/map-geojson';
 
 @Injectable()
 export class ReadingPersistenceMySQL implements InterfaceReadingRepository {
@@ -1553,5 +1557,43 @@ LEFT JOIN cliente_contacto cc ON cc.cliente_id = c.cliente_id;
         countCompletadas,
       ]);
     });
+  }
+
+  async getReadingAdjustmentHistoryByReadingId(
+    readingId: number,
+  ): Promise<HistorialAjusteLectura[]> {
+    const query = `
+        SELECT
+            l.ajuste_id,
+            l.lectura_id,
+            l.tipo_ajuste_id,
+            l.usuario_id,
+            l.fecha_solicitud,
+            l.lectura_anterior_previa,
+            l.lectura_actual_previa,
+            l.consumo_previo,
+            l.lectura_anterior_nueva,
+            l.lectura_actual_nueva,
+            l.consumo_nuevo,
+            l.justificacion,
+            l.evidencia_url,
+            l.estado_aprobacion,
+            l.fecha_aprobacion,
+            l.observacion_aprobacion,
+            l.created_at
+        FROM
+            historial_ajuste_lectura l
+        WHERE
+            l.lectura_id = $1;
+      `;
+    const result =
+      await this.databaseService.query<HistorialAjusteLecturaSqlResult>(query, [
+        readingId,
+      ]);
+    const historialAjusteLectura: HistorialAjusteLectura[] = result.map((row) =>
+      ReadingSQLAdapter.toHistorialAjusteLectura(row),
+    );
+
+    return historialAjusteLectura || [];
   }
 }

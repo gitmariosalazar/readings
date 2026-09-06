@@ -271,3 +271,23 @@ export interface RangoTarifaSQLResult {
   Base: number;
   Adicional: number;
 }
+
+export interface HistorialAjusteLecturaSqlResult {
+  ajuste_id: string;
+  lectura_id: number;
+  tipo_ajuste_id: number;
+  usuario_id: string;
+  fecha_solicitud: string; // o Date si lo parseas a objeto Date
+  lectura_anterior_previa: number;
+  lectura_actual_previa: number;
+  consumo_previo: number;
+  lectura_anterior_nueva: number;
+  lectura_actual_nueva: number;
+  consumo_nuevo: number;
+  justificacion: string;
+  evidencia_url: string | null;
+  estado_aprobacion: 'APROBADO' | 'RECHAZADO' | 'PENDIENTE' | string;
+  fecha_aprobacion: string | null; // o Date
+  observacion_aprobacion: string | null;
+  created_at: string; // o Date
+}

@@ -20,6 +20,7 @@ import {
   AdvancedReportReadingsSQLResult,
   ClientEmailSQLResult,
   ClientPhoneSQLResult,
+  HistorialAjusteLecturaSqlResult,
   MonthlySummarySQLResult,
   PendingReadingConnectionSQLResult,
   ReadingBasicInfoSQLResult,
@@ -39,6 +40,7 @@ import { TakenReadingConnectionModel } from '../../domain/schemas/model/taken-re
 import { PendingReadingConnectionModel } from '../../domain/schemas/model/pending-reading-connection.model';
 import { MonthlySummaryModel } from '../../domain/schemas/model/report/monthly-summary.model';
 import { ReadingImagesModel } from '../../domain/schemas/model/reading-images.model';
+import { HistorialAjusteLectura } from '../../domain/schemas/response/map-geojson';
 
 export class ReadingSQLAdapter {
   static fromReadingPostgreSQLResultToReadingBasicInfoModel(
@@ -406,6 +408,35 @@ export class ReadingSQLAdapter {
           readingNoveltyResultSQL.updater_last_name ||
           '') ??
         null,
+    };
+    return response;
+  }
+
+  static toHistorialAjusteLectura(
+    historialAjusteLecturaResultSQL: HistorialAjusteLecturaSqlResult,
+  ): HistorialAjusteLectura {
+    const response: HistorialAjusteLectura = {
+      ajusteId: historialAjusteLecturaResultSQL.ajuste_id,
+      lecturaId: historialAjusteLecturaResultSQL.lectura_id,
+      tipoAjusteId: historialAjusteLecturaResultSQL.tipo_ajuste_id,
+      usuarioId: historialAjusteLecturaResultSQL.usuario_id,
+      fechaSolicitud: historialAjusteLecturaResultSQL.fecha_solicitud,
+      lecturaAnteriorPrevia:
+        historialAjusteLecturaResultSQL.lectura_anterior_previa,
+      lecturaActualPrevia:
+        historialAjusteLecturaResultSQL.lectura_actual_previa,
+      consumoPrevio: historialAjusteLecturaResultSQL.consumo_previo,
+      lecturaAnteriorNueva:
+        historialAjusteLecturaResultSQL.lectura_anterior_nueva,
+      lecturaActualNueva: historialAjusteLecturaResultSQL.lectura_actual_nueva,
+      consumoNuevo: historialAjusteLecturaResultSQL.consumo_nuevo,
+      justificacion: historialAjusteLecturaResultSQL.justificacion,
+      evidenciaUrl: historialAjusteLecturaResultSQL.evidencia_url,
+      estadoAprobacion: historialAjusteLecturaResultSQL.estado_aprobacion,
+      fechaAprobacion: historialAjusteLecturaResultSQL.fecha_aprobacion,
+      observacionAprobacion:
+        historialAjusteLecturaResultSQL.observacion_aprobacion,
+      createdAt: historialAjusteLecturaResultSQL.created_at,
     };
     return response;
   }

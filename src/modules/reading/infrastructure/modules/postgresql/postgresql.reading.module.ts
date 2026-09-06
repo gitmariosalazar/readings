@@ -46,6 +46,7 @@ import { GetMapGeojsonByDayAndByUserUseCase } from '../../../application/usecase
 import { GetDetailedReadingInfoByCadastralKeyUseCase } from '../../../application/usecases/queries/GetDetailedReadingInfoByCadastralKeyUseCase';
 import { GenerateInitialReadingOnMeterChangeUseCase } from '../../../application/use-cases/generate-initial-reading-on-meter-change.usecase';
 import { ConnectionEventsKafkaController } from '../../controllers/connection-events-kafka.controller';
+import { GetReadingAdjustmentHistoryByReadingIdUseCase } from '../../../application/usecases/queries/getReadingAdjustmentHistoryByReadingId.use-case';
 
 @Module({
   controllers: [
@@ -90,6 +91,7 @@ import { ConnectionEventsKafkaController } from '../../controllers/connection-ev
     GetMapGeojsonByDayAndByUserUseCase,
     GetDetailedReadingInfoByCadastralKeyUseCase,
     GenerateInitialReadingOnMeterChangeUseCase,
+    GetReadingAdjustmentHistoryByReadingIdUseCase,
 
     {
       provide: 'ReadingRepository',

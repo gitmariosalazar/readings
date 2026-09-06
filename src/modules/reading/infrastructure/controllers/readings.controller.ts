@@ -17,6 +17,7 @@ import { FindAllNoveltiesUseCase } from '../../application/usecases/novelties/Fi
 import { GetMapGeojsonByDayAndByUserUseCase } from '../../application/usecases/queries/GetMapGeojsonByDayAndByUserUseCase';
 import { GetDetailedReadingInfoByCadastralKeyUseCase } from '../../application/usecases/queries/GetDetailedReadingInfoByCadastralKeyUseCase';
 import { UpdateSpecialReadingRequest } from '../../application/dtos/request/update-special-reading.request';
+import { GetReadingAdjustmentHistoryByReadingIdUseCase } from '../../application/usecases/queries/getReadingAdjustmentHistoryByReadingId.use-case';
 
 @Controller('Readings')
 export class ReadingController {
@@ -34,6 +35,7 @@ export class ReadingController {
     private readonly findAllNoveltiesUseCase: FindAllNoveltiesUseCase,
     private readonly getMapGeojsonByDayAndByUserUseCase: GetMapGeojsonByDayAndByUserUseCase,
     private readonly getDetailedReadingInfoByCadastralKeyUseCase: GetDetailedReadingInfoByCadastralKeyUseCase,
+    private readonly getReadingAdjustmentHistoryByReadingIdUseCase: GetReadingAdjustmentHistoryByReadingIdUseCase,
   ) {}
 
   @Get('find-basic-reading/:catastralCode')
@@ -188,6 +190,16 @@ export class ReadingController {
     return this.getDetailedReadingInfoByCadastralKeyUseCase.execute(
       data.cadastralKey,
       data.yearAndMonth,
+    );
+  }
+
+  @Get('get-reading-adjustment-history-by-reading-id')
+  @MessagePattern('reading.get-reading-adjustment-history-by-reading-id')
+  async getReadingAdjustmentHistoryByReadingId(
+    @Payload() data: { readingId: number },
+  ) {
+    return this.getReadingAdjustmentHistoryByReadingIdUseCase.execute(
+      data.readingId,
     );
   }
 }
