@@ -1871,13 +1871,14 @@ LEFT JOIN cliente_contacto cc ON cc.cliente_id = c.cliente_id;
       const findQuery = `
         SELECT lectura_id 
         FROM lectura 
-        WHERE acometida_id = $1 AND lectura_estado_id = $2
+        WHERE acometida_id = $1
+        -- AND lectura_estado_id = $2
         ORDER BY fecha_lectura DESC, lectura_id DESC 
         LIMIT 1;
       `;
       const findResult = await client.query<{ lectura_id: number }>(findQuery, [
         acometidaId,
-        pendId,
+        //pendId,
       ]);
 
       let v_lectura_id: number;
@@ -1890,7 +1891,7 @@ LEFT JOIN cliente_contacto cc ON cc.cliente_id = c.cliente_id;
         v_lectura_id = findResult[0].lectura_id;
         const updateQuery = `
           UPDATE lectura
-          SET novedad = $1,
+          SET observacion = $1,
               fecha_lectura = CURRENT_DATE,
               hora_lectura = CURRENT_TIME,
               valor_lectura = 0,
