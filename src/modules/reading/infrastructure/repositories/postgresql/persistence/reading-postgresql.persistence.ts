@@ -1892,7 +1892,7 @@ LEFT JOIN cliente_contacto cc ON cc.cliente_id = c.cliente_id;
         novedad = `ACTUALIZACIÓN DE LECTURA POR CAMBIO DE MEDIDOR: ${nuevoNumeroMedidor}`;
         const updateQuery = `
           UPDATE lectura
-          SET observacion = $1,
+          SET nota_adicional = $1,
               updated_at = NOW()
           WHERE lectura_id = $2;
         `;
