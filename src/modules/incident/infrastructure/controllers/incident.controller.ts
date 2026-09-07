@@ -73,7 +73,7 @@ export class IncidentController {
   @MessagePattern('incident.search')
   async searchIncidents(
     @Payload()
-    filters: {
+    payload: {
       connectionId?: string | null;
       status?: string | null;
       priority?: string | null;
@@ -84,10 +84,11 @@ export class IncidentController {
       internalUserId?: string | null;
       externalUserId?: string | null;
       categoryCode?: string | null;
-    },
-    limit?: number | null,
-    offset?: number | null,
+      limit?: number | null;
+      offset?: number | null;
+    }
   ) {
+    const { limit, offset, ...filters } = payload;
     return this.searchIncidentsUseCase.execute(
       filters,
       limit ?? 25,
@@ -99,7 +100,7 @@ export class IncidentController {
   @MessagePattern('incident.search-by-client-id')
   async searchIncidentsByClientId(
     @Payload()
-    filters: {
+    payload: {
       externalUserId: string;
       connectionId?: string | null;
       status?: string | null;
@@ -108,9 +109,16 @@ export class IncidentController {
       sector?: string | null;
       reference?: string | null;
       reportDate?: Date | null;
+      limit?: number | null;
+      offset?: number | null;
     },
   ) {
-    return this.searchIncidentsByClientIdUseCase.execute(filters);
+    const { limit, offset, ...filters } = payload;
+    return this.searchIncidentsByClientIdUseCase.execute(
+      filters,
+      limit ?? 25,
+      offset ?? 0
+    );
   }
 
   @Get('categories')

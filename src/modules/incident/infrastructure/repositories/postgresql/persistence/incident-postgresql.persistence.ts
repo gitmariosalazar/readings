@@ -412,13 +412,14 @@ export class IncidentPersistencePostgreSQL implements InterfaceIncidentRepositor
     },
     limit?: number | null,
     offset?: number | null,
-  ): Promise<IncidentDetailRowResponse[]> {
+  ): Promise<{ items: IncidentDetailRowResponse[]; totalCount: number }> {
     let query = /* sql */ `
       SELECT
           a.*,
           b.estado_anterior AS previous_order_state,
           b.estado_nuevo AS current_order_state,
-          aco.estado_actualizacion AS updated_status
+          aco.estado_actualizacion AS updated_status,
+          COUNT(*) OVER() as full_count
       FROM public.view_incidentes_detalle a
       INNER JOIN public.incidente_medidor im
           ON im.codigo_incidente = a.incident_code
@@ -434,8 +435,6 @@ export class IncidentPersistencePostgreSQL implements InterfaceIncidentRepositor
           LIMIT 1
       ) b ON true
       WHERE 1=1
-      ${limit ? ` LIMIT ${limit}` : ''}
-      ${offset ? ` OFFSET ${offset}` : ''}
     `;
 
     const values: any[] = [];
@@ -507,13 +506,25 @@ export class IncidentPersistencePostgreSQL implements InterfaceIncidentRepositor
       paramIndex++;
     }
 
-    query += /* sql */ ` ORDER BY a.report_date DESC;`;
+    query += /* sql */ ` ORDER BY a.report_date DESC`;
 
-    const result = await this.databaseService.query<IncidentDetailRowSQLResult>(
+    if (limit) {
+      query += /* sql */ ` LIMIT ${limit}`;
+    }
+    if (offset !== undefined && offset !== null) {
+      query += /* sql */ ` OFFSET ${offset}`;
+    }
+    
+    query += `;`;
+
+    const result = await this.databaseService.query<IncidentDetailRowSQLResult & { full_count: string }>(
       query,
       values,
     );
-    return IncidentAdapter.fromSQLResultListToResponseList(result);
+    return {
+      items: IncidentAdapter.fromSQLResultListToResponseList(result),
+      totalCount: result.length > 0 ? Number(result[0].full_count) : 0,
+    };
   }
 
   async findIncidentsByClientUserId(filters: {
@@ -525,14 +536,15 @@ export class IncidentPersistencePostgreSQL implements InterfaceIncidentRepositor
     sector?: string | null;
     reference?: string | null;
     reportDate?: Date | null;
-  }): Promise<IncidentDetailRowResponse[]> {
+  }, limit?: number | null, offset?: number | null): Promise<{ items: IncidentDetailRowResponse[]; totalCount: number }> {
     try {
       let query = /* sql */ `
       SELECT
           a.*,
           b.estado_anterior AS previous_order_state,
           b.estado_nuevo AS current_order_state,
-          aco.estado_actualizacion AS updated_status
+          aco.estado_actualizacion AS updated_status,
+          COUNT(*) OVER() as full_count
       FROM public.view_incidentes_detalle a
       INNER JOIN public.incidente_medidor im
           ON im.codigo_incidente = a.incident_code
@@ -601,15 +613,27 @@ export class IncidentPersistencePostgreSQL implements InterfaceIncidentRepositor
         paramIndex++;
       }
 
-      query += /* sql */ ` ORDER BY a.report_date DESC;`;
+      query += /* sql */ ` ORDER BY a.report_date DESC`;
+
+      if (limit) {
+        query += /* sql */ ` LIMIT ${limit}`;
+      }
+      if (offset !== undefined && offset !== null) {
+        query += /* sql */ ` OFFSET ${offset}`;
+      }
+      
+      query += `;`;
 
       const result =
-        await this.databaseService.query<IncidentDetailRowSQLResult>(
+        await this.databaseService.query<IncidentDetailRowSQLResult & { full_count: string }>(
           query,
           values,
         );
 
-      return IncidentAdapter.fromSQLResultListToResponseList(result);
+      return {
+        items: IncidentAdapter.fromSQLResultListToResponseList(result),
+        totalCount: result.length > 0 ? Number(result[0].full_count) : 0,
+      };
     } catch (error) {
       throw error;
     }

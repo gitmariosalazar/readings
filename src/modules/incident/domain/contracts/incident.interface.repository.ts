@@ -45,7 +45,7 @@ export interface InterfaceIncidentRepository {
     },
     limit?: number | null,
     offset?: number | null,
-  ): Promise<IncidentDetailRowResponse[]>;
+  ): Promise<{ items: IncidentDetailRowResponse[]; totalCount: number }>;
   findIncidentsByClientUserId(filters: {
     externalUserId: string | null;
     connectionId?: string | null;
@@ -55,6 +55,6 @@ export interface InterfaceIncidentRepository {
     sector?: string | null;
     reference?: string | null;
     reportDate?: Date | null;
-  }): Promise<IncidentDetailRowResponse[]>;
+  }, limit?: number | null, offset?: number | null): Promise<{ items: IncidentDetailRowResponse[]; totalCount: number }>;
   findIncidentCategories(): Promise<IncidentCategoryModel[]>;
 }

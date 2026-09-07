@@ -29,7 +29,7 @@ export class SearchIncidentsUseCase {
     },
     limit?: number | null,
     offset?: number | null,
-  ): Promise<IncidentDetailRowResponse[]> {
+  ): Promise<{ items: IncidentDetailRowResponse[]; totalCount: number }> {
     try {
       const models = await this.incidentRepository.findIncidents(
         filters,

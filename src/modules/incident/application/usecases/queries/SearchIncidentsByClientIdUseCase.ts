@@ -23,10 +23,10 @@ export class SearchIncidentsByClientIdUseCase {
     sector?: string | null;
     reference?: string | null;
     reportDate?: Date | null;
-  }): Promise<IncidentDetailRowResponse[]> {
+  }, limit?: number | null, offset?: number | null): Promise<{ items: IncidentDetailRowResponse[]; totalCount: number }> {
     try {
       const models =
-        await this.incidentRepository.findIncidentsByClientUserId(filters);
+        await this.incidentRepository.findIncidentsByClientUserId(filters, limit, offset);
       return models;
     } catch (error) {
       throw error;
