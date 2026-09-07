@@ -397,18 +397,22 @@ export class IncidentPersistencePostgreSQL implements InterfaceIncidentRepositor
     return IncidentAdapter.fromSQLResultToResponse(result[0]);
   }
 
-  async findIncidents(filters: {
-    connectionId?: string | null;
-    status?: string | null;
-    priority?: string | null;
-    categoryId?: number | null;
-    sector?: string | null;
-    reference?: string | null;
-    reportDate?: Date | null;
-    internalUserId?: string | null;
-    externalUserId?: string | null;
-    categoryCode?: string | null;
-  }): Promise<IncidentDetailRowResponse[]> {
+  async findIncidents(
+    filters: {
+      connectionId?: string | null;
+      status?: string | null;
+      priority?: string | null;
+      categoryId?: number | null;
+      sector?: string | null;
+      reference?: string | null;
+      reportDate?: Date | null;
+      internalUserId?: string | null;
+      externalUserId?: string | null;
+      categoryCode?: string | null;
+    },
+    limit?: number | null,
+    offset?: number | null,
+  ): Promise<IncidentDetailRowResponse[]> {
     let query = /* sql */ `
       SELECT
           a.*,
@@ -430,6 +434,8 @@ export class IncidentPersistencePostgreSQL implements InterfaceIncidentRepositor
           LIMIT 1
       ) b ON true
       WHERE 1=1
+      ${limit ? ` LIMIT ${limit}` : ''}
+      ${offset ? ` OFFSET ${offset}` : ''}
     `;
 
     const values: any[] = [];

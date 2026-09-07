@@ -30,18 +30,22 @@ export interface InterfaceIncidentRepository {
     connectionId: string,
   ): Promise<IncidentDetailRowResponse[]>;
   findById(incidentId: string): Promise<IncidentDetailRowResponse | null>;
-  findIncidents(filters: {
-    connectionId?: string | null;
-    status?: string | null;
-    priority?: string | null;
-    categoryId?: number | null;
-    sector?: string | null;
-    reference?: string | null;
-    reportDate?: Date | null;
-    internalUserId?: string | null;
-    externalUserId?: string | null;
-    categoryCode?: string | null;
-  }): Promise<IncidentDetailRowResponse[]>;
+  findIncidents(
+    filters: {
+      connectionId?: string | null;
+      status?: string | null;
+      priority?: string | null;
+      categoryId?: number | null;
+      sector?: string | null;
+      reference?: string | null;
+      reportDate?: Date | null;
+      internalUserId?: string | null;
+      externalUserId?: string | null;
+      categoryCode?: string | null;
+    },
+    limit?: number | null,
+    offset?: number | null,
+  ): Promise<IncidentDetailRowResponse[]>;
   findIncidentsByClientUserId(filters: {
     externalUserId: string | null;
     connectionId?: string | null;

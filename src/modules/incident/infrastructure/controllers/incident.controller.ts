@@ -85,8 +85,14 @@ export class IncidentController {
       externalUserId?: string | null;
       categoryCode?: string | null;
     },
+    limit?: number | null,
+    offset?: number | null,
   ) {
-    return this.searchIncidentsUseCase.execute(filters);
+    return this.searchIncidentsUseCase.execute(
+      filters,
+      limit ?? 25,
+      offset ?? 0,
+    );
   }
 
   @Get('search-by-client-id')
