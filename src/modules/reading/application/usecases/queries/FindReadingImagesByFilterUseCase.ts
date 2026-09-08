@@ -17,8 +17,11 @@ export class FindReadingImagesByFilterUseCase {
     date?: Date;
   }): Promise<ReadingImagesResponse[]> {
     // Implement the use case logic here
-    if (!filter.month) {
-      throw new BadRequestException('Month is required');
+    if (!filter.month && !filter.cadastralKey && !filter.sector && !filter.date) {
+      const now = new Date();
+      const year = now.getFullYear();
+      const monthStr = String(now.getMonth() + 1).padStart(2, '0');
+      filter.month = `${year}-${monthStr}`;
     }
     const readingImages =
       await this.readingImagesRepository.findReadingImagesByFilter(filter);
