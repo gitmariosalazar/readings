@@ -47,6 +47,7 @@ import { GetDetailedReadingInfoByCadastralKeyUseCase } from '../../../applicatio
 import { GenerateInitialReadingOnMeterChangeUseCase } from '../../../application/use-cases/generate-initial-reading-on-meter-change.usecase';
 import { ConnectionEventsKafkaController } from '../../controllers/connection-events-kafka.controller';
 import { GetReadingAdjustmentHistoryByReadingIdUseCase } from '../../../application/usecases/queries/getReadingAdjustmentHistoryByReadingId.use-case';
+import { FindReadingImagesByFilterUseCase } from '../../../application/usecases/queries/FindReadingImagesByFilterUseCase';
 
 @Module({
   controllers: [
@@ -92,6 +93,7 @@ import { GetReadingAdjustmentHistoryByReadingIdUseCase } from '../../../applicat
     GetDetailedReadingInfoByCadastralKeyUseCase,
     GenerateInitialReadingOnMeterChangeUseCase,
     GetReadingAdjustmentHistoryByReadingIdUseCase,
+    FindReadingImagesByFilterUseCase,
 
     {
       provide: 'ReadingRepository',

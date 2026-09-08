@@ -13,4 +13,11 @@ export interface InterfaceReadingImagesRepository {
   ): Promise<ReadingImagesModel[]>;
 
   getAllReadingsImages(): Promise<ReadingImagesModel[]>;
+
+  findReadingImagesByFilter(filter: {
+    month?: string;
+    cadastralKey?: string;
+    sector?: number;
+    date?: Date;
+  }): Promise<ReadingImagesModel[]>;
 }

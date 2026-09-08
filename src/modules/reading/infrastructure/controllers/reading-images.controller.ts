@@ -4,6 +4,7 @@ import { GetReadingImagesByMonthUseCase } from '../../application/usecases/queri
 import { GetReadingImagesByMonthAndSectorUseCase } from '../../application/usecases/queries/GetReadingImagesByMonthAndSectorUseCase';
 import { FindReadingImagesByCadastralKeyUseCase } from '../../application/usecases/queries/FindReadingImagesByCadastralKeyUseCase';
 import { GetAllReadingImagesUseCase } from '../../application/usecases/queries/GetAllReadingImagesUseCase';
+import { FindReadingImagesByFilterUseCase } from '../../application/usecases/queries/FindReadingImagesByFilterUseCase';
 
 @Controller('ReadingImages')
 export class ReadingImagesController {
@@ -12,6 +13,7 @@ export class ReadingImagesController {
     private readonly getReadingImagesByMonthAndSectorUseCase: GetReadingImagesByMonthAndSectorUseCase,
     private readonly findReadingImagesByCadastralKeyUseCase: FindReadingImagesByCadastralKeyUseCase,
     private readonly findAllReadingImagesUseCase: GetAllReadingImagesUseCase,
+    private readonly findReadingImagesByFilterUseCase: FindReadingImagesByFilterUseCase,
   ) {}
 
   @Get('find-reading-images-by-month')
@@ -41,5 +43,19 @@ export class ReadingImagesController {
   @MessagePattern('reading.find-all-reading-images')
   async findAllReadingImages() {
     return this.findAllReadingImagesUseCase.execute();
+  }
+
+  @Get('find-reading-images-by-filter')
+  @MessagePattern('reading.find-reading-images-by-filter')
+  async findReadingImagesByFilter(
+    @Payload()
+    data: {
+      month?: string;
+      cadastralKey?: string;
+      sector?: number;
+      date?: Date;
+    },
+  ) {
+    return this.findReadingImagesByFilterUseCase.execute(data);
   }
 }
