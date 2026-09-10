@@ -37,6 +37,10 @@ export interface InterfaceReadingRepository {
     creatorUserId: UUID,
   ): Promise<ReadingModel | null>;
   findReadingInfo(cadastralKey: string): Promise<ReadingInfoModel[]>;
+  findReadingInfoForUpdated(
+    cadastralKey: string,
+    yearAndMonth?: string,
+  ): Promise<ReadingInfoModel[]>;
   findReadingHistoryByCadastralKey(
     cadastralKey: string,
     limit: number,

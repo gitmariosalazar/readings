@@ -93,6 +93,17 @@ export class ReadingController {
     return this.findReadingUseCase.execute(cadastralKey);
   }
 
+  @Get('find-reading-for-updated/:cadastralKey')
+  @MessagePattern('reading.find-reading-for-updated')
+  async findReadingForUpdatedByCadastralKey(
+    @Payload() data: { cadastralKey: string; yearAndMonth?: string },
+  ) {
+    return this.findReadingUseCase.executeForUpdated(
+      data.cadastralKey,
+      data.yearAndMonth,
+    );
+  }
+
   @Get('find-reading-history/:cadastralKey')
   @MessagePattern('reading.find-reading-history')
   async findReadingHistoryByCadastralKey(

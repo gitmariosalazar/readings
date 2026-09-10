@@ -307,6 +307,201 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
     );
   }
 
+  async findReadingInfoForUpdated(
+    cadastralKey: string,
+    yearAndMonth?: string,
+  ): Promise<ReadingInfoModel[]> {
+    const query: string = /*sql*/ `
+      WITH target_mes AS (
+        -- Convierte el parámetro $2 ('YYYY-MM') en fecha base de inicio de mes
+        SELECT 
+          to_date($2, 'YYYY-MM')::date AS mes_solicitado,
+          (to_date($2, 'YYYY-MM') - INTERVAL '1 month')::date AS mes_anterior
+      ),
+
+      ultima_lectura_valida AS (
+        -- 1. Obtenemos la lectura del mes solicitado y la del mes anterior
+        SELECT
+          l.lectura_id,
+          l.acometida_id,
+          l.fecha_lectura,
+          l.hora_lectura,
+          l.lectura_anterior,
+          l.lectura_actual,
+          l.valor_lectura,
+          l.mes_lectura
+        FROM lectura l
+        CROSS JOIN target_mes tm
+        WHERE l.acometida_id = $1
+          AND l.fecha_lectura IS NOT NULL
+          AND l.novedad IS NOT NULL
+          AND (
+            l.mes_lectura = to_char(tm.mes_solicitado, 'YYYY-MM')
+            OR l.mes_lectura = to_char(tm.mes_anterior, 'YYYY-MM')
+            OR date_trunc('month', l.fecha_lectura)::date = tm.mes_solicitado
+            OR date_trunc('month', l.fecha_lectura)::date = tm.mes_anterior
+          )
+        ORDER BY l.fecha_lectura DESC
+        LIMIT 2
+      ),
+
+      ranked AS (
+        -- 2. Enumeramos: rn=1 (mes solicitado o más reciente) y rn=2 (mes anterior)
+        SELECT
+          *,
+          ROW_NUMBER() OVER (PARTITION BY acometida_id ORDER BY fecha_lectura DESC) AS rn,
+          date_trunc('month', fecha_lectura)::date AS mes_lectura_trunc
+        FROM ultima_lectura_valida
+      ),
+
+      mes_actual AS (
+        -- 3. Fecha de control del mes en curso
+        SELECT date_trunc('month', CURRENT_DATE)::date AS mes_hoy
+      ),
+
+      lectura_mes_actual_existe AS (
+        -- 4. Bandera: ¿Ya se digitó la lectura del mes en curso?
+        SELECT
+          EXISTS (
+            SELECT 1
+            FROM lectura l
+            WHERE l.acometida_id = $1
+              AND date_trunc('month', l.fecha_lectura)::date = date_trunc('month', CURRENT_DATE)::date
+              AND l.novedad NOT ILIKE '%INICIAL AUTOMÁTICA%'
+              AND l.novedad NOT ILIKE '%CAMBIO MEDIDOR%'
+              AND l.novedad NOT ILIKE '%CAMBIO DE MEDIDOR%'
+          ) AS ya_tomada_mes_actual
+      ),
+
+      proximo_mes_esperado AS (
+        -- 5. Determinamos el mes teórico esperado
+        SELECT
+          CASE
+            WHEN MAX(l.mes_lectura) IS NULL THEN date_trunc('month', CURRENT_DATE)::date
+            WHEN (to_date(MAX(l.mes_lectura), 'YYYY-MM') + INTERVAL '1 month')::date < date_trunc('month', CURRENT_DATE)::date
+            THEN date_trunc('month', CURRENT_DATE)::date
+            ELSE (to_date(MAX(l.mes_lectura), 'YYYY-MM') + INTERVAL '1 month')::date
+          END AS mes_que_toca
+        FROM lectura l
+        WHERE l.acometida_id = $1
+          AND l.novedad NOT ILIKE '%INICIAL AUTOMÁTICA%'
+          AND l.novedad NOT ILIKE '%CAMBIO MEDIDOR%'
+          AND l.novedad NOT ILIKE '%CAMBIO DE MEDIDOR%'
+      ),
+
+      periodo AS (
+        -- 6. Rangos de control de Siguiente Lectura
+        SELECT
+          COALESCE(sl.fecha_inicio_periodo, CURRENT_DATE - INTERVAL '1 month') AS inicio,
+          sl.fecha_siguiente_lectura AS fecha_mitad,
+          COALESCE(sl.fecha_fin_periodo, CURRENT_DATE + INTERVAL '1 month') AS fin
+        FROM siguiente_lectura sl
+        WHERE sl.acometida_id = $1
+      ),
+
+      lectura_en_periodo AS (
+        -- 7. Control secundario de periodo
+        SELECT
+          p.inicio,
+          p.fin,
+          (CURRENT_DATE BETWEEN p.inicio AND p.fin) AS en_periodo,
+          EXISTS (
+            SELECT 1
+            FROM lectura l2
+            WHERE l2.acometida_id = $1
+              AND l2.fecha_lectura::date >= COALESCE(p.fecha_mitad, p.inicio)::date
+              AND l2.novedad NOT ILIKE '%INICIAL AUTOMÁTICA%'
+              AND l2.novedad NOT ILIKE '%CAMBIO MEDIDOR%'
+              AND l2.novedad NOT ILIKE '%CAMBIO DE MEDIDOR%'
+          ) AS ya_tomada_en_periodo_actual
+        FROM periodo p
+      )
+
+      -- ==========================================
+      -- RESULTADO FINAL EXACTO
+      -- ==========================================
+      SELECT
+        l.lectura_id AS "reading_id",
+        l.fecha_lectura AS "previous_reading_date",
+        l.hora_lectura AS "reading_time",
+        ac.acometida_id AS "cadastral_key",
+        c.cliente_id AS "card_id",
+        COALESCE(ci.nombres || ' ' || ci.apellidos, e.razon_social) AS "client_name",
+        cc.phones AS "client_phones",
+        cc.correos AS "client_emails",
+        ac.direccion AS address,
+        l.lectura_anterior AS "previous_reading",
+        l.lectura_actual AS "current_reading",
+        l.valor_lectura AS "reading_value",
+        ac.sector,
+        ac.cuenta AS account,
+        cp.average_consumption AS "average_consumption",
+        ac.numero_medidor AS "meter_number",
+        ac.tarifa_id AS "rate_id",
+        ct.nombre AS "rate_name",
+
+        -- Lógica de permisos de edición
+        CASE
+          WHEN l.rn = 1
+              AND pme.mes_que_toca = ma.mes_hoy
+              AND NOT COALESCE(lmae.ya_tomada_mes_actual, false)
+          THEN true
+          WHEN l.rn = 2 THEN true
+          ELSE false
+        END AS "has_current_reading",
+
+        -- Campos de Auditoría / Debug
+        pme.mes_que_toca AS "next_month_to_take_debug",
+        ma.mes_hoy AS "current_month_debug",
+        COALESCE(lmae.ya_tomada_mes_actual, false) AS "already_taken_current_month_debug",
+        l.mes_lectura_trunc AS "reading_month_debug",
+        lep.inicio AS "start_date_period",
+        lep.fin AS "end_date_period",
+        COALESCE(lep.en_periodo, false) AS "in_period_debug",
+        l.mes_lectura AS "month_reading",
+        est.id_estado AS "connection_state_id",
+        est.nombre AS "connection_state_name",
+        est.permite_lectura AS "permit_reading",
+        CASE
+          WHEN ac.coordenadas IS NOT NULL THEN
+            json_build_object('lat', ST_Y(ac.coordenadas), 'lng', ST_X(ac.coordenadas))
+          ELSE NULL
+        END AS "connection_location"
+
+      FROM ranked l
+      CROSS JOIN proximo_mes_esperado pme
+      CROSS JOIN mes_actual ma
+      CROSS JOIN lectura_mes_actual_existe lmae
+      LEFT JOIN periodo p ON true
+      LEFT JOIN lectura_en_periodo lep ON true
+      JOIN acometida ac ON ac.acometida_id = l.acometida_id
+      LEFT JOIN cat_estados_acometida est ON ac.estado_id = est.id_estado
+      LEFT JOIN cliente c ON c.cliente_id = ac.cliente_id
+      LEFT JOIN ciudadano ci ON ci.ciudadano_id = c.cliente_id
+      LEFT JOIN empresa e ON e.ruc = c.cliente_id
+      LEFT JOIN tarifa t ON t.tarifa_id = ac.tarifa_id
+      LEFT JOIN categoria ct ON ct.categoria_id = t.categoria_id
+      LEFT JOIN consumo_promedio cp ON cp.acometida_id = ac.acometida_id
+      LEFT JOIN cliente_contacto cc ON cc.cliente_id = c.cliente_id
+
+      ORDER BY l.fecha_lectura DESC;
+    `;
+
+    const result = await this.databaseService.query<ReadingInfoSQLResult>(
+      query,
+      [cadastralKey, yearAndMonth],
+    );
+    if (result.length === 0) {
+      throw new RpcException({
+        statusCode: statusCode.NOT_FOUND,
+        message: `No readings found for cadastral key: ${cadastralKey}`,
+      });
+    }
+    return result.map((r) =>
+      ReadingSQLAdapter.fromReadingPostgreSQLResultToReadingInfoModel(r),
+    );
+  }
+
   async verifyReadingIfExist(readingId: number): Promise<boolean> {
     const query: string = `SELECT EXISTS (SELECT 1 FROM lectura WHERE lectura_id = $1)`;
     const result = await this.databaseService.query<boolean[]>(query, [
