@@ -1165,6 +1165,7 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
     dateMonth: string,
     sector?: number | number[] | null,
     userId?: string | null,
+    date?: string | null,
   ): Promise<TakenReadingConnectionModel[]> {
     const dateMonthFormatted = dateMonth.replace('/', '-');
     const params: any[] = [dateMonthFormatted];
@@ -1179,6 +1180,12 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
     if (userId) {
       userIdClause = `AND (u_creador.cedula = $${params.length + 1})`;
       params.push(userId);
+    }
+
+    let dateClause = '';
+    if (date) {
+      dateClause = `AND l.fecha_lectura::date = $${params.length + 1}::date`;
+      params.push(date);
     }
 
     const query = /*sql*/ `
@@ -1262,6 +1269,7 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
         WHERE l.mes_lectura = $1
             ${sectorClause}
             ${userIdClause}
+            ${dateClause}
         ORDER BY l.fecha_lectura DESC;
     `;
     const result =
@@ -1280,6 +1288,7 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
     dateMonth: string,
     sector?: number | number[] | null,
     userId?: string | null,
+    date?: string | null,
   ): Promise<TakenReadingConnectionModel[]> {
     const dateMonthFormatted = dateMonth.replace('/', '-');
     const params: any[] = [dateMonthFormatted];
@@ -1289,7 +1298,11 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
       sectorClause = `AND ac.sector = ANY($${params.length + 1})`;
       params.push(sectors);
     }
-
+    let dateClause = '';
+    if (date) {
+      dateClause = `AND l.fecha_lectura::date = $${params.length + 1}::date`;
+      params.push(date);
+    }
     let userIdClause = '';
     if (userId) {
       userIdClause = `AND u_creador.cedula = $${params.length + 1}`;
@@ -1376,6 +1389,7 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
         WHERE l.mes_lectura = $1
             ${sectorClause}
             ${userIdClause}
+            ${dateClause}
             AND l.tipo_novedad_lectura_id = 9
         ORDER BY l.fecha_lectura DESC;
     `;

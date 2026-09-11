@@ -135,24 +135,38 @@ export class ReadingController {
   @Get('get-taken-reading-estimates-or-average')
   @MessagePattern('reading.get-taken-reading-estimates-or-average')
   async getTakenReadingEstimatesOrAverage(
-    @Payload() data: { month: string; sector?: number; userId?: string },
+    @Payload()
+    data: {
+      month: string;
+      sector?: number;
+      userId?: string;
+      date?: string;
+    },
   ) {
     return this.getTakenReadingEstimatesOrAverageUseCase.execute(
       data.month,
       data.sector,
       data.userId,
+      data.date,
     );
   }
 
   @Get('get-taken-readings-by-month')
   @MessagePattern('reading.get-taken-readings-by-month')
   async getTakenReadingsByMonth(
-    @Payload() data: { month: string; sector?: number; userId?: string },
+    @Payload()
+    data: {
+      month: string;
+      sector?: number;
+      userId?: string;
+      date?: string;
+    },
   ) {
     return this.getTakenReadingsByMonthUseCase.execute(
       data.month,
       data.sector,
       data.userId,
+      data.date,
     );
   }
 

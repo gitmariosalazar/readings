@@ -56,12 +56,14 @@ export interface InterfaceReadingRepository {
     dateMonth: string,
     sector?: number,
     userId?: string,
+    date?: string,
   ): Promise<TakenReadingConnectionModel[]>;
 
   getTakenReadingEstimatesOrAverage(
     month: string,
     sector?: number,
     userId?: string,
+    date?: string,
   ): Promise<TakenReadingConnectionModel[]>;
 
   getReadingByNovelty(
