@@ -139,6 +139,20 @@ export class ReadingInfoMapper {
         observation: obs.observation,
       })),
       readingLocation: domainModel.readingLocation,
+      userActions: domainModel.userActions?.map((ua) => ({
+        username: ua.username,
+        cardId: ua.cardId,
+        action: ua.action,
+        firstName: ua.firstName,
+        lastName: ua.lastName,
+        justification: ua.justification,
+        previousReading: ua.previousReading,
+        newReading: ua.newReading,
+        previousConsumption: ua.previousConsumption,
+        newConsumption: ua.newConsumption,
+        approvalStatus: ua.approvalStatus,
+        adjustmentDate: ua.adjustmentDate,
+      })),
     };
   }
 

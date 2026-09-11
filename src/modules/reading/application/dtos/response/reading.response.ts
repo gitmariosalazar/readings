@@ -59,6 +59,7 @@ export interface TakenReadingConnectionResponse {
   userUpdatedId?: string | null;
   userUpdatedName?: string | null;
   updatedStatus: boolean;
+  updaterUpdateDate?: Date | null;
 }
 
 export interface MonthlySummaryResponse {

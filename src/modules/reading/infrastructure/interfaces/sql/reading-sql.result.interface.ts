@@ -81,6 +81,21 @@ export interface ReadingInfoSQLResult {
   readingLocation?: { lat: number; lng: number } | null;
 }
 
+export interface UserReadingActionAuditSqlResul {
+  username: string | null;
+  card_id: string | null;
+  action: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  justification: string | null;
+  previous_reading: number | null;
+  new_reading: number | null;
+  previous_consumption: number | null;
+  new_consumption: number | null;
+  approval_status: 'APROBADO' | 'RECHAZADO' | 'PENDIENTE' | string | null;
+  adjustment_date: Date | null;
+}
+
 export interface ReadingDetailedSQLResult {
   reading_id: number;
   reading_time: Date | null;
@@ -114,7 +129,8 @@ export interface ReadingDetailedSQLResult {
   connection_location?: { lat: number; lng: number } | null;
   images?: { id: number; path: string; novelty: string }[];
   observations?: { id: number; title: string; observation: string }[];
-  readingLocation?: { lat: number; lng: number } | null;
+  reading_location?: { lat: number; lng: number } | null;
+  user_actions?: UserReadingActionAuditSqlResul[];
 }
 
 export interface AdvancedReportReadingsSQLResult {
@@ -209,6 +225,7 @@ export interface TakenReadingConnectionSQLResult {
   updater_first_name?: string | null;
   updater_last_name?: string | null;
   updated_status: boolean;
+  updater_update_date?: Date | null;
 }
 
 export interface MonthlySummarySQLResult {

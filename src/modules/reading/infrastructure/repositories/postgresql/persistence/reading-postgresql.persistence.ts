@@ -1232,7 +1232,8 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
             u_actualizador.cedula AS updater_card_id,
             u_actualizador.nombres AS updater_first_name,
             u_actualizador.apellidos AS updater_last_name,
-            ac.estado_actualizacion AS updated_status
+            ac.estado_actualizacion AS updated_status,
+            ulu.created_at AS updater_update_date
         FROM lectura l
             INNER JOIN acometida ac ON ac.acometida_id = l.acometida_id
             LEFT JOIN cliente c ON ac.cliente_id = c.cliente_id
@@ -1345,7 +1346,8 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
             -- Información del usuario actualizador (si aplica)
             u_actualizador.cedula AS updater_card_id,
             u_actualizador.nombres AS updater_first_name,
-            u_actualizador.apellidos AS updater_last_name
+            u_actualizador.apellidos AS updater_last_name,
+            ulu.created_at AS updater_update_date
         FROM lectura l
             INNER JOIN acometida ac ON ac.acometida_id = l.acometida_id
             LEFT JOIN cliente c ON ac.cliente_id = c.cliente_id
@@ -1955,11 +1957,10 @@ SELECT
   (l.lectura_actual - l.lectura_anterior) AS "consumption",
   l.observacion AS "observation",
   -- ==========================================
-
   -- LÓGICA DE NEGOCIO
   CASE
     WHEN pme.mes_que_toca = ma.mes_hoy
-         AND NOT COALESCE(lmae.ya_tomada_mes_actual, false)
+        AND NOT COALESCE(lmae.ya_tomada_mes_actual, false)
     THEN true
     ELSE false
   END AS "has_current_reading",
@@ -1995,7 +1996,36 @@ SELECT
     ) FROM observacion ob inner join observacion_lectura ol
       on ob.observacion_id = ol.observacion_id
       where l.lectura_id = ol.lectura_id
-  ) AS observations
+  ) AS observations,
+  COALESCE(
+      (
+        SELECT jsonb_agg(
+          json_build_object(
+            'username', u.username,
+            'card_id', emp.ciudadano_id,
+            'action', cat.name,
+            'first_name', emp.nombres,
+            'last_name', emp.apellidos,
+            'justification', hal.justificacion,
+            'previous_reading', hal.lectura_anterior_previa,
+            'new_reading', hal.lectura_actual_nueva,
+            'previous_consumption', hal.consumo_previo,
+            'new_consumption', hal.consumo_nuevo,
+            'approval_status', hal.estado_aprobacion,
+            'adjustment_date', coalesce(hal.created_at, l.fecha_lectura)
+          )
+        )
+        FROM usuario_lectura ul
+        LEFT JOIN usuarios u ON u.usuario_id = ul.usuario_id
+        LEFT JOIN empleados emp ON emp.usuario_id = ul.usuario_id
+        LEFT JOIN cat_action_types cat ON cat.id = ul.action_type_id
+        LEFT JOIN historial_ajuste_lectura hal
+              ON hal.lectura_id = l.lectura_id
+              AND hal.usuario_id = u.usuario_id
+        WHERE ul.lectura_id = l.lectura_id
+      ),
+      '[]'::jsonb
+  ) AS user_actions
 
 FROM ultima_lectura_valida l
 CROSS JOIN proximo_mes_esperado pme

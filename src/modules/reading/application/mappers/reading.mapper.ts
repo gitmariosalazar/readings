@@ -194,6 +194,7 @@ export class ReadingMapper {
       userUpdatedId: takenReadingConnection.userUpdatedId ?? null,
       userUpdatedName: takenReadingConnection.userUpdatedName ?? null,
       updatedStatus: takenReadingConnection.updatedStatus ?? false,
+      updaterUpdateDate: takenReadingConnection.updaterUpdateDate ?? null,
     };
     return response;
   }

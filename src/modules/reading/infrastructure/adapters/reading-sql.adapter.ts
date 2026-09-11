@@ -14,6 +14,7 @@ import {
   ClientPhoneModel,
   ClientEmailModel,
   ReadingDetailedModel,
+  UserReadingActionAuditModel,
 } from '../../domain/schemas/model/reading-info.model';
 import { ReadingResponse } from '../../application/dtos/response/reading.response';
 import {
@@ -31,6 +32,7 @@ import {
   ReadingNoveltySQLResult,
   ReadingSQLResult,
   TakenReadingConnectionSQLResult,
+  UserReadingActionAuditSqlResul,
 } from '../interfaces/sql/reading-sql.result.interface';
 import { AdvancedReportReadingsModel } from '../../domain/schemas/model/report/advanced-report-readings.model';
 import { ReadingHistoryModel } from '../../domain/schemas/model/reading-history.model';
@@ -217,7 +219,32 @@ export class ReadingSQLAdapter {
       readingResultSQL.connection_location ?? null,
       readingResultSQL.images ?? [],
       readingResultSQL.observations ?? [],
-      readingResultSQL.readingLocation ?? null,
+      readingResultSQL.reading_location ?? null,
+      this.fromUserReadingActionAuditPostgreSQLResultsToUserReadingActionAuditModels(
+        readingResultSQL.user_actions!,
+      ),
+    );
+  }
+
+  static fromUserReadingActionAuditPostgreSQLResultsToUserReadingActionAuditModels(
+    userActionsSQL: UserReadingActionAuditSqlResul[],
+  ): UserReadingActionAuditModel[] {
+    return userActionsSQL.map(
+      (ua) =>
+        new UserReadingActionAuditModel(
+          ua.username,
+          ua.card_id,
+          ua.action,
+          ua.first_name,
+          ua.last_name,
+          ua.justification,
+          ua.previous_reading,
+          ua.new_reading,
+          ua.previous_consumption,
+          ua.new_consumption,
+          ua.approval_status,
+          ua.adjustment_date,
+        ),
     );
   }
 
@@ -340,6 +367,7 @@ export class ReadingSQLAdapter {
         '') ??
         null,
       takenReadingConnectionResultSQL.updated_status ?? false,
+      takenReadingConnectionResultSQL.updater_update_date ?? null,
     );
   }
 
