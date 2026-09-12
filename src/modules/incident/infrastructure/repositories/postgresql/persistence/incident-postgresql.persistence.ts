@@ -406,6 +406,8 @@ export class IncidentPersistencePostgreSQL implements InterfaceIncidentRepositor
       sector?: string | null;
       reference?: string | null;
       reportDate?: Date | null;
+      startDate?: string | null;
+      endDate?: string | null;
       internalUserId?: string | null;
       externalUserId?: string | null;
       categoryCode?: string | null;
@@ -477,6 +479,19 @@ export class IncidentPersistencePostgreSQL implements InterfaceIncidentRepositor
     }
 
     if (filters.externalUserId && filters.connectionId) {
+    }
+    if (filters.reportDate) {
+      query += /* sql */ ` AND a.report_date = $${paramIndex}`;
+      values.push(filters.reportDate);
+      paramIndex++;
+    }
+
+    if (filters.startDate && filters.endDate) {
+      query += /* sql */ ` AND a.report_date BETWEEN $${paramIndex} AND $${paramIndex + 1}`;
+      values.push(filters.startDate, filters.endDate);
+      paramIndex += 2;
+    }
+    if (filters.externalUserId && filters.connectionId) {
       query += /* sql */ ` AND (im.cliente_usuario_reporta_id = $${paramIndex} OR a.connection_id = $${paramIndex + 1})`;
       values.push(filters.externalUserId, filters.connectionId);
       paramIndex += 2;
@@ -514,29 +529,34 @@ export class IncidentPersistencePostgreSQL implements InterfaceIncidentRepositor
     if (offset !== undefined && offset !== null) {
       query += /* sql */ ` OFFSET ${offset}`;
     }
-    
+
     query += `;`;
 
-    const result = await this.databaseService.query<IncidentDetailRowSQLResult & { full_count: string }>(
-      query,
-      values,
-    );
+    const result = await this.databaseService.query<
+      IncidentDetailRowSQLResult & { full_count: string }
+    >(query, values);
     return {
       items: IncidentAdapter.fromSQLResultListToResponseList(result),
       totalCount: result.length > 0 ? Number(result[0].full_count) : 0,
     };
   }
 
-  async findIncidentsByClientUserId(filters: {
-    externalUserId: string;
-    connectionId?: string | null;
-    status?: string | null;
-    priority?: string | null;
-    categoryId?: number | null;
-    sector?: string | null;
-    reference?: string | null;
-    reportDate?: Date | null;
-  }, limit?: number | null, offset?: number | null): Promise<{ items: IncidentDetailRowResponse[]; totalCount: number }> {
+  async findIncidentsByClientUserId(
+    filters: {
+      externalUserId: string;
+      connectionId?: string | null;
+      status?: string | null;
+      priority?: string | null;
+      categoryId?: number | null;
+      sector?: string | null;
+      reference?: string | null;
+      reportDate?: Date | null;
+      startDate?: string | null;
+      endDate?: string | null;
+    },
+    limit?: number | null,
+    offset?: number | null,
+  ): Promise<{ items: IncidentDetailRowResponse[]; totalCount: number }> {
     try {
       let query = /* sql */ `
       SELECT
@@ -613,6 +633,12 @@ export class IncidentPersistencePostgreSQL implements InterfaceIncidentRepositor
         paramIndex++;
       }
 
+      if (filters.startDate && filters.endDate) {
+        query += /* sql */ ` AND a.report_date BETWEEN $${paramIndex} AND $${paramIndex + 1}`;
+        values.push(filters.startDate, filters.endDate);
+        paramIndex += 2;
+      }
+
       query += /* sql */ ` ORDER BY a.report_date DESC`;
 
       if (limit) {
@@ -621,14 +647,12 @@ export class IncidentPersistencePostgreSQL implements InterfaceIncidentRepositor
       if (offset !== undefined && offset !== null) {
         query += /* sql */ ` OFFSET ${offset}`;
       }
-      
+
       query += `;`;
 
-      const result =
-        await this.databaseService.query<IncidentDetailRowSQLResult & { full_count: string }>(
-          query,
-          values,
-        );
+      const result = await this.databaseService.query<
+        IncidentDetailRowSQLResult & { full_count: string }
+      >(query, values);
 
       return {
         items: IncidentAdapter.fromSQLResultListToResponseList(result),

@@ -14,19 +14,27 @@ export class SearchIncidentsByClientIdUseCase {
     private readonly incidentRepository: InterfaceIncidentRepository,
   ) {}
 
-  async execute(filters: {
-    externalUserId: string | null;
-    connectionId?: string | null;
-    status?: string | null;
-    priority?: string | null;
-    categoryId?: number | null;
-    sector?: string | null;
-    reference?: string | null;
-    reportDate?: Date | null;
-  }, limit?: number | null, offset?: number | null): Promise<{ items: IncidentDetailRowResponse[]; totalCount: number }> {
+  async execute(
+    filters: {
+      externalUserId: string | null;
+      connectionId?: string | null;
+      status?: string | null;
+      priority?: string | null;
+      categoryId?: number | null;
+      sector?: string | null;
+      reference?: string | null;
+      reportDate?: Date | null;
+      reportRangeDate?: { start: Date; end: Date } | null;
+    },
+    limit?: number | null,
+    offset?: number | null,
+  ): Promise<{ items: IncidentDetailRowResponse[]; totalCount: number }> {
     try {
-      const models =
-        await this.incidentRepository.findIncidentsByClientUserId(filters, limit, offset);
+      const models = await this.incidentRepository.findIncidentsByClientUserId(
+        filters,
+        limit,
+        offset,
+      );
       return models;
     } catch (error) {
       throw error;

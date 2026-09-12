@@ -39,6 +39,7 @@ export interface InterfaceIncidentRepository {
       sector?: string | null;
       reference?: string | null;
       reportDate?: Date | null;
+      reportRangeDate?: { start: Date; end: Date } | null;
       internalUserId?: string | null;
       externalUserId?: string | null;
       categoryCode?: string | null;
@@ -46,15 +47,20 @@ export interface InterfaceIncidentRepository {
     limit?: number | null,
     offset?: number | null,
   ): Promise<{ items: IncidentDetailRowResponse[]; totalCount: number }>;
-  findIncidentsByClientUserId(filters: {
-    externalUserId: string | null;
-    connectionId?: string | null;
-    status?: string | null;
-    priority?: string | null;
-    categoryId?: number | null;
-    sector?: string | null;
-    reference?: string | null;
-    reportDate?: Date | null;
-  }, limit?: number | null, offset?: number | null): Promise<{ items: IncidentDetailRowResponse[]; totalCount: number }>;
+  findIncidentsByClientUserId(
+    filters: {
+      externalUserId: string | null;
+      connectionId?: string | null;
+      status?: string | null;
+      priority?: string | null;
+      categoryId?: number | null;
+      sector?: string | null;
+      reference?: string | null;
+      reportDate?: Date | null;
+      reportRangeDate?: { start: Date; end: Date } | null;
+    },
+    limit?: number | null,
+    offset?: number | null,
+  ): Promise<{ items: IncidentDetailRowResponse[]; totalCount: number }>;
   findIncidentCategories(): Promise<IncidentCategoryModel[]>;
 }

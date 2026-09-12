@@ -23,6 +23,7 @@ export class SearchIncidentsUseCase {
       sector?: string | null;
       reference?: string | null;
       reportDate?: Date | null;
+      reportRangeDate?: { start: Date; end: Date } | null;
       internalUserId?: string | null;
       externalUserId?: string | null;
       categoryCode?: string | null;

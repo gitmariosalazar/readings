@@ -81,12 +81,13 @@ export class IncidentController {
       sector?: string | null;
       reference?: string | null;
       reportDate?: Date | null;
+      reportRangeDate?: { start: Date; end: Date } | null;
       internalUserId?: string | null;
       externalUserId?: string | null;
       categoryCode?: string | null;
       limit?: number | null;
       offset?: number | null;
-    }
+    },
   ) {
     const { limit, offset, ...filters } = payload;
     return this.searchIncidentsUseCase.execute(
@@ -109,6 +110,7 @@ export class IncidentController {
       sector?: string | null;
       reference?: string | null;
       reportDate?: Date | null;
+      reportRangeDate?: { start: Date; end: Date } | null;
       limit?: number | null;
       offset?: number | null;
     },
@@ -117,7 +119,7 @@ export class IncidentController {
     return this.searchIncidentsByClientIdUseCase.execute(
       filters,
       limit ?? 25,
-      offset ?? 0
+      offset ?? 0,
     );
   }
 
