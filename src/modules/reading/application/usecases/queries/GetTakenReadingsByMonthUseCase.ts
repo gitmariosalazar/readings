@@ -17,6 +17,7 @@ export class GetTakenReadingsByMonthUseCase {
     sector?: number,
     userId?: string,
     date?: string,
+    failed?: boolean,
   ): Promise<TakenReadingConnectionResponse[]> {
     if (!month) {
       throw new RpcException({
@@ -30,6 +31,7 @@ export class GetTakenReadingsByMonthUseCase {
       sector,
       userId,
       date,
+      failed,
     );
     return takenReadings.map((takenReading) =>
       ReadingMapper.fromTakenReadingConnectionModelToTakenReadingConnectionResponse(

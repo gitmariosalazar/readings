@@ -57,6 +57,7 @@ export interface InterfaceReadingRepository {
     sector?: number,
     userId?: string,
     date?: string,
+    failed?: boolean,
   ): Promise<TakenReadingConnectionModel[]>;
 
   getTakenReadingEstimatesOrAverage(

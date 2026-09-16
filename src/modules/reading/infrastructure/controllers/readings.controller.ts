@@ -160,6 +160,7 @@ export class ReadingController {
       sector?: number;
       userId?: string;
       date?: string;
+      failed?: boolean;
     },
   ) {
     return this.getTakenReadingsByMonthUseCase.execute(
@@ -167,6 +168,7 @@ export class ReadingController {
       data.sector,
       data.userId,
       data.date,
+      data.failed,
     );
   }
 

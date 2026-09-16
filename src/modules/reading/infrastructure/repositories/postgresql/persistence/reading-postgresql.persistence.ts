@@ -1166,6 +1166,7 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
     sector?: number | number[] | null,
     userId?: string | null,
     date?: string | null,
+    failed?: boolean | null,
   ): Promise<TakenReadingConnectionModel[]> {
     const dateMonthFormatted = dateMonth.replace('/', '-');
     const params: any[] = [dateMonthFormatted];
@@ -1186,6 +1187,50 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
     if (date) {
       dateClause = `AND l.fecha_lectura::date = $${params.length + 1}::date`;
       params.push(date);
+    }
+
+    let failedClause = '';
+    if (failed === true) {
+      failedClause = `
+        AND (
+            o.detalle_observacion ILIKE ANY (ARRAY[
+                -- Daño físico
+                '%DANIAD%',
+                '%DAÑAD%',
+                '%ROT%',
+                '%DESTRUID%',
+                '%DEFECT%',
+                '%DESCALIBRAD%',
+
+                -- Instalación invertida / al revés
+                '%INVERTID%',
+                '%ALREVES%',
+                '%AL REVES%',
+                '%REVEZ%',
+                '%REVES%',
+                '%VIRAD%',
+                '%VOLTEAD%',
+
+                -- Mecanismo trabado / sin movimiento
+                '%PARAD%',
+                '%DETENID%',
+                '%TRABAD%',
+                '%FRENAD%',
+                '%NO CAMINA%',
+                '%NOCAMINA%',
+                '%NO MARCA%',
+                '%NO GIRA%',
+                '%PARALIZAD%',
+
+                -- Problemas de visualización
+                '%OPACO%',
+                '%ILEGIBLE%',
+                '%VIDRIO%'
+            ])
+        )
+      `;
+      // failedClause = `AND l.fallida = $${params.length + 1}`;
+      // params.push(queryFailed);
     }
 
     const query = /*sql*/ `
@@ -1265,11 +1310,14 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
                 LIMIT 1
             ) ulu ON true
             LEFT JOIN cat_action_types act_u ON act_u.id = ulu.action_type_id
-            LEFT JOIN empleados u_actualizador ON u_actualizador.usuario_id = ulu.usuario_id  
+            LEFT JOIN empleados u_actualizador ON u_actualizador.usuario_id = ulu.usuario_id
+            LEFT JOIN public.observacion_lectura ol ON l.lectura_id = ol.lectura_id
+            LEFT JOIN public.observacion o ON o.observacion_id = ol.observacion_id  
         WHERE l.mes_lectura = $1
             ${sectorClause}
             ${userIdClause}
             ${dateClause}
+            ${failed === true ? failedClause : ''}
         ORDER BY l.fecha_lectura DESC;
     `;
     const result =
