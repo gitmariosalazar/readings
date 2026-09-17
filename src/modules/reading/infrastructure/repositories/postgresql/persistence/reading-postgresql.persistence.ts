@@ -1221,11 +1221,21 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
                 '%NO MARCA%',
                 '%NO GIRA%',
                 '%PARALIZAD%',
+                '%no. hay medidor%',
+                '%medidor faltante%',
+                '%medidor dañado%',
+                '%medidor roto%',
+                '%medidor extraviado%',
+                '%medidor perdido%',
+                '%medidor inexistente%',
+                '%medidor no encontrado%',
 
                 -- Problemas de visualización
                 '%OPACO%',
                 '%ILEGIBLE%',
-                '%VIDRIO%'
+                '%VIDRIO%',
+                -- Otros problemas de visualización
+                '%DIRECTO%'
             ])
         )
       `;
