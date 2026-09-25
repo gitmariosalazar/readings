@@ -480,13 +480,13 @@ export class IncidentPersistencePostgreSQL implements InterfaceIncidentRepositor
     }
 
     if (filters.incidentTypeId) {
-      if (!(filters.incidentTypeId === 20 || filters.incidentTypeId === 31)) {
+      if (filters.incidentTypeId === 20 || filters.incidentTypeId === 31) {
         query += /* sql */ ` AND (a.incident_type_id = 20 OR a.incident_type_id = 31)`;
       } else {
         query += /* sql */ ` AND a.incident_type_id = $${paramIndex}`;
+        values.push(filters.incidentTypeId);
+        paramIndex++;
       }
-      values.push(filters.incidentTypeId);
-      paramIndex++;
     }
 
     if (filters.externalUserId && filters.connectionId) {
