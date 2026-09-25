@@ -499,7 +499,11 @@ export class IncidentPersistencePostgreSQL implements InterfaceIncidentRepositor
       paramIndex += 2;
     }
     if (filters.externalUserId && filters.connectionId) {
-      query += /* sql */ ` AND (im.cliente_usuario_reporta_id = $${paramIndex} OR a.connection_id = $${paramIndex + 1})`;
+      if (!(filters.incidentTypeId === 20 || filters.incidentTypeId === 31)) {
+        query += /* sql */ ` AND (im.cliente_usuario_reporta_id = 20 OR a.connection_id = 31)`;
+      } else {
+        query += /* sql */ ` AND (im.cliente_usuario_reporta_id = $${paramIndex} OR a.connection_id = $${paramIndex + 1})`;
+      }
       values.push(filters.externalUserId, filters.connectionId);
       paramIndex += 2;
     }
