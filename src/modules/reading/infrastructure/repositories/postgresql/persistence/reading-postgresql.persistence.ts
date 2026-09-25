@@ -718,6 +718,9 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
     try {
       const acometidaId = reading.connectionId;
 
+      console.log('Acometida ID:', reading);
+      console.log('Current Month Reading:', reading.currentMonthReading);
+
       const result = await this.databaseService.transaction(
         async (client: IDatabaseClient) => {
           // 1. Obtener IDs de estados
@@ -767,7 +770,7 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
           const timeZone = 'America/Guayaquil';
           const zonedDate = toZonedTime(new Date(), timeZone);
           const fechaLecturaInput = reading.readingDate ?? zonedDate;
-          const mesLectura = zonedDate.toISOString().split('T')[0].slice(0, 7);
+          const mesLectura = reading.currentMonthReading;
 
           // 3. Control de duplicados
           const countRows = await client.query<any>(
@@ -776,7 +779,7 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
               COUNT(*) FILTER (WHERE novedad NOT LIKE '%INICIAL%' AND novedad NOT LIKE '%CAMBIO DE MEDIDOR%') AS normales,
               COUNT(*) FILTER (WHERE novedad LIKE '%INICIAL%' OR novedad LIKE '%CAMBIO DE MEDIDOR%') AS especiales
             FROM lectura
-            WHERE acometida_id = $1 AND TO_CHAR(fecha_lectura, 'YYYY-MM') = $2 AND lectura_estado_id IS NOT NULL;
+            WHERE acometida_id = $1 AND mes_lectura = $2 AND lectura_estado_id IS NOT NULL;
           `,
             [acometidaId, mesLectura],
           );

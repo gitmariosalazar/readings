@@ -45,7 +45,7 @@ export class ReadingMapper {
       readingRequest.novelty ?? 'NORMAL',
       readingRequest.incomeCode,
       readingRequest.typeNoveltyReadingId ?? 1,
-      currentMonthReading,
+      readingRequest.currentMonthReading,
       readingRequest.locationCapture ?? null,
       '',
     );

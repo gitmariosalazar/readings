@@ -15,5 +15,6 @@ export class CreateReadingRequest {
   averageConsumption!: number;
   typeNoveltyReadingId!: number;
   previousMonthReading!: string;
+  currentMonthReading!: string;
   locationCapture!: { lat: number; lng: number } | null;
 }

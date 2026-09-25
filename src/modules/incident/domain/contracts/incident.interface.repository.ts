@@ -43,6 +43,7 @@ export interface InterfaceIncidentRepository {
       internalUserId?: string | null;
       externalUserId?: string | null;
       categoryCode?: string | null;
+      incidentTypeId?: number | null;
     },
     limit?: number | null,
     offset?: number | null,

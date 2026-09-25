@@ -411,6 +411,7 @@ export class IncidentPersistencePostgreSQL implements InterfaceIncidentRepositor
       internalUserId?: string | null;
       externalUserId?: string | null;
       categoryCode?: string | null;
+      incidentTypeId?: number | null;
     },
     limit?: number | null,
     offset?: number | null,
@@ -475,6 +476,12 @@ export class IncidentPersistencePostgreSQL implements InterfaceIncidentRepositor
     if (filters.externalUserId) {
       query += /* sql */ ` AND im.cliente_usuario_reporta_id = $${paramIndex}`;
       values.push(filters.externalUserId);
+      paramIndex++;
+    }
+
+    if (filters.incidentTypeId) {
+      query += /* sql */ ` AND a.incident_type_id = $${paramIndex}`;
+      values.push(filters.incidentTypeId);
       paramIndex++;
     }
 
