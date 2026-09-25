@@ -480,7 +480,11 @@ export class IncidentPersistencePostgreSQL implements InterfaceIncidentRepositor
     }
 
     if (filters.incidentTypeId) {
-      query += /* sql */ ` AND a.incident_type_id = $${paramIndex}`;
+      if (!(filters.incidentTypeId === 20 || filters.incidentTypeId === 31)) {
+        query += /* sql */ ` AND (a.incident_type_id = 20 OR a.incident_type_id = 31)`;
+      } else {
+        query += /* sql */ ` AND a.incident_type_id = $${paramIndex}`;
+      }
       values.push(filters.incidentTypeId);
       paramIndex++;
     }
@@ -499,11 +503,7 @@ export class IncidentPersistencePostgreSQL implements InterfaceIncidentRepositor
       paramIndex += 2;
     }
     if (filters.externalUserId && filters.connectionId) {
-      if (!(filters.incidentTypeId === 20 || filters.incidentTypeId === 31)) {
-        query += /* sql */ ` AND (im.cliente_usuario_reporta_id = 20 OR a.connection_id = 31)`;
-      } else {
-        query += /* sql */ ` AND (im.cliente_usuario_reporta_id = $${paramIndex} OR a.connection_id = $${paramIndex + 1})`;
-      }
+      query += /* sql */ ` AND (im.cliente_usuario_reporta_id = $${paramIndex} OR a.connection_id = $${paramIndex + 1})`;
       values.push(filters.externalUserId, filters.connectionId);
       paramIndex += 2;
     }
