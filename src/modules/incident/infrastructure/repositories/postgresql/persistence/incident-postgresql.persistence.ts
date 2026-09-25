@@ -480,12 +480,14 @@ export class IncidentPersistencePostgreSQL implements InterfaceIncidentRepositor
     }
 
     if (filters.incidentTypeId) {
-      console.log('Filtering by incidentTypeId:', filters.incidentTypeId);
-      if (filters.incidentTypeId === 20 || filters.incidentTypeId === 31) {
-        query += /* sql */ ` AND (a.incident_type_id = 20 OR a.incident_type_id = 31)`;
+      const incidentTypeId = Number(filters.incidentTypeId);
+      if (incidentTypeId === 20 || incidentTypeId === 31) {
+        query += /* sql */ ` AND (a.incident_type_id = $${paramIndex} OR a.incident_type_id = $${paramIndex + 1})`;
+        values.push(20, 31);
+        paramIndex += 2;
       } else {
         query += /* sql */ ` AND a.incident_type_id = $${paramIndex}`;
-        values.push(filters.incidentTypeId);
+        values.push(incidentTypeId);
         paramIndex++;
       }
     }
