@@ -8,7 +8,7 @@ import * as morgan from 'morgan';
 import { DatabaseAbstract } from './shared/connections/database/abstract/abstract.database';
 
 async function bootstrap() {
-  const logger: Logger = new Logger('QRCodeMain');
+  const logger: Logger = new Logger('ReadingsMain');
 
   const app = await NestFactory.create(AppModule);
 
@@ -25,15 +25,15 @@ async function bootstrap() {
     strategy: new CustomServerKafka(
       {
         client: {
-        clientId: environments.READINGS_KAFKA_CLIENT_ID,
-        brokers: [environments.KAFKA_BROKER_URL],
+          clientId: environments.READINGS_KAFKA_CLIENT_ID,
+          brokers: [environments.KAFKA_BROKER_URL],
+        },
+        consumer: {
+          groupId: environments.READINGS_KAFKA_GROUP_ID,
+          allowAutoTopicCreation: true,
+        },
       },
-      consumer: {
-        groupId: environments.READINGS_KAFKA_GROUP_ID,
-        allowAutoTopicCreation: true,
-      }
-      },
-      environments.KAFKA_TOPIC
+      environments.KAFKA_TOPIC,
     ),
   });
 

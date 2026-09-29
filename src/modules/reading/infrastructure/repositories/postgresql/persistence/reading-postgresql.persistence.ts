@@ -110,7 +110,15 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
 
   async findReadingInfo(cadastralKey: string): Promise<ReadingInfoModel[]> {
     const query: string = /*sql*/ `
-      WITH ultima_lectura_valida AS (
+      WITH base_lecturas AS (
+        SELECT
+          l.*,
+          COALESCE(l.mes_lectura, to_char(l.fecha_lectura, 'YYYY-MM')) AS mes_lectura_calc
+        FROM lectura l
+        WHERE l.acometida_id = $1
+      ),
+
+      ultima_lectura_valida AS (
         -- 1. Obtenemos de forma segura las últimas 5 lecturas reales
         SELECT
           l.lectura_id,
@@ -120,16 +128,15 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
           l.lectura_anterior,
           l.lectura_actual,
           l.valor_lectura,
-          l.mes_lectura
+          l.mes_lectura_calc AS mes_lectura
         FROM (
           SELECT l.*
-          FROM lectura l
-          WHERE l.acometida_id = $1
-            AND l.fecha_lectura IS NOT NULL
+          FROM base_lecturas l
+          WHERE l.fecha_lectura IS NOT NULL
             AND l.novedad IS NOT NULL
             --AND l.novedad NOT LIKE '%INICIAL AUTOMÁTICA%'
             --AND l.novedad NOT LIKE '%CAMBIO MEDIDOR%'
-          ORDER BY l.fecha_lectura DESC
+          ORDER BY l.mes_lectura_calc DESC, l.fecha_lectura DESC, l.hora_lectura DESC
           LIMIT 5
         ) l
       ),
@@ -138,8 +145,8 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
         -- 2. Enumeramos para saber cuál es la última (rn=1) y la penúltima (rn=2)
         SELECT
           *,
-          ROW_NUMBER() OVER (PARTITION BY acometida_id ORDER BY fecha_lectura DESC) AS rn,
-          date_trunc('month', fecha_lectura)::date AS mes_lectura_trunc
+          ROW_NUMBER() OVER (PARTITION BY acometida_id ORDER BY mes_lectura DESC, fecha_lectura DESC, hora_lectura DESC) AS rn,
+          date_trunc('month', to_date(mes_lectura, 'YYYY-MM'))::date AS mes_lectura_trunc
         FROM ultima_lectura_valida
       ),
 
@@ -153,9 +160,8 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
         SELECT
           EXISTS (
             SELECT 1
-            FROM lectura l
-            WHERE l.acometida_id = $1
-              AND date_trunc('month', l.fecha_lectura)::date = date_trunc('month', CURRENT_DATE)::date
+            FROM base_lecturas l
+            WHERE l.mes_lectura_calc = to_char(CURRENT_DATE, 'YYYY-MM')
               AND l.novedad NOT ILIKE '%INICIAL AUTOMÁTICA%'
               AND l.novedad NOT ILIKE '%CAMBIO MEDIDOR%'
               AND l.novedad NOT ILIKE '%CAMBIO DE MEDIDOR%'
@@ -167,18 +173,17 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
         SELECT
           CASE
             -- Si no hay lecturas previas, toca el mes actual
-            WHEN MAX(l.mes_lectura) IS NULL THEN date_trunc('month', CURRENT_DATE)::date
+            WHEN MAX(l.mes_lectura_calc) IS NULL THEN date_trunc('month', CURRENT_DATE)::date
 
             -- Si el mes siguiente al histórico ya pasó, nos acoplamos al mes actual del servidor
-            WHEN (to_date(MAX(l.mes_lectura), 'YYYY-MM') + INTERVAL '1 month')::date < date_trunc('month', CURRENT_DATE)::date
+            WHEN (to_date(MAX(l.mes_lectura_calc), 'YYYY-MM') + INTERVAL '1 month')::date < date_trunc('month', CURRENT_DATE)::date
             THEN date_trunc('month', CURRENT_DATE)::date
 
             -- Si está al día, toca el mes consecutivo normal
-            ELSE (to_date(MAX(l.mes_lectura), 'YYYY-MM') + INTERVAL '1 month')::date
+            ELSE (to_date(MAX(l.mes_lectura_calc), 'YYYY-MM') + INTERVAL '1 month')::date
           END AS mes_que_toca
-        FROM lectura l
-        WHERE l.acometida_id = $1
-          AND l.novedad NOT ILIKE '%INICIAL AUTOMÁTICA%'
+        FROM base_lecturas l
+        WHERE l.novedad NOT ILIKE '%INICIAL AUTOMÁTICA%'
           AND l.novedad NOT ILIKE '%CAMBIO MEDIDOR%'
           AND l.novedad NOT ILIKE '%CAMBIO DE MEDIDOR%'
       ),
@@ -289,7 +294,7 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
       LEFT JOIN cliente_contacto cc ON cc.cliente_id = c.cliente_id
 
       WHERE l.rn <= 2
-      ORDER BY l.fecha_lectura DESC;
+      ORDER BY l.mes_lectura DESC, l.fecha_lectura DESC, l.hora_lectura DESC;
     `;
 
     const result = await this.databaseService.query<ReadingInfoSQLResult>(
