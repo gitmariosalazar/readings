@@ -19,6 +19,7 @@ export class CreateIncidentRequest {
   meterCondition?: string | null;
   meterPhysicalState?: string | null;
   requiresImmediateAction?: boolean;
+  incidentCategory?: string | null;
 }
 
 interface reportClient {

@@ -53,6 +53,7 @@ export class IncidentMapper {
       request.meterCondition ?? null,
       request.meterPhysicalState ?? null,
       request.requiresImmediateAction ?? false,
+      request.incidentCategory ?? null,
     );
   }
 

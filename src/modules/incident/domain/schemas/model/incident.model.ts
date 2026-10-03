@@ -55,6 +55,7 @@ export class IncidentModel {
     public readonly meterCondition?: string | null,
     public readonly meterPhysicalState?: string | null,
     public readonly requiresImmediateAction?: boolean,
+    public readonly incidentCategory?: string | null,
   ) {}
 
   public isChargeableToUser(): boolean {

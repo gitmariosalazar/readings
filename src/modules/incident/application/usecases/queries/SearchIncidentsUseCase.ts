@@ -16,6 +16,7 @@ export class SearchIncidentsUseCase {
 
   async execute(
     filters: {
+      categoriesPermit: number[]; // Array of permitted category IDs [1, 2, 3, ...] or only [1]
       connectionId?: string | null;
       status?: string | null;
       priority?: string | null;

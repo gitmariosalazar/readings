@@ -158,51 +158,97 @@ export class IncidentPersistencePostgreSQL implements InterfaceIncidentRepositor
   async createIncident(
     incident: IncidentModel,
     images: string[],
+    shouldCreateTicket: boolean = true,
   ): Promise<IncidentModel | null> {
     try {
       return await this.databaseService.transaction(
         async (client: IDatabaseClient) => {
-          // 1. Insert incident
-          const insertQuery = /* sql */ `
-          INSERT INTO public.incidente_medidor (
-            acometida_id, lectura_id, tipo_incidente_id, descripcion_reporte,
-            direccion_referencia, origen_reporte, prioridad, usuario_reporta_id,
-            cliente_usuario_reporta_id, coordenadas, datos_reportante,
-            condicion_medidor, estado_fisico, requiere_accion_inmediata
-          ) VALUES (
-            $1, $2, $3, $4, $5, $6, $7, $8, $9,
-            CASE WHEN $10::double precision IS NOT NULL AND $11::double precision IS NOT NULL
-                 THEN ST_SetSRID(ST_MakePoint($11, $10), 4326) ELSE NULL END,
-            $12, $13, $14, $15
-          )
-          RETURNING
-            incidente_id AS incident_id,
-            acometida_id,
-            codigo_incidente,
-            lectura_id,
-            tipo_incidente_id,
-            descripcion_reporte,
-            direccion_referencia,
-            estado,
-            origen_reporte,
-            prioridad,
-            fecha_reporte,
-            usuario_reporta_id,
-            cliente_usuario_reporta_id,
-            ST_X(coordenadas) as longitude,
-            ST_Y(coordenadas) as latitude,
-            fecha_resolucion,
-            usuario_resuelve_id,
-            descripcion_resolucion,
-            cobrar_a_usuario,
-            costo_reparacion,
-            datos_reportante AS "reportClient";
-        `;
+          console.log('Creating incident/history:', incident);
 
+          // ====================================================================
+          // 1. INSERTAR HISTORIAL SIEMPRE (Esté dañado o no)
+          // ====================================================================
+          const isValidHistorial: boolean =
+            !!incident.connectionId &&
+            !!incident.meterCondition &&
+            !!incident.meterPhysicalState &&
+            !!incident.reporterUserId;
+
+          if (isValidHistorial) {
+            const insertHistorialQuery = /* sql */ `
+              INSERT INTO public.historial_estado_medidor (
+                acometida_id, 
+                condicion_medidor, 
+                estado_fisico, 
+                observaciones, 
+                usuario_registro_id
+              ) VALUES (
+                $1, $2, $3, $4, $5
+              );
+            `;
+
+            await client.query(insertHistorialQuery, [
+              incident.connectionId,
+              incident.meterCondition,
+              incident.meterPhysicalState,
+              incident.reportDescription,
+              incident.reporterUserId,
+            ]);
+          }
+
+          // ====================================================================
+          // 2. OBEDECER ORDEN DEL CASO DE USO
+          // ====================================================================
+          if (!shouldCreateTicket) {
+            console.log(
+              'Historial guardado. Se omite la creación del ticket de incidente por orden del Caso de Uso.',
+            );
+            return null;
+          }
+
+          // ====================================================================
+          // 3. INSERTAR EL INCIDENTE
+          // ====================================================================
           const lat = incident.coordinates?.lat ?? null;
           const lng = incident.coordinates?.lng ?? null;
 
-          const result = await client.query<IncidentSQLResult>(insertQuery, [
+          const insertQuery = /* sql */ `
+            INSERT INTO public.incidente_medidor (
+              acometida_id, lectura_id, tipo_incidente_id, descripcion_reporte,
+              direccion_referencia, origen_reporte, prioridad, usuario_reporta_id,
+              cliente_usuario_reporta_id, coordenadas, datos_reportante,
+              condicion_medidor, estado_fisico, requiere_accion_inmediata
+            ) VALUES (
+              $1, $2, $3, $4, $5, $6, $7, $8, $9,
+              CASE WHEN $10::double precision IS NOT NULL AND $11::double precision IS NOT NULL
+                   THEN ST_SetSRID(ST_MakePoint($11, $10), 4326) ELSE NULL END,
+              $12, $13, $14, $15
+            )
+            RETURNING
+              incidente_id AS incident_id,
+              acometida_id,
+              codigo_incidente,
+              lectura_id,
+              tipo_incidente_id,
+              descripcion_reporte,
+              direccion_referencia,
+              estado,
+              origen_reporte,
+              prioridad,
+              fecha_reporte,
+              usuario_reporta_id,
+              cliente_usuario_reporta_id,
+              ST_X(coordenadas) as longitude,
+              ST_Y(coordenadas) as latitude,
+              fecha_resolucion,
+              usuario_resuelve_id,
+              descripcion_resolucion,
+              cobrar_a_usuario,
+              costo_reparacion,
+              datos_reportante AS "reportClient";
+          `;
+
+          const result = await client.query<any>(insertQuery, [
             incident.connectionId,
             incident.readingId,
             incident.incidentTypeId,
@@ -225,12 +271,14 @@ export class IncidentPersistencePostgreSQL implements InterfaceIncidentRepositor
           if (result.length === 0) return null;
           const createdIncident = result[0];
 
-          // 2. Insert photos
+          // ====================================================================
+          // 4. INSERTAR FOTOS DEL INCIDENTE
+          // ====================================================================
           if (images.length > 0) {
             const insertPhotoQuery = /* sql */ `
-            INSERT INTO public.foto_incidente (incidente_id, ruta_archivo, tipo_foto)
-            VALUES ($1, $2, 'REPORTE');
-          `;
+              INSERT INTO public.foto_incidente (incidente_id, ruta_archivo, tipo_foto)
+              VALUES ($1, $2, 'REPORTE');
+            `;
             for (const url of images) {
               await client.query(insertPhotoQuery, [
                 createdIncident.incident_id,
@@ -399,6 +447,7 @@ export class IncidentPersistencePostgreSQL implements InterfaceIncidentRepositor
 
   async findIncidents(
     filters: {
+      categoriesPermit: number[]; // Array of permitted category IDs [1, 2, 3, ...] or only [1]
       connectionId?: string | null;
       status?: string | null;
       priority?: string | null;
@@ -416,6 +465,10 @@ export class IncidentPersistencePostgreSQL implements InterfaceIncidentRepositor
     limit?: number | null,
     offset?: number | null,
   ): Promise<{ items: IncidentDetailRowResponse[]; totalCount: number }> {
+    if (!filters.categoriesPermit || filters.categoriesPermit.length === 0) {
+      filters.categoriesPermit = [1, 7, 8];
+    }
+
     let query = /* sql */ `
       SELECT
           a.*,
@@ -442,6 +495,10 @@ export class IncidentPersistencePostgreSQL implements InterfaceIncidentRepositor
 
     const values: any[] = [];
     let paramIndex = 1;
+
+    query += /* sql */ ` AND a.category_id = ANY($${paramIndex})`;
+    values.push(filters.categoriesPermit);
+    paramIndex++;
 
     if (filters.connectionId) {
       query += /* sql */ ` AND a.connection_id = $${paramIndex}`;
@@ -676,6 +733,7 @@ export class IncidentPersistencePostgreSQL implements InterfaceIncidentRepositor
       throw error;
     }
   }
+
   async findIncidentCategories(): Promise<IncidentCategoryModel[]> {
     const query = /* sql */ `
       SELECT
