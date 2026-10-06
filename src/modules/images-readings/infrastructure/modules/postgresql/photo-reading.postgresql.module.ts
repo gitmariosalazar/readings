@@ -33,6 +33,6 @@ import { PhotoReadingService } from "../../../application/services/photo-reading
       useClass: PhotoReadingPostgreSQLPersistence
     }
   ],
-  exports: []
+  exports: ['PhotoReadingRepository', PhotoReadingService],
 })
 export class PhotoReadingPostgreSQLModule { }

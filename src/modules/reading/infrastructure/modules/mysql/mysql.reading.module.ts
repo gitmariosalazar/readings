@@ -41,6 +41,7 @@ import { GetReadingByNoveltyUseCase } from '../../../application/usecases/querie
 import { CalculateReadingValueUseCase } from '../../../application/usecases/queries/CalculateReadingValueUseCase';
 import { FindAllNoveltiesUseCase } from '../../../application/usecases/novelties/FindAllNoveltiesUseCase';
 import { NoveltyPersistenceMySQL } from '../../repositories/mysql/persistence/novelty.mysql.persistence';
+import { PhotoReadingMySQLPersistence } from '../../../../images-readings/infrastructure/repositories/mysql/persistence/mysql.photo-reading.persistence';
 import { GetMapGeojsonByDayAndByUserUseCase } from '../../../application/usecases/queries/GetMapGeojsonByDayAndByUserUseCase';
 import { GetReadingAdjustmentHistoryByReadingIdUseCase } from '../../../application/usecases/queries/getReadingAdjustmentHistoryByReadingId.use-case';
 
@@ -108,6 +109,10 @@ import { GetReadingAdjustmentHistoryByReadingIdUseCase } from '../../../applicat
     {
       provide: 'NoveltyRepository',
       useClass: NoveltyPersistenceMySQL,
+    },
+    {
+      provide: 'PhotoReadingRepository',
+      useClass: PhotoReadingMySQLPersistence,
     },
   ],
   exports: [],

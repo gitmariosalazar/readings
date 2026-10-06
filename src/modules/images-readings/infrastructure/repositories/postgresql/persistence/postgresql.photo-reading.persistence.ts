@@ -8,14 +8,13 @@ import { statusCode } from '../../../../../../settings/environments/status-code'
 import { DatabaseAbstract } from '../../../../../../shared/connections/database/abstract/abstract.database';
 
 @Injectable()
-export class PhotoReadingPostgreSQLPersistence
-  implements InterfacePhotoReadingRepository
-{
+export class PhotoReadingPostgreSQLPersistence implements InterfacePhotoReadingRepository {
   constructor(private readonly databaseService: DatabaseAbstract) {}
 
   async createPhotoReading(
     photoReading: PhotoReadingModel,
   ): Promise<PhotoReadingModel | null> {
+    console.log('Creating photo reading:', photoReading);
     const query = `
       INSERT INTO foto_lectura (lectura_id, imagen_url, clave_catastral, descripcion)
       VALUES ($1, $2, $3, $4)

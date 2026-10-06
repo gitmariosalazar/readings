@@ -11,6 +11,10 @@ import { NoveltyModel } from '../../../domain/schemas/model/novelty.model';
 import { getTypeCurrentConsumption } from '../../../../../shared/types/novelty.type';
 import { UUID } from 'crypto';
 import { InterfaceNoveltyRepository } from '../../../domain/contracts/novelty.interface.repository';
+import { InterfacePhotoReadingRepository } from '../../../../images-readings/domain/contracts/photo-reading.interface.repository';
+import { PhotoReadingMapper } from '../../../../images-readings/application/mappers/photo-reading.mapper';
+import { PhotoReadingModel } from '../../../../images-readings/domain/schemas/model/photo-reading.model';
+import { CreatePhotoReadingRequest } from '../../../../images-readings/application/dtos/request/create.photo-reading.request';
 
 @Injectable()
 export class UpdateSpecialReadingUseCase {
@@ -19,6 +23,8 @@ export class UpdateSpecialReadingUseCase {
     private readonly readingRepository: InterfaceReadingRepository,
     @Inject('NoveltyRepository')
     private readonly noveltyRepository: InterfaceNoveltyRepository,
+    @Inject('PhotoReadingRepository')
+    private readonly photoReadingRepository: InterfacePhotoReadingRepository,
   ) {}
 
   async execute(
@@ -45,6 +51,19 @@ export class UpdateSpecialReadingUseCase {
           statusCode: statusCode.BAD_REQUEST,
           message: missingFieldMessages,
         });
+      }
+
+      const photoInputs =
+        request.photos ?? request.evidencePhotos ?? request.images ?? [];
+      for (const item of photoInputs) {
+        const url = typeof item === 'string' ? item : item?.photoUrl;
+        if (!url || typeof url !== 'string' || url.trim() === '') {
+          throw new RpcException({
+            statusCode: statusCode.BAD_REQUEST,
+            message:
+              'Cada foto de evidencia debe contener una URL válida (photoUrl)',
+          });
+        }
       }
 
       const exists: boolean =
@@ -163,9 +182,47 @@ export class UpdateSpecialReadingUseCase {
         );
 
       if (updatedReadingEntity !== null) {
-        return ReadingMapper.fromReadingModelToReadingResponse(
-          updatedReadingEntity,
-        );
+        const response: ReadingResponse =
+          ReadingMapper.fromReadingModelToReadingResponse(updatedReadingEntity);
+
+        if (photoInputs.length > 0) {
+          const savedPhotoModels: PhotoReadingModel[] = [];
+          for (const item of photoInputs) {
+            const photoUrl =
+              typeof item === 'string' ? item.trim() : item.photoUrl.trim();
+            const description =
+              typeof item === 'string' ? undefined : item.description;
+
+            const createPhotoReq = new CreatePhotoReadingRequest(
+              readingId,
+              photoUrl,
+              request.cadastralKey,
+              description ||
+                `Foto de evidencia de lectura especial ID: ${readingId}`,
+            );
+
+            const photoModel: PhotoReadingModel =
+              PhotoReadingMapper.fromCreatePhotoReadingRequestToPhotoReadingModel(
+                createPhotoReq,
+              );
+
+            const createdPhotoModel =
+              await this.photoReadingRepository.createPhotoReading(photoModel);
+
+            if (createdPhotoModel) {
+              savedPhotoModels.push(createdPhotoModel);
+            }
+          }
+
+          if (savedPhotoModels.length > 0) {
+            response.photos =
+              PhotoReadingMapper.fromPhotoReadingModelsToPhotoReadingResponses(
+                savedPhotoModels,
+              );
+          }
+        }
+
+        return response;
       } else {
         throw new RpcException({
           statusCode: statusCode.INTERNAL_SERVER_ERROR,

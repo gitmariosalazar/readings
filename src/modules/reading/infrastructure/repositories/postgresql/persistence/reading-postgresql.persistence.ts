@@ -2077,35 +2077,38 @@ SELECT
       on ob.observacion_id = ol.observacion_id
       where l.lectura_id = ol.lectura_id
   ) AS observations,
-  COALESCE(
-      (
-        SELECT jsonb_agg(
-          json_build_object(
-            'username', u.username,
-            'card_id', emp.ciudadano_id,
-            'action', cat.name,
-            'first_name', emp.nombres,
-            'last_name', emp.apellidos,
-            'justification', hal.justificacion,
-            'previous_reading', hal.lectura_anterior_previa,
-            'new_reading', hal.lectura_actual_nueva,
-            'previous_consumption', hal.consumo_previo,
-            'new_consumption', hal.consumo_nuevo,
-            'approval_status', hal.estado_aprobacion,
-            'adjustment_date', coalesce(hal.created_at, l.fecha_lectura)
+    COALESCE(
+        (
+          SELECT jsonb_agg(
+            json_build_object(
+              'username', u.username,
+              'card_id', emp.ciudadano_id,
+              'action', COALESCE(cat.name, 'Update'),
+              'first_name', emp.nombres,
+              'last_name', emp.apellidos,
+              'justification', hal.justificacion,
+              'previous_reading', hal.lectura_anterior_previa,
+              'new_reading', hal.lectura_actual_nueva,
+              'previous_consumption', hal.consumo_previo,
+              'new_consumption', hal.consumo_nuevo,
+              'approval_status', hal.estado_aprobacion,
+              'adjustment_date', hal.created_at
+            ) ORDER BY hal.created_at DESC NULLS LAST
           )
-        )
-        FROM usuario_lectura ul
-        LEFT JOIN usuarios u ON u.usuario_id = ul.usuario_id
-        LEFT JOIN empleados emp ON emp.usuario_id = ul.usuario_id
-        LEFT JOIN cat_action_types cat ON cat.id = ul.action_type_id
-        LEFT JOIN historial_ajuste_lectura hal
-              ON hal.lectura_id = l.lectura_id
-              AND hal.usuario_id = u.usuario_id
-        WHERE ul.lectura_id = l.lectura_id
-      ),
-      '[]'::jsonb
-  ) AS user_actions
+          FROM historial_ajuste_lectura hal
+          LEFT JOIN usuarios u ON u.usuario_id = hal.usuario_id
+          LEFT JOIN empleados emp ON emp.usuario_id = hal.usuario_id
+          LEFT JOIN LATERAL (
+            SELECT action_type_id
+            FROM usuario_lectura ul
+            WHERE ul.lectura_id = hal.lectura_id AND ul.usuario_id = hal.usuario_id
+            ORDER BY ul.created_at DESC LIMIT 1
+          ) ul_latest ON true
+          LEFT JOIN cat_action_types cat ON cat.id = ul_latest.action_type_id
+          WHERE hal.lectura_id = l.lectura_id
+        ),
+        '[]'::jsonb
+    ) AS user_actions
 
 FROM ultima_lectura_valida l
 CROSS JOIN proximo_mes_esperado pme

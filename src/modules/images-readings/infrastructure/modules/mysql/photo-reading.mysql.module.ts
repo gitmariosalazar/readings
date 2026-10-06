@@ -31,6 +31,6 @@ import { environments } from '../../../../../settings/environments/environments'
       useClass: PhotoReadingMySQLPersistence,
     },
   ],
-  exports: [],
+  exports: ['PhotoReadingRepository', PhotoReadingService],
 })
 export class PhotoReadingMySQLModule {}

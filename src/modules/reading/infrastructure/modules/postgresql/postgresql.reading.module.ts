@@ -5,6 +5,7 @@ import { ReadingPersistencePostgreSQL } from '../../repositories/postgresql/pers
 import { ReadingImagesPersistencePostgreSQL } from '../../repositories/postgresql/persistence/reading-images-postgresql.persistence';
 import { environments } from '../../../../../settings/environments/environments';
 import { ObservationReadingPostgreSQLPersistence } from '../../../../observations/infrastructure/repositories/postgresql/persistence/postgresql.observation-reading.persistence';
+import { PhotoReadingPostgreSQLPersistence } from '../../../../images-readings/infrastructure/repositories/postgresql/persistence/postgresql.photo-reading.persistence';
 
 import { CreateReadingUseCase } from '../../../application/usecases/commands/CreateReadingUseCase';
 import { UpdateReadingUseCase } from '../../../application/usecases/commands/UpdateReadingUseCase';
@@ -114,6 +115,10 @@ import { FindReadingImagesByFilterUseCase } from '../../../application/usecases/
     {
       provide: 'NoveltyRepository',
       useClass: NoveltyPersistencePostgreSQL,
+    },
+    {
+      provide: 'PhotoReadingRepository',
+      useClass: PhotoReadingPostgreSQLPersistence,
     },
   ],
   exports: [],

@@ -1,3 +1,8 @@
+export interface PhotoInput {
+  photoUrl: string;
+  description?: string;
+}
+
 export class UpdateSpecialReadingRequest {
   readingId!: number;
   tipoAjusteId!: number;
@@ -10,4 +15,8 @@ export class UpdateSpecialReadingRequest {
   typeNoveltyReadingId!: number | null;
   cadastralKey!: string;
   averageConsumption!: number;
+  photos?: (string | PhotoInput)[];
+  evidencePhotos?: (string | PhotoInput)[];
+  images?: (string | PhotoInput)[];
 }
+
