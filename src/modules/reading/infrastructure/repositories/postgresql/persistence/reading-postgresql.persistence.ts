@@ -1200,8 +1200,12 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
     let failedClause = '';
     if (failed === true) {
       failedClause = `
-        AND (
-            o.detalle_observacion ILIKE ANY (ARRAY[
+        AND EXISTS (
+          SELECT 1
+          FROM public.observacion_lectura ol
+          JOIN public.observacion o ON o.observacion_id = ol.observacion_id
+          WHERE ol.lectura_id = l.lectura_id
+            AND o.detalle_observacion ILIKE ANY (ARRAY[
                 -- Daño físico
                 '%DANIAD%',
                 '%DAÑAD%',
@@ -1329,8 +1333,6 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
             ) ulu ON true
             LEFT JOIN cat_action_types act_u ON act_u.id = ulu.action_type_id
             LEFT JOIN empleados u_actualizador ON u_actualizador.usuario_id = ulu.usuario_id
-            LEFT JOIN public.observacion_lectura ol ON l.lectura_id = ol.lectura_id
-            LEFT JOIN public.observacion o ON o.observacion_id = ol.observacion_id  
         WHERE l.mes_lectura = $1
             ${sectorClause}
             ${userIdClause}
