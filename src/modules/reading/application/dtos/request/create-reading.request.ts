@@ -12,6 +12,7 @@ export class CreateReadingRequest {
   readingValue!: number;
   rentalIncomeCode!: number;
   novelty!: string | null;
+  meterStatus!: string | null;
   averageConsumption!: number;
   typeNoveltyReadingId!: number;
   previousMonthReading!: string;

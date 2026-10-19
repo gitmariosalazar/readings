@@ -13,6 +13,7 @@ export class ReadingModel {
     public readonly currentReading: number,
     public readonly rentalIncomeCode: number | null,
     public readonly novelty: string | null,
+    public readonly meterStatus: string | null,
     public readonly incomeCode: number | null,
     public readonly typeNoveltyReadingId: number,
     public readonly currentMonthReading: string,

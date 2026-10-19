@@ -43,6 +43,7 @@ export class ReadingMapper {
       readingRequest.currentReading ?? 0,
       readingRequest.rentalIncomeCode ?? 0,
       readingRequest.novelty ?? 'NORMAL',
+      readingRequest.meterStatus ?? null,
       readingRequest.incomeCode,
       readingRequest.typeNoveltyReadingId ?? 1,
       readingRequest.currentMonthReading,
@@ -71,6 +72,7 @@ export class ReadingMapper {
       readingRequest.currentReading ?? 0,
       readingRequest.rentalIncomeCode ?? 0,
       readingRequest.novelty ?? 'NORMAL',
+      readingRequest.meterStatus ?? null,
       readingRequest.incomeCode ?? 0,
       readingRequest.typeNoveltyReadingId ?? 1,
       '', // currentMonthReading (default or needs to be in request)

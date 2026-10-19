@@ -156,6 +156,7 @@ export class UpdateSpecialReadingUseCase {
         request.currentReading!,
         1, // rentalIncomeCode
         request.novelty,
+        request.meterStatus,
         1, // incomeCode
         request.typeNoveltyReadingId ?? 1,
         'UNKNOWN',

@@ -107,6 +107,7 @@ export class ReadingSQLAdapter {
       readingResultSQL.current_reading ?? 0,
       readingResultSQL.rental_income_code ?? 0,
       readingResultSQL.novelty,
+      '',
       readingResultSQL.income_code,
       1, // default ID or fetch from DB
       '', // currentMonthReading placeholder

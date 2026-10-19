@@ -12,6 +12,7 @@ export class UpdateReadingRequest {
   currentReading!: number | null;
   rentalIncomeCode!: number | null;
   novelty!: string | null;
+  meterStatus!: string | null;
   incomeCode!: number | null;
   averageConsumption!: number;
   typeNoveltyReadingId!: number | null;

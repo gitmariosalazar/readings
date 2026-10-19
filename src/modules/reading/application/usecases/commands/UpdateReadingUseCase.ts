@@ -149,6 +149,7 @@ export class UpdateReadingUseCase {
         toUpdate.currentReading,
         toUpdate.rentalIncomeCode,
         toUpdate.novelty,
+        toUpdate.meterStatus,
         toUpdate.incomeCode,
         toUpdate.typeNoveltyReadingId,
         toUpdate.currentMonthReading,
