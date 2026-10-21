@@ -14,7 +14,6 @@ export class PhotoReadingPostgreSQLPersistence implements InterfacePhotoReadingR
   async createPhotoReading(
     photoReading: PhotoReadingModel,
   ): Promise<PhotoReadingModel | null> {
-    console.log('Creating photo reading:', photoReading);
     const query = `
       INSERT INTO foto_lectura (lectura_id, imagen_url, clave_catastral, descripcion)
       VALUES ($1, $2, $3, $4)

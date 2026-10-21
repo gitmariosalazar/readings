@@ -15,7 +15,6 @@ export class GetDailyStatsReportUseCase {
     if (!month) {
       throw new Error('Month is required (YYYY-MM)');
     }
-    console.log(month);
     const models = await this.reportRepository.findDailyStats(month);
     return ReadingReportMapper.toDailyStatsReportResponseList(models);
   }

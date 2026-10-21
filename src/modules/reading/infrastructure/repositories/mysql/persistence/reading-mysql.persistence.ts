@@ -493,10 +493,6 @@ ORDER BY l.fecha_lectura DESC;
     reading: ReadingModel,
     auditData: ReadingAdjustmentModel,
   ): Promise<ReadingModel | null> {
-    console.log(
-      `Special updating reading with ID: ${readingId}, Reading: ${JSON.stringify(reading)}, AuditData: ${JSON.stringify(auditData)}`,
-    );
-
     return this.databaseService.transaction(async (client: IDatabaseClient) => {
       const oldReadingQuery = `SELECT lectura_anterior, lectura_actual FROM lectura WHERE lectura_id = ?`;
       const oldReadingResult = await client.query<any>(oldReadingQuery, [
@@ -1671,7 +1667,6 @@ LEFT JOIN cliente_contacto cc ON cc.cliente_id = c.cliente_id;
 
       if (findResult && findResult.length > 0) {
         v_lectura_id = findResult[0].lectura_id;
-        console.log('Existing PEND reading found, updating it.', v_lectura_id);
         novedad = `ACTUALIZACIÓN DE LECTURA POR CAMBIO DE MEDIDOR: ${nuevoNumeroMedidor}`;
         const updateQuery = `
           UPDATE lectura

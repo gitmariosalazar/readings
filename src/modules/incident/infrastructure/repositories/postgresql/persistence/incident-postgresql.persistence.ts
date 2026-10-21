@@ -163,8 +163,6 @@ export class IncidentPersistencePostgreSQL implements InterfaceIncidentRepositor
     try {
       return await this.databaseService.transaction(
         async (client: IDatabaseClient) => {
-          console.log('Creating incident/history:', incident);
-
           // ====================================================================
           // 1. INSERTAR HISTORIAL SIEMPRE (Esté dañado o no)
           // ====================================================================
@@ -200,9 +198,6 @@ export class IncidentPersistencePostgreSQL implements InterfaceIncidentRepositor
           // 2. OBEDECER ORDEN DEL CASO DE USO
           // ====================================================================
           if (!shouldCreateTicket) {
-            console.log(
-              'Historial guardado. Se omite la creación del ticket de incidente por orden del Caso de Uso.',
-            );
             return null;
           }
 

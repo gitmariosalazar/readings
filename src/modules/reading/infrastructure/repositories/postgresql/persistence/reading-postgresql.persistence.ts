@@ -521,10 +521,6 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
     updateUserId: UUID,
     auditData?: ReadingAdjustmentModel,
   ): Promise<ReadingModel | null> {
-    console.log(
-      `Updating reading with ID: ${readingId}, Reading: ${JSON.stringify(reading)}, Update User ID: ${updateUserId}`,
-    );
-
     return this.databaseService.transaction(async (client: IDatabaseClient) => {
       const oldReadingQuery = `SELECT lectura_anterior, lectura_actual FROM lectura WHERE lectura_id = $1`;
       const oldReadingResult = await client.query<any>(oldReadingQuery, [
@@ -622,10 +618,6 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
     reading: ReadingModel,
     auditData: ReadingAdjustmentModel,
   ): Promise<ReadingModel | null> {
-    console.log(
-      `Special updating reading with ID: ${readingId}, Reading: ${JSON.stringify(reading)}, AuditData: ${JSON.stringify(auditData)}`,
-    );
-
     return this.databaseService.transaction(async (client: IDatabaseClient) => {
       const oldReadingQuery = `SELECT lectura_anterior, lectura_actual FROM lectura WHERE lectura_id = $1`;
       const oldReadingResult = await client.query<any>(oldReadingQuery, [
@@ -722,9 +714,6 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
   ): Promise<ReadingModel | null> {
     try {
       const acometidaId = reading.connectionId;
-
-      console.log('Acometida ID:', reading);
-      console.log('Current Month Reading:', reading.currentMonthReading);
 
       const result = await this.databaseService.transaction(
         async (client: IDatabaseClient) => {
@@ -2172,15 +2161,6 @@ LEFT JOIN cliente_contacto cc ON cc.cliente_id = c.cliente_id;
       }
       const pendId = stateResult[0].lectura_estado_id;
 
-      console.log(
-        'pendId:',
-        pendId,
-        'acometidaId:',
-        acometidaId,
-        'nuevoNumeroMedidor:',
-        nuevoNumeroMedidor,
-      );
-
       // 2. Buscar si ya existe una lectura en estado PEND para esta acometida
       const findQuery = `
         SELECT lectura_id 
@@ -2198,11 +2178,8 @@ LEFT JOIN cliente_contacto cc ON cc.cliente_id = c.cliente_id;
       let v_lectura_id: number;
       let novedad = `LECTURA INICIAL POR CAMBIO DE MEDIDOR: ${nuevoNumeroMedidor}`;
 
-      console.log('findResult:', findResult);
-
       if (findResult.length > 0 && findResult[0].lectura_id) {
         v_lectura_id = findResult[0].lectura_id;
-        console.log('Existing PEND reading found, updating it.', v_lectura_id);
         novedad = `ACTUALIZACIÓN DE LECTURA POR CAMBIO DE MEDIDOR: ${nuevoNumeroMedidor}`;
         const updateQuery = `
           UPDATE lectura
@@ -2212,7 +2189,6 @@ LEFT JOIN cliente_contacto cc ON cc.cliente_id = c.cliente_id;
         `;
         await client.execute(updateQuery, [novedad, v_lectura_id]);
       } else {
-        console.log('No existing PEND reading found, inserting new one.');
         const insertQuery = `
           INSERT INTO lectura (
             acometida_id, fecha_lectura, hora_lectura, sector, cuenta, clave_catastral,
