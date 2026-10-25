@@ -35,6 +35,8 @@ export interface ReadingSQLResult {
   average_consumption: number;
   location_capture?: { lat: number; lng: number } | null;
   reading_code?: string;
+  consumption_m3?: number;
+  total_value?: number;
 }
 
 export interface ClientPhoneSQLResult {
@@ -98,6 +100,7 @@ export interface UserReadingActionAuditSqlResul {
 
 export interface ReadingDetailedSQLResult {
   reading_id: number;
+  reading_code: string;
   reading_time: Date | null;
   reading_date: Date | null;
   cadastral_key: string;
@@ -111,6 +114,7 @@ export interface ReadingDetailedSQLResult {
   sector: number;
   account: number;
   reading_value: number;
+  total_epaa: number;
   average_consumption: number;
   meter_number: string;
   rate_id: number;
@@ -131,6 +135,36 @@ export interface ReadingDetailedSQLResult {
   observations?: { id: number; title: string; observation: string }[];
   reading_location?: { lat: number; lng: number } | null;
   user_actions?: UserReadingActionAuditSqlResul[];
+  concept_details?: ConceptDetailSqlResult[];
+  water_calculation_breakdown?: WaterCalculationBreakdownSqlResult | null;
+}
+
+export interface ConceptDetailSqlResult {
+  code: string;
+  name: string;
+  order: number;
+  amount: number;
+  formula: string;
+  concept_id: number;
+  description: string;
+  default_value: any;
+  tariff_version: string;
+  calculation_base: number;
+  calculation_type: string;
+  is_company_service: boolean;
+  percentage_applied: number | null;
+}
+export interface WaterCalculationBreakdownSqlResult {
+  category_id: number;
+  rate_name: string;
+  min_range: number;
+  max_range: number;
+  applied_base: number;
+  additional_m3_rate: number;
+  additional_m3: number;
+  water_amount: number;
+  formula: string;
+  tariff_version: string;
 }
 
 export interface AdvancedReportReadingsSQLResult {
@@ -280,6 +314,7 @@ export interface ReadingNoveltySQLResult {
 
 export interface TarifaSQLResult {
   categoria_id: number;
+  nombre: string;
 }
 
 export interface RangoTarifaSQLResult {
@@ -309,4 +344,35 @@ export interface HistorialAjusteLecturaSqlResult {
   created_at: string; // o Date
   tipo_ajuste: string;
   descripcion_tipo_ajuste: string;
+}
+
+export interface BillingConceptValidity {
+  conceptId: number;
+  code: string;
+  name: string;
+  description: string | null;
+  defaultValue: number;
+  isActive: boolean;
+  waterPercentage: number;
+  versionSheet: string | null;
+  validityConceptId: number;
+}
+
+export interface ConnectionBenefitSQLResult {
+  id: string;
+  connectionId: string;
+  clientId: string;
+  benefitTypeId: number;
+  conceptId: number;
+  conceptCode: string;
+  benefitTypeCode: string;
+  benefitTypeName: string;
+  benefitGroup: string;
+  isCumulative: boolean;
+  porcentaje_descuento_efectivo: string | number;
+  limite_m3_subsidio: string | number | null;
+  codigo_version: string | null;
+  aplica_sobre_concepto: string | null;
+  subsidia_alcantarillado: boolean | null;
+  porcentaje_discapacidad: string | number | null;
 }

@@ -16,6 +16,10 @@ import { PhotoReadingMapper } from '../../../../images-readings/application/mapp
 import { PhotoReadingModel } from '../../../../images-readings/domain/schemas/model/photo-reading.model';
 import { CreatePhotoReadingRequest } from '../../../../images-readings/application/dtos/request/create.photo-reading.request';
 
+import { ReadingBillingBreakdownRecorder } from '../../services/reading-billing-breakdown-recorder.service';
+import { CalculateReadingValueUseCase } from '../queries/CalculateReadingValueUseCase';
+import { CalculateReadingValueModel } from '../../../domain/schemas/model/calculate-reading-value.model';
+
 @Injectable()
 export class UpdateSpecialReadingUseCase {
   constructor(
@@ -25,6 +29,8 @@ export class UpdateSpecialReadingUseCase {
     private readonly noveltyRepository: InterfaceNoveltyRepository,
     @Inject('PhotoReadingRepository')
     private readonly photoReadingRepository: InterfacePhotoReadingRepository,
+    private readonly breakdownRecorder: ReadingBillingBreakdownRecorder,
+    private readonly calculateReadingValueUseCase: CalculateReadingValueUseCase,
   ) {}
 
   async execute(
@@ -125,17 +131,19 @@ export class UpdateSpecialReadingUseCase {
       const consumption: number =
         (request.currentReading ?? 0) - (request.previousReading ?? 0);
 
-      const valueConsumoAgua =
-        await this.readingRepository.calculateReadingValue(
+      const valueConsumoAgua: CalculateReadingValueModel =
+        await this.calculateReadingValueUseCase.execute(
           request.cadastralKey,
           consumption,
         );
 
-      request.readingValue = valueConsumoAgua;
-      const sewerRateValue = this.CalculateSewerRate(valueConsumoAgua);
+      request.readingValue = valueConsumoAgua.waterConsumptionValue;
+      const sewerRateValue = valueConsumoAgua.sewerageValue;
       request.sewerRate = sewerRateValue;
+      request.totalValue = valueConsumoAgua.total;
+      request.consumptionM3 = consumption;
 
-      if (valueConsumoAgua < 0) {
+      if (valueConsumoAgua.waterConsumptionValue < 0) {
         throw new RpcException({
           statusCode: statusCode.INTERNAL_SERVER_ERROR,
           message: `Error calculating total amount for reading with ID ${readingId}!`,
@@ -150,7 +158,7 @@ export class UpdateSpecialReadingUseCase {
         1, // sector
         1, // account
         request.cadastralKey, // cadastralKey
-        valueConsumoAgua,
+        valueConsumoAgua.waterConsumptionValue,
         sewerRateValue,
         request.previousReading!,
         request.currentReading!,
@@ -162,6 +170,8 @@ export class UpdateSpecialReadingUseCase {
         'UNKNOWN',
         null,
         '1',
+        consumption,
+        valueConsumoAgua.total,
       );
 
       const auditData = {
@@ -183,6 +193,8 @@ export class UpdateSpecialReadingUseCase {
         );
 
       if (updatedReadingEntity !== null) {
+        await this.breakdownRecorder.record(readingId, valueConsumoAgua);
+
         const response: ReadingResponse =
           ReadingMapper.fromReadingModelToReadingResponse(updatedReadingEntity);
 

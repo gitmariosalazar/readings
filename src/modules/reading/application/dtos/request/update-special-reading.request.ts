@@ -19,4 +19,6 @@ export class UpdateSpecialReadingRequest {
   photos?: (string | PhotoInput)[];
   evidencePhotos?: (string | PhotoInput)[];
   images?: (string | PhotoInput)[];
+  consumptionM3!: number;
+  totalValue!: number;
 }

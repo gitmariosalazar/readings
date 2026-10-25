@@ -18,4 +18,6 @@ export class UpdateReadingRequest {
   typeNoveltyReadingId!: number | null;
   readingMonth!: string;
   locationCapture?: { lat: number; lng: number } | null;
+  consumptionM3!: number;
+  totalValue!: number;
 }

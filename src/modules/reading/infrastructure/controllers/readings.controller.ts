@@ -18,6 +18,9 @@ import { GetMapGeojsonByDayAndByUserUseCase } from '../../application/usecases/q
 import { GetDetailedReadingInfoByCadastralKeyUseCase } from '../../application/usecases/queries/GetDetailedReadingInfoByCadastralKeyUseCase';
 import { UpdateSpecialReadingRequest } from '../../application/dtos/request/update-special-reading.request';
 import { GetReadingAdjustmentHistoryByReadingIdUseCase } from '../../application/usecases/queries/getReadingAdjustmentHistoryByReadingId.use-case';
+import { CalculateReadingValueUseCase } from '../../application/usecases/queries/CalculateReadingValueUseCase';
+import { RegisterReadingBillingBreakdownUseCase } from '../../application/usecases/commands/RegisterReadingBillingBreakdownUseCase';
+import { RegisterReadingBillingBreakdownRequest } from '../../application/dtos/request/register-reading-billing-breakdown.request';
 
 @Controller('Readings')
 export class ReadingController {
@@ -36,6 +39,8 @@ export class ReadingController {
     private readonly getMapGeojsonByDayAndByUserUseCase: GetMapGeojsonByDayAndByUserUseCase,
     private readonly getDetailedReadingInfoByCadastralKeyUseCase: GetDetailedReadingInfoByCadastralKeyUseCase,
     private readonly getReadingAdjustmentHistoryByReadingIdUseCase: GetReadingAdjustmentHistoryByReadingIdUseCase,
+    private readonly calculateReadingValueUseCase: CalculateReadingValueUseCase,
+    private readonly registerReadingBillingBreakdownUseCase: RegisterReadingBillingBreakdownUseCase,
   ) {}
 
   @Get('find-basic-reading/:catastralCode')
@@ -228,5 +233,27 @@ export class ReadingController {
     return this.getReadingAdjustmentHistoryByReadingIdUseCase.execute(
       data.readingId,
     );
+  }
+
+  @Get('calculate-reading-value')
+  @MessagePattern('reading.calculate-reading-value')
+  async calculateReadingValue(
+    @Payload() data: { cadastralKey: string; consumption: number },
+  ) {
+    console.log(
+      `[calculateReadingValue] Parámetros recibidos → cadastralKey: "${data.cadastralKey}", consumption: ${data.consumption}`,
+    );
+    return this.calculateReadingValueUseCase.executeCalculateReadingValue(
+      data.cadastralKey,
+      data.consumption,
+    );
+  }
+
+  @MessagePattern('reading.register-billing-breakdown')
+  async registerBillingBreakdown(
+    @Payload() data: RegisterReadingBillingBreakdownRequest,
+  ) {
+    await this.registerReadingBillingBreakdownUseCase.execute(data);
+    return { success: true };
   }
 }

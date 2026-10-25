@@ -5,8 +5,11 @@ import {
   ReadingNoveltyModel,
 } from '../../domain/schemas/model/reading.model';
 import {
+  CalculateReadingValueResponse,
   MonthlySummaryResponse,
   PendingReadingConnectionResponse,
+  RateConnectionResponse,
+  RateRangeResponse,
   ReadingNoveltyResponse,
   ReadingResponse,
   TakenReadingConnectionResponse,
@@ -18,6 +21,11 @@ import { ReadingImagesResponse } from '../dtos/response/reading-images.response'
 import { PendingReadingConnectionModel } from '../../domain/schemas/model/pending-reading-connection.model';
 import { TakenReadingConnectionModel } from '../../domain/schemas/model/taken-reading-connection.model';
 import { MonthlySummaryModel } from '../../domain/schemas/model/report/monthly-summary.model';
+import {
+  CalculateReadingValueModel,
+  RateConnectionModel,
+  RateRangeModel,
+} from '../../domain/schemas/model/calculate-reading-value.model';
 
 export class ReadingMapper {
   static fromCreateReadingRequestToReadingModel(
@@ -49,6 +57,8 @@ export class ReadingMapper {
       readingRequest.currentMonthReading,
       readingRequest.locationCapture ?? null,
       '',
+      readingRequest.consumptionM3 ?? 0,
+      readingRequest.totalValue ?? 0,
     );
   }
 
@@ -78,6 +88,8 @@ export class ReadingMapper {
       '', // currentMonthReading (default or needs to be in request)
       readingRequest.locationCapture ?? null,
       '', // readingCode (default or needs to be in request)
+      readingRequest.consumptionM3 ?? 0,
+      readingRequest.totalValue ?? 0,
     );
   }
   static fromReadingModelToReadingResponse(
@@ -100,6 +112,8 @@ export class ReadingMapper {
       incomeCode: reading.incomeCode ?? 0,
       locationCapture: reading.locationCapture ?? null,
       readingCode: reading.readingCode ?? '',
+      consumptionM3: reading.consumptionM3,
+      totalValue: reading.totalValue,
     };
     return response;
   }
@@ -255,6 +269,45 @@ export class ReadingMapper {
       userCreatedName: readingNovelty.userCreatedName ?? null,
       userUpdatedId: readingNovelty.userUpdatedId ?? null,
       userUpdatedName: readingNovelty.userUpdatedName ?? null,
+    };
+    return response;
+  }
+
+  static fromCalculateReadingValueModelToCalculateReadingValueResponse(
+    calculateReadingValue: CalculateReadingValueModel,
+  ): CalculateReadingValueResponse {
+    const response: CalculateReadingValueResponse = {
+      cadastralKey: calculateReadingValue.cadastralKey,
+      consumption: calculateReadingValue.consumption,
+      waterConsumptionValue: calculateReadingValue.waterConsumptionValue,
+      baseRate: calculateReadingValue.baseRate,
+      rateName: calculateReadingValue.rateName,
+      sewerageValue: calculateReadingValue.sewerageValue,
+      others: calculateReadingValue.others,
+      additionalCost: calculateReadingValue.additionalCost,
+      fixedRatePerM3: calculateReadingValue.fixedRatePerM3,
+      total: calculateReadingValue.total,
+    };
+    return response;
+  }
+
+  static fromRateConnectionModelToRateConnectionResponse(
+    rateConnection: RateConnectionModel,
+  ): RateConnectionResponse {
+    const response: RateConnectionResponse = {
+      categoryId: rateConnection.categoryId,
+      categoryName: rateConnection.categoryName,
+    };
+    return response;
+  }
+  static fromRateRangeModelToRateRangeResponse(
+    rateRange: RateRangeModel,
+  ): RateRangeResponse {
+    const response: RateRangeResponse = {
+      min: rateRange.min,
+      max: rateRange.max,
+      base: rateRange.base,
+      additional: rateRange.additional,
     };
     return response;
   }

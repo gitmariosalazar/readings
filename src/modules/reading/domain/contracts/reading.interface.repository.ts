@@ -17,6 +17,12 @@ import {
   HistorialAjusteLectura,
   MapRouteFeatureCollection,
 } from '../schemas/response/map-geojson';
+import {
+  RateConnectionModel,
+  RateRangeModel,
+} from '../schemas/model/calculate-reading-value.model';
+import { ConnectionBenefitModel } from '../schemas/model/connection-benefit.model';
+import { BillingConceptValidity } from '../../infrastructure/interfaces/sql/reading-sql.result.interface';
 
 export interface InterfaceReadingRepository {
   findReadingBasicInfo(cadastralKey: string): Promise<ReadingBasicInfoModel[]>;
@@ -74,11 +80,6 @@ export interface InterfaceReadingRepository {
     userId?: string,
   ): Promise<ReadingNoveltyModel[]>;
 
-  calculateReadingValue(
-    cadastralKey: string,
-    consumptionM3: number,
-  ): Promise<number>;
-
   getMapGeojsonByDayAndByUser(
     date: string,
     userId?: string,
@@ -101,4 +102,11 @@ export interface InterfaceReadingRepository {
   getReadingAdjustmentHistoryByReadingId(
     readingId: number,
   ): Promise<HistorialAjusteLectura[]>;
+
+  getBillingConceptValidity(): Promise<BillingConceptValidity[]>;
+  getRateConnection(cadastralKey: string): Promise<RateConnectionModel>;
+  getRateRange(tarifaId: number): Promise<RateRangeModel[]>;
+  getActiveBenefitsByCadastralKey?(
+    cadastralKey: string,
+  ): Promise<ConnectionBenefitModel[]>;
 }

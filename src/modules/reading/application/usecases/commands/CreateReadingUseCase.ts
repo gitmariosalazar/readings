@@ -4,6 +4,7 @@ import { toZonedTime } from 'date-fns-tz';
 
 import { CreateReadingRequest } from '../../dtos/request/create-reading.request';
 import { ReadingResponse } from '../../dtos/response/reading.response';
+import { CalculateReadingValueModel } from '../../../domain/schemas/model/calculate-reading-value.model';
 import { InterfaceReadingRepository } from '../../../domain/contracts/reading.interface.repository';
 import { ReadingModel } from '../../../domain/schemas/model/reading.model';
 import { ReadingMapper } from '../../mappers/reading.mapper';
@@ -20,6 +21,9 @@ import { UUID } from 'crypto';
 import { InterfaceNoveltyRepository } from '../../../domain/contracts/novelty.interface.repository';
 import { request } from 'express';
 
+import { ReadingBillingBreakdownRecorder } from '../../services/reading-billing-breakdown-recorder.service';
+import { CalculateReadingValueUseCase } from '../queries/CalculateReadingValueUseCase';
+
 @Injectable()
 export class CreateReadingUseCase {
   constructor(
@@ -29,6 +33,8 @@ export class CreateReadingUseCase {
     private readonly observationRepository: InterfaceObservationReadingRepository,
     @Inject('NoveltyRepository')
     private readonly noveltyRepository: InterfaceNoveltyRepository,
+    private readonly breakdownRecorder: ReadingBillingBreakdownRecorder,
+    private readonly calculateReadingValueUseCase: CalculateReadingValueUseCase,
   ) {}
 
   async execute(
@@ -116,16 +122,19 @@ export class CreateReadingUseCase {
       readingRequest.typeNoveltyReadingId = consumoActual.id;
       readingRequest.novelty = consumoActual.title;
 
-      const valueConsumoAgua =
-        await this.readingRepository.calculateReadingValue(
+      const valueConsumoAgua: CalculateReadingValueModel =
+        await this.calculateReadingValueUseCase.execute(
           readingRequest.cadastralKey,
           Number(readingRequest.currentReading) -
             Number(readingRequest.previousReading),
         );
 
-      readingRequest.readingValue = valueConsumoAgua;
-      const sewerRateValue = this.CalculateSewerRate(valueConsumoAgua);
-      readingRequest.sewerRate = sewerRateValue;
+      readingRequest.readingValue = valueConsumoAgua.waterConsumptionValue;
+      readingRequest.sewerRate = valueConsumoAgua.sewerageValue;
+      readingRequest.totalValue = valueConsumoAgua.total;
+      readingRequest.consumptionM3 =
+        Number(readingRequest.currentReading) -
+        Number(readingRequest.previousReading);
 
       const paraCrear: ReadingModel =
         ReadingMapper.fromCreateReadingRequestToReadingModel(readingRequest);
@@ -139,6 +148,8 @@ export class CreateReadingUseCase {
           message: '¡Error al crear el registro de lectura!',
         });
       }
+      await this.breakdownRecorder.record(creadoEntity.id, valueConsumoAgua);
+
       const creado: ReadingResponse =
         ReadingMapper.fromReadingModelToReadingResponse(creadoEntity);
 

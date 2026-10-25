@@ -15,12 +15,16 @@ import {
   ClientEmailModel,
   ReadingDetailedModel,
   UserReadingActionAuditModel,
+  ConceptDetailModel,
+  WaterCalculationBreakdownModel,
 } from '../../domain/schemas/model/reading-info.model';
 import { ReadingResponse } from '../../application/dtos/response/reading.response';
 import {
   AdvancedReportReadingsSQLResult,
   ClientEmailSQLResult,
   ClientPhoneSQLResult,
+  ConceptDetailSqlResult,
+  ConnectionBenefitSQLResult,
   HistorialAjusteLecturaSqlResult,
   MonthlySummarySQLResult,
   PendingReadingConnectionSQLResult,
@@ -33,7 +37,9 @@ import {
   ReadingSQLResult,
   TakenReadingConnectionSQLResult,
   UserReadingActionAuditSqlResul,
+  WaterCalculationBreakdownSqlResult,
 } from '../interfaces/sql/reading-sql.result.interface';
+import { ConnectionBenefitModel } from '../../domain/schemas/model/connection-benefit.model';
 import { AdvancedReportReadingsModel } from '../../domain/schemas/model/report/advanced-report-readings.model';
 import { ReadingHistoryModel } from '../../domain/schemas/model/reading-history.model';
 import { ReadingImagesResponse } from '../../application/dtos/response/reading-images.response';
@@ -113,6 +119,8 @@ export class ReadingSQLAdapter {
       '', // currentMonthReading placeholder
       readingResultSQL.location_capture ?? null,
       readingResultSQL.reading_code ?? '',
+      readingResultSQL.consumption_m3 ?? 0,
+      readingResultSQL.total_value ?? 0,
     );
   }
 
@@ -183,6 +191,7 @@ export class ReadingSQLAdapter {
   ): ReadingDetailedModel {
     return new ReadingDetailedModel(
       readingResultSQL.reading_id,
+      readingResultSQL.reading_code,
       readingResultSQL.reading_time,
       readingResultSQL.reading_date,
       readingResultSQL.cadastral_key,
@@ -200,6 +209,7 @@ export class ReadingSQLAdapter {
       readingResultSQL.sector,
       readingResultSQL.account,
       readingResultSQL.reading_value,
+      readingResultSQL.total_epaa,
       readingResultSQL.average_consumption,
       readingResultSQL.meter_number,
       readingResultSQL.rate_id,
@@ -224,6 +234,55 @@ export class ReadingSQLAdapter {
       this.fromUserReadingActionAuditPostgreSQLResultsToUserReadingActionAuditModels(
         readingResultSQL.user_actions!,
       ),
+      this.fromConceptDetailPostgreSQLResultsToConceptDetailModels(
+        readingResultSQL.concept_details ?? [],
+      ),
+      this.fromWaterCalculationBreakdownPostgreSQLResultsToWaterCalculationBreakdownModels(
+        readingResultSQL.water_calculation_breakdown! ?? null,
+      ),
+    );
+  }
+
+  static fromConceptDetailPostgreSQLResultsToConceptDetailModels(
+    conceptDetailsSQL: ConceptDetailSqlResult[],
+  ): ConceptDetailModel[] {
+    return conceptDetailsSQL.map(
+      (cd) =>
+        new ConceptDetailModel(
+          cd.code,
+          cd.name,
+          cd.order,
+          cd.amount,
+          cd.formula,
+          cd.concept_id,
+          cd.description,
+          cd.default_value,
+          cd.tariff_version,
+          cd.calculation_base,
+          cd.calculation_type,
+          cd.is_company_service,
+          cd.percentage_applied,
+        ),
+    );
+  }
+
+  static fromWaterCalculationBreakdownPostgreSQLResultsToWaterCalculationBreakdownModels(
+    waterCalculationBreakdownSQL: WaterCalculationBreakdownSqlResult,
+  ): WaterCalculationBreakdownModel | null {
+    if (!waterCalculationBreakdownSQL) {
+      return null;
+    }
+    return new WaterCalculationBreakdownModel(
+      waterCalculationBreakdownSQL.category_id,
+      waterCalculationBreakdownSQL.rate_name,
+      waterCalculationBreakdownSQL.min_range,
+      waterCalculationBreakdownSQL.max_range,
+      waterCalculationBreakdownSQL.applied_base,
+      waterCalculationBreakdownSQL.additional_m3_rate,
+      waterCalculationBreakdownSQL.additional_m3,
+      waterCalculationBreakdownSQL.water_amount,
+      waterCalculationBreakdownSQL.formula,
+      waterCalculationBreakdownSQL.tariff_version,
     );
   }
 
@@ -471,5 +530,30 @@ export class ReadingSQLAdapter {
         historialAjusteLecturaResultSQL.descripcion_tipo_ajuste,
     };
     return response;
+  }
+
+  static fromConnectionBenefitSQLResultToModel(
+    r: ConnectionBenefitSQLResult,
+  ): ConnectionBenefitModel {
+    return new ConnectionBenefitModel(
+      r.id,
+      r.connectionId,
+      r.clientId,
+      Number(r.benefitTypeId),
+      Number(r.conceptId),
+      r.conceptCode,
+      r.benefitTypeCode,
+      r.benefitTypeName,
+      r.benefitGroup,
+      Boolean(r.isCumulative),
+      Number(r.porcentaje_descuento_efectivo ?? 0),
+      r.limite_m3_subsidio != null ? Number(r.limite_m3_subsidio) : null,
+      r.codigo_version ?? null,
+      r.aplica_sobre_concepto ?? 'AGUA',
+      Boolean(r.subsidia_alcantarillado),
+      r.porcentaje_discapacidad != null
+        ? Number(r.porcentaje_discapacidad)
+        : null,
+    );
   }
 }

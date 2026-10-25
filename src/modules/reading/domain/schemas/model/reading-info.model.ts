@@ -59,6 +59,7 @@ export class ReadingInfoModel {
 export class ReadingDetailedModel {
   constructor(
     public readonly readingId: number,
+    public readonly readingCode: string,
     public readonly readingTime: Date | null,
     public readonly readingDate: Date | null,
     public readonly cadastralKey: string,
@@ -72,6 +73,7 @@ export class ReadingDetailedModel {
     public readonly sector: number,
     public readonly account: number,
     public readonly readingValue: number,
+    public readonly totalEpaa: number,
     public readonly averageConsumption: number,
     public readonly meterNumber: string,
     public readonly rateId: number,
@@ -92,6 +94,8 @@ export class ReadingDetailedModel {
     public readonly observations?: ObservationModel[],
     public readonly readingLocation?: { lat: number; lng: number } | null,
     public readonly userActions?: UserReadingActionAuditModel[],
+    public readonly conceptDetails?: ConceptDetailModel[],
+    public readonly waterCalculationBreakdown?: WaterCalculationBreakdownModel | null,
   ) {}
 }
 
@@ -131,5 +135,37 @@ export class UserReadingActionAuditModel {
       | string
       | null,
     public readonly adjustmentDate: Date | null,
+  ) {}
+}
+
+export class ConceptDetailModel {
+  constructor(
+    public readonly code: string,
+    public readonly name: string,
+    public readonly order: number,
+    public readonly amount: number,
+    public readonly formula: string,
+    public readonly conceptId: number,
+    public readonly description: string,
+    public readonly defaultValue: any,
+    public readonly tariffVersion: string,
+    public readonly calculationBase: number,
+    public readonly calculationType: string,
+    public readonly isCompanyService: boolean,
+    public readonly percentageApplied: number | null,
+  ) {}
+}
+export class WaterCalculationBreakdownModel {
+  constructor(
+    public readonly categoryId: number,
+    public readonly rateName: string,
+    public readonly minRange: number,
+    public readonly maxRange: number,
+    public readonly appliedBase: number,
+    public readonly additionalM3Rate: number,
+    public readonly additionalM3: number,
+    public readonly waterAmount: number,
+    public readonly formula: string,
+    public readonly tariffVersion: string,
   ) {}
 }

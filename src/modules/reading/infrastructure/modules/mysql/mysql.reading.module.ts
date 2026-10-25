@@ -44,6 +44,17 @@ import { NoveltyPersistenceMySQL } from '../../repositories/mysql/persistence/no
 import { PhotoReadingMySQLPersistence } from '../../../../images-readings/infrastructure/repositories/mysql/persistence/mysql.photo-reading.persistence';
 import { GetMapGeojsonByDayAndByUserUseCase } from '../../../application/usecases/queries/GetMapGeojsonByDayAndByUserUseCase';
 import { GetReadingAdjustmentHistoryByReadingIdUseCase } from '../../../application/usecases/queries/getReadingAdjustmentHistoryByReadingId.use-case';
+import { ReadingBillingBreakdownMySQLPersistence } from '../../repositories/mysql/persistence/reading-billing-breakdown-mysql.persistence';
+import { RegisterReadingBillingBreakdownUseCase } from '../../../application/usecases/commands/RegisterReadingBillingBreakdownUseCase';
+import { ReadingBillingBreakdownRecorder } from '../../../application/services/reading-billing-breakdown-recorder.service';
+import {
+  WaterConceptStrategy,
+  SewerageConceptStrategy,
+  PercentageConceptStrategy,
+  DiscountConceptStrategy,
+  DefaultConceptStrategy,
+  ConceptCalculationStrategyResolver,
+} from '../../../application/strategies/concepts';
 
 @Module({
   controllers: [
@@ -89,6 +100,14 @@ import { GetReadingAdjustmentHistoryByReadingIdUseCase } from '../../../applicat
     GetDetailedReadingInfoByCadastralKeyUseCase,
     GenerateInitialReadingOnMeterChangeUseCase,
     GetReadingAdjustmentHistoryByReadingIdUseCase,
+    RegisterReadingBillingBreakdownUseCase,
+    ReadingBillingBreakdownRecorder,
+    WaterConceptStrategy,
+    SewerageConceptStrategy,
+    PercentageConceptStrategy,
+    DiscountConceptStrategy,
+    DefaultConceptStrategy,
+    ConceptCalculationStrategyResolver,
 
     {
       provide: 'ReadingRepository',
@@ -109,6 +128,10 @@ import { GetReadingAdjustmentHistoryByReadingIdUseCase } from '../../../applicat
     {
       provide: 'NoveltyRepository',
       useClass: NoveltyPersistenceMySQL,
+    },
+    {
+      provide: 'ReadingBillingBreakdownRepository',
+      useClass: ReadingBillingBreakdownMySQLPersistence,
     },
     {
       provide: 'PhotoReadingRepository',

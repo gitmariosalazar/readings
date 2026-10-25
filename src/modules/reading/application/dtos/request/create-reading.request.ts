@@ -18,4 +18,6 @@ export class CreateReadingRequest {
   previousMonthReading!: string;
   currentMonthReading!: string;
   locationCapture!: { lat: number; lng: number } | null;
+  consumptionM3!: number;
+  totalValue!: number;
 }

@@ -2,6 +2,8 @@ import { InterfaceReadingRepository } from './../../../../domain/contracts/readi
 import { Injectable } from '@nestjs/common';
 import { toZonedTime } from 'date-fns-tz';
 import {
+  BillingConceptValidity,
+  ConnectionBenefitSQLResult,
   HistorialAjusteLecturaSqlResult,
   PendingReadingConnectionSQLResult,
   RangoTarifaSQLResult,
@@ -42,6 +44,11 @@ import {
   HistorialAjusteLectura,
   MapRouteFeatureCollection,
 } from '../../../../domain/schemas/response/map-geojson';
+import {
+  RateConnectionModel,
+  RateRangeModel,
+} from '../../../../domain/schemas/model/calculate-reading-value.model';
+import { ConnectionBenefitModel } from '../../../../domain/schemas/model/connection-benefit.model';
 
 @Injectable()
 export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository {
@@ -547,8 +554,10 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
             tasa_alcantarillado = $2,
             lectura_actual = $3,
             novedad = $4,
-            tipo_novedad_lectura_id = $5
-        WHERE lectura_id = $6
+            tipo_novedad_lectura_id = $5,
+            consumo_m3 = $6,
+            total = $7
+        WHERE lectura_id = $8
         RETURNING
           lectura_id as "reading_id",
           acometida_id as "connection_id",
@@ -564,7 +573,9 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
           codigo_ingreso_renta as "rental_income_code",
           novedad as "novelty",
           codigo_ingreso as "income_code",
-          codigo_lectura as "reading_code";
+          codigo_lectura as "reading_code",
+          consumo_m3 as "consumption_m3",
+          total as "total_value";
       `;
       const updateParams = [
         reading.readingValue ?? 0,
@@ -572,6 +583,8 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
         reading.currentReading ?? 0,
         reading.novelty ?? 'NO NOVELTY',
         reading.typeNoveltyReadingId ?? 1,
+        reading.consumptionM3 ?? 0,
+        reading.totalValue ?? 0,
         readingId,
       ];
 
@@ -643,8 +656,10 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
             lectura_actual = $3,
             lectura_anterior = $4,
             novedad = $5,
-            tipo_novedad_lectura_id = $6
-        WHERE lectura_id = $7
+            tipo_novedad_lectura_id = $6,
+            consumo_m3 = $7,
+            total = $8
+        WHERE lectura_id = $9
         RETURNING
           lectura_id as "reading_id",
           acometida_id as "connection_id",
@@ -660,7 +675,9 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
           codigo_ingreso_renta as "rental_income_code",
           novedad as "novelty",
           codigo_ingreso as "income_code",
-          codigo_lectura as "reading_code";
+          codigo_lectura as "reading_code",
+          consumo_m3 as "consumption_m3",
+          total as "total_value";
       `;
       const updateParams = [
         reading.readingValue ?? 0,
@@ -669,6 +686,8 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
         reading.previousReading ?? 0,
         reading.novelty ?? 'NO NOVELTY',
         reading.typeNoveltyReadingId ?? 1,
+        reading.consumptionM3 ?? 0,
+        reading.totalValue ?? 0,
         readingId,
       ];
 
@@ -847,10 +866,12 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
             INSERT INTO lectura(
               acometida_id, fecha_lectura, hora_lectura, sector, cuenta, clave_catastral,
               valor_lectura, tasa_alcantarillado, lectura_anterior, lectura_actual,
-              codigo_ingreso_renta, novedad, codigo_ingreso, tipo_novedad_lectura_id, lectura_estado_id, mes_lectura,observacion, ubicacion_captura
+              codigo_ingreso_renta, novedad, codigo_ingreso, tipo_novedad_lectura_id, lectura_estado_id, mes_lectura,observacion, ubicacion_captura, consumo_m3, total
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17,
               CASE WHEN $18::double precision IS NOT NULL AND $19::double precision IS NOT NULL
-                 THEN ST_SetSRID(ST_MakePoint($19, $18), 4326) ELSE NULL END
+                 THEN ST_SetSRID(ST_MakePoint($19, $18), 4326) ELSE NULL END,
+              $20::double precision,
+              $21::double precision
             )
             RETURNING
               lectura_id as "reading_id",
@@ -906,6 +927,8 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
             observationFinal,
             reading.locationCapture?.lat ?? null,
             reading.locationCapture?.lng ?? null,
+            reading.consumptionM3 ?? 0,
+            reading.totalValue ?? 0,
           ]);
 
           if (!insertRows[0]) throw new Error('Error al insertar la lectura.');
@@ -1629,119 +1652,146 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
     );
   }
 
-  async calculateReadingValue(
-    cadastralKey: string,
-    consumptionM3: number,
-  ): Promise<number> {
+  async getRateConnection(cadastralKey: string): Promise<RateConnectionModel> {
     try {
-      // 1. Obtener la tarifa de la acometida
-      if (consumptionM3 < 0) {
-        return 0;
-      }
-      const queryAcometida = /*sql*/ `
-        SELECT cat.categoria_id FROM acometida a
-          INNER JOIN tarifa t
-          ON a.tarifa_id = t.tarifa_id
-          INNER JOIN categoria cat ON cat.categoria_id = t.categoria_id
-          WHERE acometida_id = $1;
-    `;
-
-      const queryParams: any[] = [cadastralKey];
-
-      const resultAcometida = await this.databaseService.query<TarifaSQLResult>(
-        queryAcometida,
-        queryParams,
+      const query = /*sql*/ `
+      SELECT cat.categoria_id AS "categoryId", cat.nombre AS "categoryName" FROM acometida a
+        INNER JOIN tarifa t
+        ON a.tarifa_id = t.tarifa_id
+        INNER JOIN categoria cat ON cat.categoria_id = t.categoria_id
+        WHERE acometida_id = $1;
+      `;
+      const result = await this.databaseService.query<RateConnectionModel>(
+        query,
+        [cadastralKey],
       );
-
-      if (resultAcometida.length === 0) {
-        console.warn(
-          `No se encontró acometida para la clave catastral: ${cadastralKey}`,
-        );
-        return 0;
-      }
-
-      const tarifa: number = Number(resultAcometida[0].categoria_id);
-
-      // 2. Obtener los rangos de tarifas
-      const queryTarifas = /*sql*/ `
-        SELECT
-            minimo AS "Minimo",
-            maximo AS "Maximo",
-            base AS "Base",
-            adicional AS "Adicional"
-        FROM valor_tarifa
-        WHERE id_categoria = $1
-        ORDER BY minimo ASC;
-    `;
-
-      const queryParamsTarifas: any[] = [tarifa];
-
-      const resultTarifas =
-        await this.databaseService.query<RangoTarifaSQLResult>(
-          queryTarifas,
-          queryParamsTarifas,
-        );
-
-      if (resultTarifas.length === 0) {
-        console.warn(`No se encontraron rangos para la tarifa: ${tarifa}`);
-        return 0;
-      }
-
-      let min = 0;
-      let max = 0;
-      let bas = 0;
-      let adic = 0;
-      let bMinimo = 0;
-      let bMaximo = 0;
-
-      // Tomamos el primer y último para mensajes de error
-      bMinimo = resultTarifas[0].Minimo;
-      bMaximo = resultTarifas[resultTarifas.length - 1].Maximo;
-
-      // Buscar el rango correspondiente
-      for (const row of resultTarifas) {
-        const minimo = Number(row.Minimo);
-        const maximo = Number(row.Maximo);
-
-        if (consumptionM3 >= minimo && consumptionM3 <= maximo) {
-          min = minimo;
-          max = maximo;
-          bas = Number(row.Base);
-          adic = Number(row.Adicional);
-          break; // encontrado → salimos
-        }
-      }
-
-      // Si no encontró ningún rango válido
-      if (bas === 0) {
-        console.warn(
-          `Consumo ${consumptionM3} m³ fuera de rango para la clave catastral '${cadastralKey}' - Tarifa '${tarifa}'. ` +
-            `Rango permitido: ${bMinimo} a ${bMaximo} m³. Consulte el pliego tarifario.`,
-        );
-        // Aquí podrías lanzar un error o mostrar un mensaje en UI
-        // alert(...) si estás en frontend, pero como es función, retornamos 0
-        return 0;
-      }
-
-      // Cálculo final
-      let valorPagar: number;
-
-      if (consumptionM3 >= 0 && consumptionM3 <= 10) {
-        valorPagar = bas;
-      } else {
-        // valor base + adicional por m³ extras (a partir de min - 1)
-        const m3Adicionales = consumptionM3 - (min - 1);
-        valorPagar = bas + m3Adicionales * adic;
-      }
-
-      console.log(
-        `Valor a pagar calculado para la clave catastral '${cadastralKey}': ${valorPagar} (Consumo: ${consumptionM3} m³, Tarifa: ${tarifa}, Rango: ${min}-${max}, Base: ${bas}, Adicional: ${adic})`,
-      );
-
-      return valorPagar;
+      return result[0];
     } catch (error) {
-      console.error('Error al calcular ValorPagarConsumo:', error);
-      throw error; // o retornar 0 según tu política
+      console.error('[ERROR] Error al obtener RateConnection:', error);
+      throw error;
+    }
+  }
+
+  async getRateRange(tarifaId: number): Promise<RateRangeModel[]> {
+    try {
+      const query = /*sql*/ `
+      SELECT
+          CONCAT(nombre, '-V-',id) AS "versionSheet",
+          minimo AS "min",
+          maximo AS "max",
+          base AS "base",
+          adicional AS "additional"
+      FROM valor_tarifa
+      WHERE id_categoria = $1
+      ORDER BY minimo ASC;
+      `;
+      const result = await this.databaseService.query<RateRangeModel>(query, [
+        tarifaId,
+      ]);
+      return result;
+    } catch (error) {
+      console.error('[ERROR] Error al obtener RateRange:', error);
+      throw error;
+    }
+  }
+
+  async getBillingConceptValidity(): Promise<BillingConceptValidity[]> {
+    try {
+      const query = /*sql*/ `
+        SELECT
+            cc.id_concepto        AS "conceptId",
+            cc.codigo             AS "code",
+            cc.nombre             AS "name",
+            cc.descripcion        AS "description",
+            vcc.valor_default     AS "defaultValue",
+            vcc.activo            AS "isActive",
+            vcc.porcentaje_agua   AS "waterPercentage",
+            CONCAT(cc.codigo, '-V-', vcc.id_vigencia_concepto_cobro) AS "versionSheet",
+            vcc.id_vigencia_concepto_cobro AS "validityConceptId"
+        FROM concepto_cobro cc
+        INNER JOIN vigencia_concepto_cobro vcc
+            ON cc.id_concepto = vcc.concepto_cobro_id
+        WHERE vcc.activo IS TRUE;
+      `;
+      const result = await this.databaseService.query<BillingConceptValidity>(
+        query,
+        [],
+      );
+      return result;
+    } catch (error) {
+      console.error('[ERROR] Error al obtener BillingConceptValidity:', error);
+      throw error;
+    }
+  }
+
+  async getActiveBenefitsByCadastralKey(
+    cadastralKey: string,
+  ): Promise<ConnectionBenefitModel[]> {
+    try {
+      const query = /*sql*/ `
+        SELECT 
+          ab.id_acometida_beneficio AS "id",
+          ab.acometida_id AS "connectionId",
+          ab.cliente_id AS "clientId",
+          ab.tipo_beneficio_id AS "benefitTypeId",
+          ab.concepto_cobro_id AS "conceptId",
+          cc.codigo AS "conceptCode",
+          ctb.codigo AS "benefitTypeCode",
+          ctb.nombre AS "benefitTypeName",
+          ab.grupo_beneficio AS "benefitGroup",
+          ab.es_acumulable AS "isCumulative",
+          COALESCE(
+            vtb.porcentaje_fijo,
+            edd.porcentaje_descuento,
+            0.00
+          ) AS "porcentaje_descuento_efectivo",
+          vtb.limite_m3_subsidio AS "limite_m3_subsidio",
+          vtb.codigo_version AS "codigo_version",
+          vtb.aplica_sobre_concepto AS "aplica_sobre_concepto",
+          vtb.subsidia_alcantarillado AS "subsidia_alcantarillado",
+          ab.porcentaje_discapacidad AS "porcentaje_discapacidad"
+        FROM acometida_beneficio ab
+        JOIN cat_tipo_beneficio ctb ON ctb.id_tipo_beneficio = ab.tipo_beneficio_id
+        JOIN concepto_cobro cc ON cc.id_concepto = ab.concepto_cobro_id
+        LEFT JOIN LATERAL (
+          SELECT vtb_sub.*
+          FROM vigencia_tipo_beneficio vtb_sub
+          WHERE vtb_sub.tipo_beneficio_id = ctb.id_tipo_beneficio
+            AND vtb_sub.activo IS TRUE
+            AND (vtb_sub.fecha_hasta IS NULL OR vtb_sub.fecha_hasta >= CURRENT_DATE)
+            AND vtb_sub.fecha_desde <= CURRENT_DATE
+          ORDER BY vtb_sub.fecha_desde DESC
+          LIMIT 1
+        ) vtb ON true
+        LEFT JOIN LATERAL (
+          SELECT edd_sub.*
+          FROM escala_descuento_discapacidad edd_sub
+          WHERE edd_sub.vigencia_tipo_beneficio_id = vtb.id_vigencia_tipo_beneficio
+            AND edd_sub.activo IS TRUE
+            AND ab.porcentaje_discapacidad >= edd_sub.grado_minimo
+            AND ab.porcentaje_discapacidad <= edd_sub.grado_maximo
+          ORDER BY edd_sub.porcentaje_descuento DESC
+          LIMIT 1
+        ) edd ON true
+        WHERE (ab.acometida_id = $1 OR EXISTS (SELECT 1 FROM acometida a WHERE a.clave_catastral = $1 AND a.acometida_id = ab.acometida_id))
+          AND ab.estado = 'ACTIVO'
+          AND ab.fecha_inicio <= CURRENT_DATE
+          AND (ab.fecha_fin IS NULL OR ab.fecha_fin >= CURRENT_DATE)
+          AND (ab.fecha_vencimiento IS NULL OR ab.fecha_vencimiento >= CURRENT_DATE);
+      `;
+      const rows = await this.databaseService.query<ConnectionBenefitSQLResult>(
+        query,
+        [cadastralKey],
+      );
+      return rows.map((r) =>
+        ReadingSQLAdapter.fromConnectionBenefitSQLResultToModel(r),
+      );
+    } catch (error) {
+      console.error(
+        `[ERROR] Error al obtener beneficios activos para clave catastral "${cadastralKey}":`,
+        error,
+      );
+      throw error;
     }
   }
 
@@ -1888,234 +1938,292 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
   ): Promise<ReadingDetailedModel | null> {
     try {
       const query = /*sql*/ `
-WITH vars AS (
-    -- 0. AQUI DEFINES TU VARIABLE
-    SELECT $1::varchar(10) AS cadastralKey,
-           $2::varchar(7) AS yearAndMonth
-),
-ultima_lectura_valida AS (
-    -- 1. Traemos la última lectura (añadidos novedad y observacion)
-    SELECT
-      l.lectura_id,
-      l.acometida_id,
-      l.fecha_lectura,
-      l.hora_lectura,
-      l.lectura_anterior,
-      l.lectura_actual,
-      l.valor_lectura,
-      l.mes_lectura,
-      l.novedad,      -- << Añadido para mostrar en el SELECT final
-      l.observacion,  -- << Añadido para mostrar en el SELECT final
-      date_trunc('month', l.fecha_lectura)::date AS mes_lectura_trunc,
-      l.ubicacion_captura
-    FROM lectura l
-    WHERE l.acometida_id = (SELECT cadastralKey FROM vars)
-      AND l.mes_lectura = (SELECT yearAndMonth FROM vars)
-    ORDER BY l.fecha_lectura DESC
-    LIMIT 1
-),
-mes_actual AS (
-    SELECT date_trunc('month', CURRENT_DATE)::date AS mes_hoy
-),
-lectura_mes_actual_existe AS (
-    SELECT
-      EXISTS (
-        SELECT 1 FROM lectura l
-        WHERE l.acometida_id = (SELECT cadastralKey FROM vars)
-          AND date_trunc('month', l.fecha_lectura)::date = date_trunc('month', CURRENT_DATE)::date
-          AND l.novedad NOT ILIKE '%INICIAL AUTOMÁTICA%'
-          AND l.novedad NOT ILIKE '%CAMBIO MEDIDOR%'
-          AND l.novedad NOT ILIKE '%CAMBIO DE MEDIDOR%'
-          AND l.mes_lectura = (SELECT yearAndMonth FROM vars)
-      ) AS ya_tomada_mes_actual
-),
-proximo_mes_esperado AS (
-    SELECT
-      CASE
-        WHEN MAX(l.mes_lectura) IS NULL THEN date_trunc('month', CURRENT_DATE)::date
-        WHEN (to_date(MAX(l.mes_lectura), 'YYYY-MM') + INTERVAL '1 month')::date < date_trunc('month', CURRENT_DATE)::date
-        THEN date_trunc('month', CURRENT_DATE)::date
-        ELSE (to_date(MAX(l.mes_lectura), 'YYYY-MM') + INTERVAL '1 month')::date
-      END AS mes_que_toca
-    FROM lectura l
-    WHERE l.acometida_id = (SELECT cadastralKey FROM vars)
-      AND l.novedad NOT ILIKE '%INICIAL AUTOMÁTICA%'
-      AND l.novedad NOT ILIKE '%CAMBIO MEDIDOR%'
-      AND l.novedad NOT ILIKE '%CAMBIO DE MEDIDOR%'
-      AND l.mes_lectura = (SELECT yearAndMonth FROM vars)
-),
-periodo AS (
-    SELECT
-      COALESCE(sl.fecha_inicio_periodo, CURRENT_DATE - INTERVAL '1 month') AS inicio,
-      sl.fecha_siguiente_lectura AS fecha_mitad,
-      COALESCE(sl.fecha_fin_periodo, CURRENT_DATE + INTERVAL '1 month') AS fin
-    FROM siguiente_lectura sl
-    WHERE sl.acometida_id = (SELECT cadastralKey FROM vars)
-),
-lectura_en_periodo AS (
-    SELECT
-      p.inicio,
-      p.fin,
-      (CURRENT_DATE BETWEEN p.inicio AND p.fin) AS en_periodo,
-      EXISTS (
-        SELECT 1 FROM lectura l2
-        WHERE l2.acometida_id = (SELECT cadastralKey FROM vars)
-          AND l2.fecha_lectura::date >= COALESCE(p.fecha_mitad, p.inicio)::date
-          AND l2.novedad NOT ILIKE '%INICIAL AUTOMÁTICA%'
-          AND l2.novedad NOT ILIKE '%CAMBIO MEDIDOR%'
-          AND l2.novedad NOT ILIKE '%CAMBIO DE MEDIDOR%'
-          AND l2.mes_lectura = (SELECT yearAndMonth FROM vars)
-      ) AS ya_tomada_en_periodo_actual
-    FROM periodo p
-)
+              WITH vars AS (
+                  -- 0. AQUI DEFINES TU VARIABLE
+                SELECT $1::varchar(10) AS cadastralKey,
+                      $2::varchar(7) AS yearAndMonth
+              ),
+              ultima_lectura_valida AS (
+                  -- 1. Traemos la última lectura (añadidos novedad y observacion)
+                  SELECT
+                    l.lectura_id,
+                    l.codigo_lectura,
+                    l.acometida_id,
+                    l.fecha_lectura,
+                    l.hora_lectura,
+                    l.lectura_anterior,
+                    l.lectura_actual,
+                    l.valor_lectura,
+                    l.total,
+                    l.mes_lectura,
+                    l.novedad,      -- << Añadido para mostrar en el SELECT final
+                    l.observacion,  -- << Añadido para mostrar en el SELECT final
+                    date_trunc('month', l.fecha_lectura)::date AS mes_lectura_trunc,
+                    l.ubicacion_captura
+                  FROM lectura l
+                  WHERE l.acometida_id = (SELECT cadastralKey FROM vars)
+                    AND l.mes_lectura = (SELECT yearAndMonth FROM vars)
+                  ORDER BY l.fecha_lectura DESC
+                  LIMIT 1
+              ),
+              mes_actual AS (
+                  SELECT date_trunc('month', CURRENT_DATE)::date AS mes_hoy
+              ),
+              lectura_mes_actual_existe AS (
+                  SELECT
+                    EXISTS (
+                      SELECT 1 FROM lectura l
+                      WHERE l.acometida_id = (SELECT cadastralKey FROM vars)
+                        AND date_trunc('month', l.fecha_lectura)::date = date_trunc('month', CURRENT_DATE)::date
+                        AND l.novedad NOT ILIKE '%INICIAL AUTOMÁTICA%'
+                        AND l.novedad NOT ILIKE '%CAMBIO MEDIDOR%'
+                        AND l.novedad NOT ILIKE '%CAMBIO DE MEDIDOR%'
+                        AND l.mes_lectura = (SELECT yearAndMonth FROM vars)
+                    ) AS ya_tomada_mes_actual
+              ),
+              proximo_mes_esperado AS (
+                  SELECT
+                    CASE
+                      WHEN MAX(l.mes_lectura) IS NULL THEN date_trunc('month', CURRENT_DATE)::date
+                      WHEN (to_date(MAX(l.mes_lectura), 'YYYY-MM') + INTERVAL '1 month')::date < date_trunc('month', CURRENT_DATE)::date
+                      THEN date_trunc('month', CURRENT_DATE)::date
+                      ELSE (to_date(MAX(l.mes_lectura), 'YYYY-MM') + INTERVAL '1 month')::date
+                    END AS mes_que_toca
+                  FROM lectura l
+                  WHERE l.acometida_id = (SELECT cadastralKey FROM vars)
+                    AND l.novedad NOT ILIKE '%INICIAL AUTOMÁTICA%'
+                    AND l.novedad NOT ILIKE '%CAMBIO MEDIDOR%'
+                    AND l.novedad NOT ILIKE '%CAMBIO DE MEDIDOR%'
+                    AND l.mes_lectura = (SELECT yearAndMonth FROM vars)
+              ),
+              periodo AS (
+                  SELECT
+                    COALESCE(sl.fecha_inicio_periodo, CURRENT_DATE - INTERVAL '1 month') AS inicio,
+                    sl.fecha_siguiente_lectura AS fecha_mitad,
+                    COALESCE(sl.fecha_fin_periodo, CURRENT_DATE + INTERVAL '1 month') AS fin
+                  FROM siguiente_lectura sl
+                  WHERE sl.acometida_id = (SELECT cadastralKey FROM vars)
+              ),
+              lectura_en_periodo AS (
+                  SELECT
+                    p.inicio,
+                    p.fin,
+                    (CURRENT_DATE BETWEEN p.inicio AND p.fin) AS en_periodo,
+                    EXISTS (
+                      SELECT 1 FROM lectura l2
+                      WHERE l2.acometida_id = (SELECT cadastralKey FROM vars)
+                        AND l2.fecha_lectura::date >= COALESCE(p.fecha_mitad, p.inicio)::date
+                        AND l2.novedad NOT ILIKE '%INICIAL AUTOMÁTICA%'
+                        AND l2.novedad NOT ILIKE '%CAMBIO MEDIDOR%'
+                        AND l2.novedad NOT ILIKE '%CAMBIO DE MEDIDOR%'
+                        AND l2.mes_lectura = (SELECT yearAndMonth FROM vars)
+                    ) AS ya_tomada_en_periodo_actual
+                  FROM periodo p
+              )
 
--- ==========================================
--- RESULTADO FINAL CON IMÁGENES Y CÁLCULOS
--- ==========================================
-SELECT
-  l.lectura_id AS "reading_id",
-  l.fecha_lectura AS "reading_date",
-  l.hora_lectura AS "reading_time",
-  ac.acometida_id AS "cadastral_key",
-  c.cliente_id AS "card_id",
-  COALESCE(ci.nombres || ' ' || ci.apellidos, e.razon_social) AS "client_name",
-  cc.phones AS "client_phones",
-  cc.correos AS "client_emails",
-  ac.direccion AS address,
-  l.lectura_anterior AS "previous_reading",
-  l.lectura_actual AS "current_reading",
-  l.valor_lectura AS "reading_value",
-  ac.sector,
-  ac.cuenta AS account,
-  cp.average_consumption AS "average_consumption",
-  ac.numero_medidor AS "meter_number",
-  ac.tarifa_id AS "rate_id",
-  ct.nombre AS "rate_name",
+              -- ==========================================
+              -- RESULTADO FINAL CON IMÁGENES Y CÁLCULOS
+              -- ==========================================
+              SELECT
+                l.lectura_id AS "reading_id",
+                l.codigo_lectura AS "reading_code",
+                l.fecha_lectura AS "reading_date",
+                l.hora_lectura AS "reading_time",
+                ac.acometida_id AS "cadastral_key",
+                c.cliente_id AS "card_id",
+                COALESCE(ci.nombres || ' ' || ci.apellidos, e.razon_social) AS "client_name",
+                cc.phones AS "client_phones",
+                cc.correos AS "client_emails",
+                ac.direccion AS address,
+                l.lectura_anterior AS "previous_reading",
+                l.lectura_actual AS "current_reading",
+                l.valor_lectura AS "reading_value",
+                l.total AS "total_epaa",
+                ac.sector,
+                ac.cuenta AS account,
+                cp.average_consumption AS "average_consumption",
+                ac.numero_medidor AS "meter_number",
+                ac.tarifa_id AS "rate_id",
+                ct.nombre AS "rate_name",
 
-  -- ==========================================
-  -- 📸 IMÁGENES Y CAMPOS SOLICITADOS
-  -- ==========================================
-  (
-    SELECT jsonb_agg(
-           json_build_object(
-            'id', fl.foto_lectura_id,
-            'path', fl.imagen_url,
-            'novelty', fl.descripcion
-           )
-        )
-    FROM foto_lectura fl
-    WHERE fl.lectura_id = l.lectura_id
-  ) AS "images",
+                -- ==========================================
+                -- 📸 IMÁGENES Y CAMPOS SOLICITADOS
+                -- ==========================================
+                (
+                  SELECT jsonb_agg(
+                        json_build_object(
+                          'id', fl.foto_lectura_id,
+                          'path', fl.imagen_url,
+                          'novelty', fl.descripcion
+                        )
+                      )
+                  FROM foto_lectura fl
+                  WHERE fl.lectura_id = l.lectura_id
+                ) AS "images",
 
-  l.mes_lectura AS "reading_month",
-  substring(l.mes_lectura FROM 1 FOR 4)::integer AS "reading_year",
-  CASE substring(l.mes_lectura FROM 6 FOR 2)::integer
-      WHEN 1  THEN 'ENERO'
-      WHEN 2  THEN 'FEBRERO'
-      WHEN 3  THEN 'MARZO'
-      WHEN 4  THEN 'ABRIL'
-      WHEN 5  THEN 'MAYO'
-      WHEN 6  THEN 'JUNIO'
-      WHEN 7  THEN 'JULIO'
-      WHEN 8  THEN 'AGOSTO'
-      WHEN 9  THEN 'SEPTIEMBRE'
-      WHEN 10 THEN 'OCTUBRE'
-      WHEN 11 THEN 'NOVIEMBRE'
-      WHEN 12 THEN 'DICIEMBRE'
-      ELSE 'Mes inválido'
-  END AS "reading_month_name",
-  l.novedad AS "novelty",
-  (l.lectura_actual - l.lectura_anterior) AS "consumption",
-  l.observacion AS "observation",
-  -- ==========================================
-  -- LÓGICA DE NEGOCIO
-  CASE
-    WHEN pme.mes_que_toca = ma.mes_hoy
-        AND NOT COALESCE(lmae.ya_tomada_mes_actual, false)
-    THEN true
-    ELSE false
-  END AS "has_current_reading",
+                l.mes_lectura AS "reading_month",
+                substring(l.mes_lectura FROM 1 FOR 4)::integer AS "reading_year",
+                CASE substring(l.mes_lectura FROM 6 FOR 2)::integer
+                    WHEN 1  THEN 'ENERO'
+                    WHEN 2  THEN 'FEBRERO'
+                    WHEN 3  THEN 'MARZO'
+                    WHEN 4  THEN 'ABRIL'
+                    WHEN 5  THEN 'MAYO'
+                    WHEN 6  THEN 'JUNIO'
+                    WHEN 7  THEN 'JULIO'
+                    WHEN 8  THEN 'AGOSTO'
+                    WHEN 9  THEN 'SEPTIEMBRE'
+                    WHEN 10 THEN 'OCTUBRE'
+                    WHEN 11 THEN 'NOVIEMBRE'
+                    WHEN 12 THEN 'DICIEMBRE'
+                    ELSE 'Mes inválido'
+                END AS "reading_month_name",
+                l.novedad AS "novelty",
+                (l.lectura_actual - l.lectura_anterior) AS "consumption",
+                l.observacion AS "observation",
+                -- ==========================================
+                -- LÓGICA DE NEGOCIO
+                CASE
+                  WHEN pme.mes_que_toca = ma.mes_hoy
+                      AND NOT COALESCE(lmae.ya_tomada_mes_actual, false)
+                  THEN true
+                  ELSE false
+                END AS "has_current_reading",
 
-  -- DEBUG
-  pme.mes_que_toca AS "next_month_to_take_debug",
-  ma.mes_hoy AS "current_month_debug",
-  COALESCE(lmae.ya_tomada_mes_actual, false) AS "already_taken_current_month_debug",
-  l.mes_lectura_trunc AS "reading_month_debug",
-  lep.inicio AS "start_date_period",
-  lep.fin AS "end_date_period",
-  COALESCE(lep.en_periodo, false) AS "in_period_debug",
-  est.id_estado AS "connection_state_id",
-  est.nombre AS "connection_state_name",
-  est.permite_lectura AS "permit_reading",
-  CASE
-    WHEN ac.coordenadas IS NOT NULL THEN
-      json_build_object('lat', ST_Y(ac.coordenadas), 'lng', ST_X(ac.coordenadas))
-      ELSE NULL
-  END as "connection_location",
-  CASE
-    WHEN l.ubicacion_captura IS NOT NULL THEN
-      json_build_object('lat', ST_Y(l.ubicacion_captura), 'lng', ST_X(l.ubicacion_captura))
-      ELSE NULL
-  END as "reading_location",
-  (
-    SELECT jsonb_agg(
-        json_build_object(
-            'id', ob.observacion_id,
-            'title', ob.titulo_observacion,
-            'observation', ob.detalle_observacion
-        )
-    ) FROM observacion ob inner join observacion_lectura ol
-      on ob.observacion_id = ol.observacion_id
-      where l.lectura_id = ol.lectura_id
-  ) AS observations,
-    COALESCE(
-        (
-          SELECT jsonb_agg(
-            json_build_object(
-              'username', u.username,
-              'card_id', emp.ciudadano_id,
-              'action', COALESCE(cat.name, 'Update'),
-              'first_name', emp.nombres,
-              'last_name', emp.apellidos,
-              'justification', hal.justificacion,
-              'previous_reading', hal.lectura_anterior_previa,
-              'new_reading', hal.lectura_actual_nueva,
-              'previous_consumption', hal.consumo_previo,
-              'new_consumption', hal.consumo_nuevo,
-              'approval_status', hal.estado_aprobacion,
-              'adjustment_date', hal.created_at
-            ) ORDER BY hal.created_at DESC NULLS LAST
-          )
-          FROM historial_ajuste_lectura hal
-          LEFT JOIN usuarios u ON u.usuario_id = hal.usuario_id
-          LEFT JOIN empleados emp ON emp.usuario_id = hal.usuario_id
-          LEFT JOIN LATERAL (
-            SELECT action_type_id
-            FROM usuario_lectura ul
-            WHERE ul.lectura_id = hal.lectura_id AND ul.usuario_id = hal.usuario_id
-            ORDER BY ul.created_at DESC LIMIT 1
-          ) ul_latest ON true
-          LEFT JOIN cat_action_types cat ON cat.id = ul_latest.action_type_id
-          WHERE hal.lectura_id = l.lectura_id
-        ),
-        '[]'::jsonb
-    ) AS user_actions
+                -- DEBUG
+                pme.mes_que_toca AS "next_month_to_take_debug",
+                ma.mes_hoy AS "current_month_debug",
+                COALESCE(lmae.ya_tomada_mes_actual, false) AS "already_taken_current_month_debug",
+                l.mes_lectura_trunc AS "reading_month_debug",
+                lep.inicio AS "start_date_period",
+                lep.fin AS "end_date_period",
+                COALESCE(lep.en_periodo, false) AS "in_period_debug",
+                est.id_estado AS "connection_state_id",
+                est.nombre AS "connection_state_name",
+                est.permite_lectura AS "permit_reading",
+                CASE
+                  WHEN ac.coordenadas IS NOT NULL THEN
+                    json_build_object('lat', ST_Y(ac.coordenadas), 'lng', ST_X(ac.coordenadas))
+                    ELSE NULL
+                END as "connection_location",
+                CASE
+                  WHEN l.ubicacion_captura IS NOT NULL THEN
+                    json_build_object('lat', ST_Y(l.ubicacion_captura), 'lng', ST_X(l.ubicacion_captura))
+                    ELSE NULL
+                END as "reading_location",
+                (
+                  SELECT jsonb_agg(
+                      json_build_object(
+                          'id', ob.observacion_id,
+                          'title', ob.titulo_observacion,
+                          'observation', ob.detalle_observacion
+                      )
+                  ) FROM observacion ob inner join observacion_lectura ol
+                    on ob.observacion_id = ol.observacion_id
+                    where l.lectura_id = ol.lectura_id
+                ) AS observations,
+                  COALESCE(
+                      (
+                        SELECT jsonb_agg(
+                          json_build_object(
+                            'username', u.username,
+                            'card_id', emp.ciudadano_id,
+                            'action', COALESCE(cat.name, 'Update'),
+                            'first_name', emp.nombres,
+                            'last_name', emp.apellidos,
+                            'justification', hal.justificacion,
+                            'previous_reading', hal.lectura_anterior_previa,
+                            'new_reading', hal.lectura_actual_nueva,
+                            'previous_consumption', hal.consumo_previo,
+                            'new_consumption', hal.consumo_nuevo,
+                            'approval_status', hal.estado_aprobacion,
+                            'adjustment_date', hal.created_at
+                          ) ORDER BY hal.created_at DESC NULLS LAST
+                        )
+                        FROM historial_ajuste_lectura hal
+                        LEFT JOIN usuarios u ON u.usuario_id = hal.usuario_id
+                        LEFT JOIN empleados emp ON emp.usuario_id = hal.usuario_id
+                        LEFT JOIN LATERAL (
+                          SELECT action_type_id
+                          FROM usuario_lectura ul
+                          WHERE ul.lectura_id = hal.lectura_id AND ul.usuario_id = hal.usuario_id
+                          ORDER BY ul.created_at DESC LIMIT 1
+                        ) ul_latest ON true
+                        LEFT JOIN cat_action_types cat ON cat.id = ul_latest.action_type_id
+                        WHERE hal.lectura_id = l.lectura_id
+                      ),
+                      '[]'::jsonb
+                  ) AS user_actions,
 
-FROM ultima_lectura_valida l
-CROSS JOIN proximo_mes_esperado pme
-CROSS JOIN mes_actual ma
-CROSS JOIN lectura_mes_actual_existe lmae
-LEFT JOIN periodo p ON true
-LEFT JOIN lectura_en_periodo lep ON true
-JOIN acometida ac ON ac.acometida_id = l.acometida_id
-LEFT JOIN cat_estados_acometida est ON ac.estado_id = est.id_estado
-LEFT JOIN cliente c ON c.cliente_id = ac.cliente_id
-LEFT JOIN ciudadano ci ON ci.ciudadano_id = c.cliente_id
-LEFT JOIN empresa e ON e.ruc = c.cliente_id
-LEFT JOIN tarifa t ON t.tarifa_id = ac.tarifa_id
-LEFT JOIN categoria ct ON ct.categoria_id = t.categoria_id
-LEFT JOIN consumo_promedio cp ON cp.acometida_id = ac.acometida_id
-LEFT JOIN cliente_contacto cc ON cc.cliente_id = c.cliente_id;
+                -- =====================================================
+                -- 💰 DETALLE DE CONCEPTOS COBRADOS (AGUA, ALCANTARILLADO, ETC.)
+                -- =====================================================
+                COALESCE(
+                  (
+                    SELECT jsonb_agg(
+                      json_build_object(
+                        'concept_id', dcl.concepto_id,
+                        'code', ccob.codigo,
+                        'name', ccob.nombre,
+                        'description', ccob.descripcion,
+                        'calculation_type', ccob.tipo_calculo,
+                        'is_company_service', ccob.es_servicio_empresa,
+                        'order', ccob.orden,
+                        'tariff_version', dcl.pliego_version,
+                        'amount', dcl.valor,
+                        'calculation_base', dcl.base_calculo,
+                        'percentage_applied', CASE 
+                          WHEN ccob.tipo_calculo = 'DESCUENTO' AND dcl.base_calculo > 0 THEN 
+                            ROUND(ABS(dcl.valor) / dcl.base_calculo, 4)
+                          ELSE vcc.porcentaje_agua 
+                        END,
+                        'default_value', vcc.valor_default,
+                        'formula', dcl.formula
+                      ) ORDER BY ccob.orden ASC
+                    )
+                    FROM detalle_concepto_lectura dcl
+                    JOIN concepto_cobro ccob ON ccob.id_concepto = dcl.concepto_id
+                    LEFT JOIN vigencia_concepto_cobro vcc ON vcc.id_vigencia_concepto_cobro = dcl.vigencia_concepto_id
+                    WHERE dcl.lectura_id = l.lectura_id
+                  ),
+                  '[]'::jsonb
+                ) AS "concept_details",
+
+                -- =====================================================
+                -- 💧 DESGLOSE DE CÁLCULO TARIFARIO DE AGUA
+                -- =====================================================
+                (
+                  SELECT json_build_object(
+                    'category_id', lcva.categoria_id,
+                    'rate_name', lcva.nombre_tarifa,
+                    'min_range', lcva.rango_minimo,
+                    'max_range', lcva.rango_maximo,
+                    'applied_base', lcva.base_aplicada,
+                    'additional_m3_rate', lcva.valor_adicional_m3,
+                    'additional_m3', lcva.m3_adicionales,
+                    'water_amount', lcva.valor_agua,
+                    'formula', lcva.formula,
+                    'tariff_version', lcva.pliego_version
+                  )
+                  FROM lectura_calculo_valor_agua lcva
+                  WHERE lcva.lectura_id = l.lectura_id
+                ) AS "water_calculation_breakdown"
+
+              FROM ultima_lectura_valida l
+              CROSS JOIN proximo_mes_esperado pme
+              CROSS JOIN mes_actual ma
+              CROSS JOIN lectura_mes_actual_existe lmae
+              LEFT JOIN periodo p ON true
+              LEFT JOIN lectura_en_periodo lep ON true
+              JOIN acometida ac ON ac.acometida_id = l.acometida_id
+              LEFT JOIN cat_estados_acometida est ON ac.estado_id = est.id_estado
+              LEFT JOIN cliente c ON c.cliente_id = ac.cliente_id
+              LEFT JOIN ciudadano ci ON ci.ciudadano_id = c.cliente_id
+              LEFT JOIN empresa e ON e.ruc = c.cliente_id
+              LEFT JOIN tarifa t ON t.tarifa_id = ac.tarifa_id
+              LEFT JOIN categoria ct ON ct.categoria_id = t.categoria_id
+              LEFT JOIN consumo_promedio cp ON cp.acometida_id = ac.acometida_id
+              LEFT JOIN cliente_contacto cc ON cc.cliente_id = c.cliente_id;
       `;
 
       const result = await this.databaseService.query<ReadingDetailedSQLResult>(

@@ -5,6 +5,8 @@ import { ReadingPersistencePostgreSQL } from '../../repositories/postgresql/pers
 import { ReadingImagesPersistencePostgreSQL } from '../../repositories/postgresql/persistence/reading-images-postgresql.persistence';
 import { environments } from '../../../../../settings/environments/environments';
 import { ObservationReadingPostgreSQLPersistence } from '../../../../observations/infrastructure/repositories/postgresql/persistence/postgresql.observation-reading.persistence';
+import { ReadingBillingBreakdownPostgreSQLPersistence } from '../../repositories/postgresql/persistence/reading-billing-breakdown-postgresql.persistence';
+import { RegisterReadingBillingBreakdownUseCase } from '../../../application/usecases/commands/RegisterReadingBillingBreakdownUseCase';
 import { PhotoReadingPostgreSQLPersistence } from '../../../../images-readings/infrastructure/repositories/postgresql/persistence/postgresql.photo-reading.persistence';
 
 import { CreateReadingUseCase } from '../../../application/usecases/commands/CreateReadingUseCase';
@@ -49,6 +51,15 @@ import { GenerateInitialReadingOnMeterChangeUseCase } from '../../../application
 import { ConnectionEventsKafkaController } from '../../controllers/connection-events-kafka.controller';
 import { GetReadingAdjustmentHistoryByReadingIdUseCase } from '../../../application/usecases/queries/getReadingAdjustmentHistoryByReadingId.use-case';
 import { FindReadingImagesByFilterUseCase } from '../../../application/usecases/queries/FindReadingImagesByFilterUseCase';
+import { ReadingBillingBreakdownRecorder } from '../../../application/services/reading-billing-breakdown-recorder.service';
+import {
+  WaterConceptStrategy,
+  SewerageConceptStrategy,
+  PercentageConceptStrategy,
+  DiscountConceptStrategy,
+  DefaultConceptStrategy,
+  ConceptCalculationStrategyResolver,
+} from '../../../application/strategies/concepts';
 
 @Module({
   controllers: [
@@ -95,6 +106,14 @@ import { FindReadingImagesByFilterUseCase } from '../../../application/usecases/
     GenerateInitialReadingOnMeterChangeUseCase,
     GetReadingAdjustmentHistoryByReadingIdUseCase,
     FindReadingImagesByFilterUseCase,
+    RegisterReadingBillingBreakdownUseCase,
+    ReadingBillingBreakdownRecorder,
+    WaterConceptStrategy,
+    SewerageConceptStrategy,
+    PercentageConceptStrategy,
+    DiscountConceptStrategy,
+    DefaultConceptStrategy,
+    ConceptCalculationStrategyResolver,
 
     {
       provide: 'ReadingRepository',
@@ -115,6 +134,10 @@ import { FindReadingImagesByFilterUseCase } from '../../../application/usecases/
     {
       provide: 'NoveltyRepository',
       useClass: NoveltyPersistencePostgreSQL,
+    },
+    {
+      provide: 'ReadingBillingBreakdownRepository',
+      useClass: ReadingBillingBreakdownPostgreSQLPersistence,
     },
     {
       provide: 'PhotoReadingRepository',

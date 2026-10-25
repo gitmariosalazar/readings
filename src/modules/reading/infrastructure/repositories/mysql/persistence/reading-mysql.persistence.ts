@@ -2,6 +2,7 @@ import { InterfaceReadingRepository } from '../../../../domain/contracts/reading
 import { Injectable } from '@nestjs/common';
 import { toZonedTime } from 'date-fns-tz';
 import {
+  BillingConceptValidity,
   HistorialAjusteLecturaSqlResult,
   PendingReadingConnectionSQLResult,
   RangoTarifaSQLResult,
@@ -42,6 +43,12 @@ import {
   HistorialAjusteLectura,
   MapRouteFeatureCollection,
 } from '../../../../domain/schemas/response/map-geojson';
+import {
+  CalculateReadingValueModel,
+  RateConnectionModel,
+  RateRangeModel,
+} from '../../../../domain/schemas/model/calculate-reading-value.model';
+import { ConnectionBenefitModel } from '../../../../domain/schemas/model/connection-benefit.model';
 
 @Injectable()
 export class ReadingPersistenceMySQL implements InterfaceReadingRepository {
@@ -1177,61 +1184,96 @@ ORDER BY l.fecha_lectura DESC;
   async calculateReadingValue(
     cadastralKey: string,
     consumptionM3: number,
-  ): Promise<number> {
+  ): Promise<CalculateReadingValueModel> {
     try {
-      if (consumptionM3 < 0) {
-        return 0;
-      }
-      // 1. Obtener la tarifa de la acometida
-      const queryAcometida = /*sql*/ `
-          SELECT cat.categoria_id FROM acometida a
-            INNER JOIN tarifa t
-            ON a.tarifa_id = t.tarifa_id
-            INNER JOIN categoria cat ON cat.categoria_id = t.categoria_id
-            WHERE acometida_id = $1;
-      `;
-
-      const queryParams: any[] = [cadastralKey];
-
-      const resultAcometida = await this.databaseService.query<TarifaSQLResult>(
-        queryAcometida,
-        queryParams,
+      console.log('========== [calculateReadingValue] INICIO ==========');
+      console.log(
+        `[1] Parámetros recibidos → cadastralKey: "${cadastralKey}", consumptionM3: ${consumptionM3}`,
       );
 
-      if (resultAcometida.length === 0) {
+      // Helper para construir el modelo de respuesta de forma segura
+      const buildData = (
+        overrides: Partial<{
+          waterConsumptionValue: number;
+          baseRate: number;
+          rateName: string;
+          sewerageValue: number;
+          others: number;
+          additionalCost: number;
+          fixedRatePerM3: number;
+          total: number;
+        }> = {},
+      ): CalculateReadingValueModel => {
+        const data = {
+          cadastralKey,
+          consumption: consumptionM3,
+          waterConsumptionValue: 0,
+          baseRate: 0,
+          rateName: '',
+          sewerageValue: 0,
+          others: 0,
+          additionalCost: 0,
+          fixedRatePerM3: 0,
+          total: 0,
+          ...overrides,
+        };
+        console.log('[buildData] Objeto data construido:', data);
+        return new CalculateReadingValueModel(data);
+      };
+
+      // 1. Validación inicial de consumo negativo (antes de cualquier query)
+      if (consumptionM3 < 0) {
         console.warn(
-          `No se encontró acometida para la clave catastral: ${cadastralKey}`,
+          `[1.1] Consumo negativo detectado (${consumptionM3}). Se retorna data en ceros.`,
         );
-        return 0;
+        console.log(
+          '========== [calculateReadingValue] FIN (consumo negativo) ==========',
+        );
+        return buildData();
+      }
+      console.log(`[1.2] Consumo válido (>= 0). Continuando...`);
+
+      const resultAcometida: RateConnectionModel =
+        await this.getRateConnection(cadastralKey);
+      console.log(
+        `[2.2] Resultado queryAcometida (filas: ${resultAcometida ? 1 : 0}):`,
+        resultAcometida,
+      );
+
+      if (!resultAcometida) {
+        console.warn(
+          `[2.3] No se encontró acometida para la clave catastral: ${cadastralKey}`,
+        );
+        console.log(
+          '========== [calculateReadingValue] FIN (sin acometida) ==========',
+        );
+        return buildData();
       }
 
-      const tarifa: number = Number(resultAcometida[0].categoria_id);
+      const tarifa: number = Number(resultAcometida.categoryId);
+      // nombre puede no venir en el SELECT actual; se usa de forma segura
+      const rateName: string = resultAcometida.categoryName;
+      console.log(
+        `[2.4] categoria_id (tarifa) obtenida: ${tarifa} (raw: ${resultAcometida.categoryId}), rateName: "${rateName}"`,
+      );
 
-      // 2. Obtener los rangos de tarifas
-      const queryTarifas = /*sql*/ `
-          SELECT
-              minimo AS "Minimo",
-              maximo AS "Maximo",
-              base AS "Base",
-              adicional AS "Adicional"
-          FROM valor_tarifa
-          WHERE id_categoria = $1
-          ORDER BY minimo ASC;
-      `;
-
-      const queryParamsTarifas: any[] = [tarifa];
-
-      const resultTarifas =
-        await this.databaseService.query<RangoTarifaSQLResult>(
-          queryTarifas,
-          queryParamsTarifas,
-        );
+      const resultTarifas: RateRangeModel[] = await this.getRateRange(tarifa);
+      console.log(
+        `[3.2] Resultado queryTarifas (filas: ${resultTarifas.length}):`,
+        resultTarifas,
+      );
 
       if (resultTarifas.length === 0) {
-        console.warn(`No se encontraron rangos para la tarifa: ${tarifa}`);
-        return 0;
+        console.warn(
+          `[3.3] No se encontraron rangos para la tarifa: ${tarifa}`,
+        );
+        console.log(
+          '========== [calculateReadingValue] FIN (sin rangos) ==========',
+        );
+        return buildData({ rateName });
       }
 
+      // 4. Inicializar variables de rango
       let min = 0;
       let max = 0;
       let bas = 0;
@@ -1239,51 +1281,131 @@ ORDER BY l.fecha_lectura DESC;
       let bMinimo = 0;
       let bMaximo = 0;
 
-      // Tomamos el primer y último para mensajes de error
-      bMinimo = resultTarifas[0].Minimo;
-      bMaximo = resultTarifas[resultTarifas.length - 1].Maximo;
+      bMinimo = resultTarifas[0].min;
+      bMaximo = resultTarifas[resultTarifas.length - 1].max;
 
-      // Buscar el rango correspondiente
-      for (const row of resultTarifas) {
-        const minimo = Number(row.Minimo);
-        const maximo = Number(row.Maximo);
+      for (let i = 0; i < resultTarifas.length; i++) {
+        const row = resultTarifas[i];
+        const minimo = Number(row.min);
+        const maximo = Number(row.max);
 
         if (consumptionM3 >= minimo && consumptionM3 <= maximo) {
           min = minimo;
           max = maximo;
-          bas = Number(row.Base);
-          adic = Number(row.Adicional);
-          break; // encontrado → salimos
+          bas = Number(row.base);
+          adic = Number(row.additional);
+
+          break;
+        } else {
+          console.log(
+            `  [5.${i + 1}.✗] No coincide (consumptionM3 ${consumptionM3} no está entre ${minimo} y ${maximo})`,
+          );
         }
       }
 
-      // Si no encontró ningún rango válido
+      // 6. Validar si se encontró un rango
       if (bas === 0) {
-        console.warn(
-          `Consumo ${consumptionM3} m³ fuera de rango para la clave catastral '${cadastralKey}' - Tarifa '${tarifa}'. ` +
-            `Rango permitido: ${bMinimo} a ${bMaximo} m³. Consulte el pliego tarifario.`,
-        );
-        // Aquí podrías lanzar un error o mostrar un mensaje en UI
-        // alert(...) si estás en frontend, pero como es función, retornamos 0
-        return 0;
+        return buildData({ rateName });
       }
 
-      // Cálculo final
+      // 7. Cálculo final
       let valorPagar: number;
 
       if (consumptionM3 >= 0 && consumptionM3 <= 10) {
         valorPagar = bas;
       } else {
-        // valor base + adicional por m³ extras (a partir de min - 1)
         const m3Adicionales = consumptionM3 - (min - 1);
         valorPagar = bas + m3Adicionales * adic;
       }
-
-      return valorPagar;
+      // 9. Retornar data completa con todos los valores calculados
+      return buildData({
+        waterConsumptionValue: valorPagar,
+        baseRate: bas,
+        rateName,
+        sewerageValue: 0,
+        others: 0,
+        additionalCost: adic,
+        fixedRatePerM3: adic,
+        total: valorPagar,
+      });
     } catch (error) {
-      console.error('Error al calcular ValorPagarConsumo:', error);
-      throw error; // o retornar 0 según tu política
+      throw error;
     }
+  }
+
+  async getRateConnection(cadastralKey: string): Promise<RateConnectionModel> {
+    try {
+      const query = /*sql*/ `
+        SELECT cat.categoria_id AS "categoryId", cat.nombre AS "categoryName" FROM acometida a
+          INNER JOIN tarifa t
+          ON a.tarifa_id = t.tarifa_id
+          INNER JOIN categoria cat ON cat.categoria_id = t.categoria_id
+          WHERE acometida_id = $1;
+        `;
+      const result = await this.databaseService.query<RateConnectionModel>(
+        query,
+        [cadastralKey],
+      );
+      return result[0];
+    } catch (error) {
+      console.error('[ERROR] Error al obtener RateConnection:', error);
+      throw error;
+    }
+  }
+
+  async getRateRange(tarifaId: number): Promise<RateRangeModel[]> {
+    try {
+      const query = /*sql*/ `
+        SELECT
+            minimo AS "min",
+            maximo AS "max",
+            base AS "base",
+            adicional AS "additional"
+        FROM valor_tarifa
+        WHERE id_categoria = $1
+        ORDER BY minimo ASC;
+        `;
+      const result = await this.databaseService.query<RateRangeModel>(query, [
+        tarifaId,
+      ]);
+      return result;
+    } catch (error) {
+      console.error('[ERROR] Error al obtener RateRange:', error);
+      throw error;
+    }
+  }
+
+  async getBillingConceptValidity(): Promise<BillingConceptValidity[]> {
+    try {
+      const query = /*sql*/ `
+          SELECT
+              cc.id_concepto        AS "conceptId",
+              cc.codigo             AS "code",
+              cc.nombre             AS "name",
+              cc.descripcion        AS "description",
+              vcc.valor_default     AS "defaultValue",
+              vcc.activo            AS "isActive",
+              vcc.porcentaje_agua   AS "waterPercentage"
+          FROM concepto_cobro cc
+          INNER JOIN vigencia_concepto_cobro vcc
+              ON cc.id_concepto = vcc.concepto_cobro_id
+          WHERE vcc.activo IS TRUE;
+        `;
+      const result = await this.databaseService.query<BillingConceptValidity>(
+        query,
+        [],
+      );
+      return result;
+    } catch (error) {
+      console.error('[ERROR] Error al obtener BillingConceptValidity:', error);
+      throw error;
+    }
+  }
+
+  async getActiveBenefitsByCadastralKey(
+    _cadastralKey: string,
+  ): Promise<ConnectionBenefitModel[]> {
+    return [];
   }
 
   async getMapGeojsonByDayAndByUser(

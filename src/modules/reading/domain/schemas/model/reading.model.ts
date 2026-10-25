@@ -19,6 +19,8 @@ export class ReadingModel {
     public readonly currentMonthReading: string,
     public readonly locationCapture: { lat: number; lng: number } | null,
     public readonly readingCode: string,
+    public readonly consumptionM3: number,
+    public readonly totalValue: number,
   ) {}
 
   // Domain logic

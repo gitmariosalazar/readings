@@ -13,6 +13,10 @@ import { getTypeCurrentConsumption } from '../../../../../shared/types/novelty.t
 import { UUID } from 'crypto';
 import { InterfaceNoveltyRepository } from '../../../domain/contracts/novelty.interface.repository';
 
+import { ReadingBillingBreakdownRecorder } from '../../services/reading-billing-breakdown-recorder.service';
+import { CalculateReadingValueUseCase } from '../queries/CalculateReadingValueUseCase';
+import { CalculateReadingValueModel } from '../../../domain/schemas/model/calculate-reading-value.model';
+
 @Injectable()
 export class UpdateReadingUseCase {
   constructor(
@@ -20,6 +24,8 @@ export class UpdateReadingUseCase {
     private readonly readingRepository: InterfaceReadingRepository,
     @Inject('NoveltyRepository')
     private readonly noveltyRepository: InterfaceNoveltyRepository,
+    private readonly breakdownRecorder: ReadingBillingBreakdownRecorder,
+    private readonly calculateReadingValueUseCase: CalculateReadingValueUseCase,
   ) {}
 
   async execute(
@@ -115,17 +121,21 @@ export class UpdateReadingUseCase {
         (readinRequest.currentReading ?? 0) -
         (readinRequest.previousReading ?? 0);
 
-      const valueConsumoAgua =
-        await this.readingRepository.calculateReadingValue(
+      const valueConsumoAgua: CalculateReadingValueModel =
+        await this.calculateReadingValueUseCase.execute(
           readinRequest.cadastralKey,
           consumption,
         );
 
-      readinRequest.readingValue = valueConsumoAgua;
-      const sewerRateValue = this.CalculateSewerRate(valueConsumoAgua);
-      readinRequest.sewerRate = sewerRateValue;
+      const totalValue: number = valueConsumoAgua.total;
 
-      if (valueConsumoAgua < 0) {
+      readinRequest.readingValue = valueConsumoAgua.waterConsumptionValue;
+      const sewerRateValue = valueConsumoAgua.sewerageValue;
+      readinRequest.sewerRate = sewerRateValue;
+      readinRequest.totalValue = totalValue;
+      readinRequest.consumptionM3 = consumption;
+
+      if (valueConsumoAgua.waterConsumptionValue < 0) {
         throw new RpcException({
           statusCode: statusCode.INTERNAL_SERVER_ERROR,
           message: `Error calculating total amount for reading with ID ${readingId}!`,
@@ -143,7 +153,7 @@ export class UpdateReadingUseCase {
         toUpdate.sector,
         toUpdate.account,
         toUpdate.cadastralKey,
-        valueConsumoAgua,
+        valueConsumoAgua.waterConsumptionValue,
         toUpdate.sewerRate,
         toUpdate.previousReading,
         toUpdate.currentReading,
@@ -155,6 +165,8 @@ export class UpdateReadingUseCase {
         toUpdate.currentMonthReading,
         toUpdate.locationCapture,
         toUpdate.readingCode,
+        consumption,
+        totalValue,
       );
 
       //console.log(`Updated reading: ${JSON.stringify(updatedReading)}`);
@@ -177,6 +189,7 @@ export class UpdateReadingUseCase {
         );
 
       if (updatedReadingEntity !== null) {
+        await this.breakdownRecorder.record(readingId, valueConsumoAgua);
         return ReadingMapper.fromReadingModelToReadingResponse(
           updatedReadingEntity,
         );

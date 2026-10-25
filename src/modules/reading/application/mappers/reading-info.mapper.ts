@@ -93,6 +93,7 @@ export class ReadingInfoMapper {
   ): ReadingDetailedResponse {
     return {
       readingId: domainModel.readingId,
+      readingCode: domainModel.readingCode,
       readingTime: domainModel.readingTime,
       readingDate: domainModel.readingDate,
       cadastralKey: domainModel.cadastralKey,
@@ -112,6 +113,7 @@ export class ReadingInfoMapper {
       sector: domainModel.sector,
       account: domainModel.account,
       readingValue: domainModel.readingValue,
+      totalEpaa: domainModel.totalEpaa,
       averageConsumption: domainModel.averageConsumption,
       meterNumber: domainModel.meterNumber,
       rateId: domainModel.rateId,
@@ -153,6 +155,36 @@ export class ReadingInfoMapper {
         approvalStatus: ua.approvalStatus,
         adjustmentDate: ua.adjustmentDate,
       })),
+      conceptDetails: domainModel.conceptDetails?.map((cd) => ({
+        code: cd.code,
+        name: cd.name,
+        order: cd.order,
+        amount: cd.amount,
+        formula: cd.formula,
+        conceptId: cd.conceptId,
+        description: cd.description,
+        defaultValue: cd.defaultValue,
+        tariffVersion: cd.tariffVersion,
+        calculationBase: cd.calculationBase,
+        calculationType: cd.calculationType,
+        isCompanyService: cd.isCompanyService,
+        percentageApplied: cd.percentageApplied,
+      })),
+      waterCalculationBreakdown: domainModel.waterCalculationBreakdown
+        ? {
+            categoryId: domainModel.waterCalculationBreakdown.categoryId,
+            rateName: domainModel.waterCalculationBreakdown.rateName,
+            minRange: domainModel.waterCalculationBreakdown.minRange,
+            maxRange: domainModel.waterCalculationBreakdown.maxRange,
+            appliedBase: domainModel.waterCalculationBreakdown.appliedBase,
+            additionalM3Rate:
+              domainModel.waterCalculationBreakdown.additionalM3Rate,
+            additionalM3: domainModel.waterCalculationBreakdown.additionalM3,
+            waterAmount: domainModel.waterCalculationBreakdown.waterAmount,
+            formula: domainModel.waterCalculationBreakdown.formula,
+            tariffVersion: domainModel.waterCalculationBreakdown.tariffVersion,
+          }
+        : null,
     };
   }
 
