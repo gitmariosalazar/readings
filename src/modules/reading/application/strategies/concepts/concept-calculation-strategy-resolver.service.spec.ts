@@ -1,6 +1,7 @@
 import { ConceptCalculationStrategyResolver } from './concept-calculation-strategy-resolver.service';
 import { WaterConceptStrategy } from './water-concept.strategy';
 import { SewerageConceptStrategy } from './sewerage-concept.strategy';
+import { TrashConceptStrategy } from './trash-concept.strategy';
 import { PercentageConceptStrategy } from './percentage-concept.strategy';
 import { DiscountConceptStrategy } from './discount-concept.strategy';
 import { DefaultConceptStrategy } from './default-concept.strategy';
@@ -127,6 +128,23 @@ describe('ConceptCalculationStrategyResolver & Strategies (Patrón Strategy)', (
 
     const strategy = resolver.resolve(concept);
     expect(strategy).toBeInstanceOf(DiscountConceptStrategy);
+  });
+
+  it('resolves TrashConceptStrategy for concept with code "ASEO"', () => {
+    const concept: BillingConceptValidity = {
+      conceptId: 3,
+      code: 'ASEO',
+      name: 'Tasa de Basura',
+      description: null,
+      defaultValue: 0,
+      isActive: true,
+      waterPercentage: 0,
+      validityConceptId: 103,
+      versionSheet: 'ASEO-V-1',
+    };
+
+    const strategy = resolver.resolve(concept);
+    expect(strategy).toBeInstanceOf(TrashConceptStrategy);
   });
 
   it('resolves DefaultConceptStrategy as fallback for concepts without dynamic calculation', () => {

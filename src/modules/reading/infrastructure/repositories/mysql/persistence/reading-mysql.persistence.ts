@@ -49,6 +49,10 @@ import {
   RateRangeModel,
 } from '../../../../domain/schemas/model/calculate-reading-value.model';
 import { ConnectionBenefitModel } from '../../../../domain/schemas/model/connection-benefit.model';
+import {
+  TrashRateAssignmentModel,
+  TrashRateCategoryTariffModel,
+} from '../../../../domain/schemas/model/trash-rate.model';
 
 @Injectable()
 export class ReadingPersistenceMySQL implements InterfaceReadingRepository {
@@ -1907,5 +1911,18 @@ LEFT JOIN cliente_contacto cc ON cc.cliente_id = c.cliente_id;
     );
 
     return historialAjusteLectura || [];
+  }
+
+  async getActiveTrashRateByCadastralKey(
+    _cadastralKey: string,
+  ): Promise<TrashRateAssignmentModel | null> {
+    return null;
+  }
+
+  async getActiveTrashRateConfig(
+    _categoryId: number,
+    _versionSheet?: string,
+  ): Promise<TrashRateCategoryTariffModel | null> {
+    return null;
   }
 }

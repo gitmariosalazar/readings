@@ -22,6 +22,11 @@ import {
   RateRangeModel,
 } from '../schemas/model/calculate-reading-value.model';
 import { ConnectionBenefitModel } from '../schemas/model/connection-benefit.model';
+import {
+  TrashRateAssignmentModel,
+  TrashRateCategoryTariffModel,
+} from '../schemas/model/trash-rate.model';
+import { ConceptDeferralModel } from '../schemas/model/payment-agreement.model';
 import { BillingConceptValidity } from '../../infrastructure/interfaces/sql/reading-sql.result.interface';
 
 export interface InterfaceReadingRepository {
@@ -109,4 +114,18 @@ export interface InterfaceReadingRepository {
   getActiveBenefitsByCadastralKey?(
     cadastralKey: string,
   ): Promise<ConnectionBenefitModel[]>;
+  getActiveTrashRateByCadastralKey?(
+    cadastralKey: string,
+  ): Promise<TrashRateAssignmentModel | null>;
+  getActiveTrashRateConfig?(
+    categoryId: number,
+    versionSheet?: string,
+  ): Promise<TrashRateCategoryTariffModel | null>;
+  getPendingConceptDeferrals?(
+    cadastralKey: string,
+  ): Promise<ConceptDeferralModel[]>;
+  markDeferralsAsApplied?(
+    deferralIds: number[],
+    readingId: number,
+  ): Promise<void>;
 }

@@ -1,6 +1,11 @@
 import { BillingConceptValidity } from '../../infrastructure/interfaces/sql/reading-sql.result.interface';
 import { CalculationConceptBreakdown, RateRangeModel } from '../schemas/model/calculate-reading-value.model';
 import { ConnectionBenefitModel } from '../schemas/model/connection-benefit.model';
+import {
+  TrashRateAssignmentModel,
+  TrashRateCategoryTariffModel,
+} from '../schemas/model/trash-rate.model';
+import { ConceptDeferralModel } from '../schemas/model/payment-agreement.model';
 
 export interface ConceptCalculationContext {
   consumptionM3: number;
@@ -16,6 +21,11 @@ export interface ConceptCalculationContext {
   } | null;
   waterVersionSheet?: string | null;
   activeBenefits?: ConnectionBenefitModel[];
+  cadastralKey?: string;
+  fixedTrashRate?: number | null;
+  trashRateAssignment?: TrashRateAssignmentModel | null;
+  trashRateConfig?: TrashRateCategoryTariffModel | null;
+  pendingDeferrals?: ConceptDeferralModel[];
 }
 
 /**

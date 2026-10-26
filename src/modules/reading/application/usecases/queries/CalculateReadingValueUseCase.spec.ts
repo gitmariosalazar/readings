@@ -5,6 +5,8 @@ import {
   RateRangeModel,
 } from '../../../domain/schemas/model/calculate-reading-value.model';
 import { ConnectionBenefitModel } from '../../../domain/schemas/model/connection-benefit.model';
+import { TrashRateAssignmentModel } from '../../../domain/schemas/model/trash-rate.model';
+import { ConceptDeferralModel } from '../../../domain/schemas/model/payment-agreement.model';
 import { BillingConceptValidity } from '../../../infrastructure/interfaces/sql/reading-sql.result.interface';
 
 describe('CalculateReadingValueUseCase', () => {
@@ -570,6 +572,73 @@ describe('CalculateReadingValueUseCase', () => {
       expect(concepts.find((c) => c.conceptId === 5)).toBeUndefined();
       expect(concepts.find((c) => c.conceptId === 6)).toBeUndefined();
       expect(concepts.find((c) => c.conceptId === 11)).toBeUndefined();
+    });
+  });
+
+  describe('Diferimiento Acumulado por Convenios de Pago', () => {
+    it('adds pending deferred balance to regular rate in the next invoice and returns to normal in subsequent cycles', async () => {
+      const conceptValidityWithTrash: BillingConceptValidity[] = [
+        ...conceptValidity,
+        {
+          conceptId: 3,
+          code: 'ASEO',
+          name: 'Tasa de Basura',
+          description: null,
+          waterPercentage: 0,
+          defaultValue: 0,
+          isActive: true,
+          validityConceptId: 104,
+          versionSheet: 'ASEO-V-1',
+        },
+      ];
+
+      mockRepository.getRateConnection.mockResolvedValueOnce(
+        new RateConnectionModel(1, 'Residencial'),
+      );
+      mockRepository.getBillingConceptValidity.mockResolvedValueOnce(
+        conceptValidityWithTrash,
+      );
+      mockRepository.getRateRange.mockResolvedValueOnce([
+        new RateRangeModel(0, 10, 6, 0.5),
+      ]);
+
+      // Simulamos que la acometida tiene una asignación fija de $13.13 de EMELNORTE
+      mockRepository.getActiveTrashRateByCadastralKey = jest
+        .fn()
+        .mockResolvedValueOnce(
+          new TrashRateAssignmentModel(
+            cadastralKey,
+            '0200236479001',
+            13.13,
+            'EMELNORTE_DISTRIBUCION',
+            'EMELNORTE-2025-09',
+          ),
+        );
+
+      // Simulamos saldo diferido pendiente de $39.39 por 3 facturas en convenio
+      mockRepository.getPendingConceptDeferrals = jest
+        .fn()
+        .mockResolvedValueOnce([
+          new ConceptDeferralModel(
+            cadastralKey,
+            3,
+            39.39,
+            3,
+            'PENDIENTE',
+            1,
+            'ASEO',
+          ),
+        ]);
+
+      const result = await useCase.execute(cadastralKey, 8);
+
+      const concepts = result.breakdown?.concepts ?? [];
+      const aseoDetail = concepts.find((c) => c.conceptId === 3);
+
+      expect(aseoDetail).toBeDefined();
+      // 13.13 (mensual normal) + 39.39 (diferido acumulado convenio) = 52.52
+      expect(aseoDetail?.amount).toBe(52.52);
+      expect(aseoDetail?.formula).toContain('+ Diferido Convenio ($39.39)');
     });
   });
 });

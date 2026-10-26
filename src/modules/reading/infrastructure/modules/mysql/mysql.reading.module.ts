@@ -47,14 +47,21 @@ import { GetReadingAdjustmentHistoryByReadingIdUseCase } from '../../../applicat
 import { ReadingBillingBreakdownMySQLPersistence } from '../../repositories/mysql/persistence/reading-billing-breakdown-mysql.persistence';
 import { RegisterReadingBillingBreakdownUseCase } from '../../../application/usecases/commands/RegisterReadingBillingBreakdownUseCase';
 import { ReadingBillingBreakdownRecorder } from '../../../application/services/reading-billing-breakdown-recorder.service';
+import { DistributeEmelnorteTrashRateUseCase } from '../../../application/usecases/commands/DistributeEmelnorteTrashRateUseCase';
+import { AssignConnectionTrashRateUseCase } from '../../../application/usecases/commands/AssignConnectionTrashRateUseCase';
+import { ApplyPaymentAgreementUseCase } from '../../../application/usecases/commands/ApplyPaymentAgreementUseCase';
+import { TrashRateMySQLPersistence } from '../../repositories/mysql/persistence/trash-rate-mysql.persistence';
+import { PaymentAgreementMySQLPersistence } from '../../repositories/mysql/persistence/payment-agreement-mysql.persistence';
 import {
   WaterConceptStrategy,
   SewerageConceptStrategy,
   PercentageConceptStrategy,
   DiscountConceptStrategy,
   DefaultConceptStrategy,
+  TrashConceptStrategy,
   ConceptCalculationStrategyResolver,
 } from '../../../application/strategies/concepts';
+import { CONCEPT_CALCULATION_STRATEGIES } from '../../../application/strategies/concepts/concept-calculation-strategy-resolver.service';
 
 @Module({
   controllers: [
@@ -102,16 +109,47 @@ import {
     GetReadingAdjustmentHistoryByReadingIdUseCase,
     RegisterReadingBillingBreakdownUseCase,
     ReadingBillingBreakdownRecorder,
+    DistributeEmelnorteTrashRateUseCase,
+    AssignConnectionTrashRateUseCase,
+    ApplyPaymentAgreementUseCase,
     WaterConceptStrategy,
     SewerageConceptStrategy,
     PercentageConceptStrategy,
     DiscountConceptStrategy,
+    TrashConceptStrategy,
     DefaultConceptStrategy,
+    {
+      provide: CONCEPT_CALCULATION_STRATEGIES,
+      useFactory: (
+        water: WaterConceptStrategy,
+        sewerage: SewerageConceptStrategy,
+        trash: TrashConceptStrategy,
+        percentage: PercentageConceptStrategy,
+        discount: DiscountConceptStrategy,
+        def: DefaultConceptStrategy,
+      ) => [water, sewerage, trash, percentage, discount, def],
+      inject: [
+        WaterConceptStrategy,
+        SewerageConceptStrategy,
+        TrashConceptStrategy,
+        PercentageConceptStrategy,
+        DiscountConceptStrategy,
+        DefaultConceptStrategy,
+      ],
+    },
     ConceptCalculationStrategyResolver,
 
     {
       provide: 'ReadingRepository',
       useClass: ReadingPersistenceMySQL,
+    },
+    {
+      provide: 'TrashRateRepository',
+      useClass: TrashRateMySQLPersistence,
+    },
+    {
+      provide: 'PaymentAgreementRepository',
+      useClass: PaymentAgreementMySQLPersistence,
     },
     {
       provide: 'ObservationReadingRepository',

@@ -49,6 +49,12 @@ import {
   RateRangeModel,
 } from '../../../../domain/schemas/model/calculate-reading-value.model';
 import { ConnectionBenefitModel } from '../../../../domain/schemas/model/connection-benefit.model';
+import {
+  TrashRateAssignmentModel,
+  TrashRateCategoryTariffModel,
+  TrashRateRangeModel,
+} from '../../../../domain/schemas/model/trash-rate.model';
+import { ConceptDeferralModel } from '../../../../domain/schemas/model/payment-agreement.model';
 
 @Injectable()
 export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository {
@@ -1792,6 +1798,230 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
         error,
       );
       throw error;
+    }
+  }
+
+  async getActiveTrashRateByCadastralKey(
+    cadastralKey: string,
+  ): Promise<TrashRateAssignmentModel | null> {
+    try {
+      const query = /*sql*/ `
+        SELECT 
+            atb.id_acometida_tasa_basura AS "id",
+            atb.acometida_id AS "connectionId",
+            atb.cliente_id_origen AS "originClientId",
+            atb.valor_asignado AS "assignedAmount",
+            atb.origen_asignacion AS "origin",
+            atb.version_origen AS "versionSheet",
+            atb.valor_total_cliente_origen AS "totalClientOrigin",
+            atb.cantidad_emelnorte_origen AS "emelnorteQuantityOrigin",
+            atb.total_acometidas_activas AS "totalActiveConnections",
+            atb.diferencia_catastro_emelnorte AS "hasCadastralMismatch",
+            atb.es_residuo_centavo AS "isPennyRemainder",
+            atb.activo AS "isActive",
+            atb.fecha_inicio AS "startDate",
+            atb.fecha_fin AS "endDate",
+            atb.observacion AS "observation"
+        FROM acometida_tasa_basura atb
+        WHERE (atb.acometida_id = $1 OR EXISTS (SELECT 1 FROM acometida a WHERE a.clave_catastral = $1 AND a.acometida_id = atb.acometida_id))
+          AND atb.activo IS TRUE
+          AND atb.fecha_inicio <= CURRENT_DATE
+          AND (atb.fecha_fin IS NULL OR atb.fecha_fin >= CURRENT_DATE)
+        ORDER BY atb.fecha_inicio DESC
+        LIMIT 1;
+      `;
+      const rows = await this.databaseService.query<any>(query, [cadastralKey]);
+      if (!rows || rows.length === 0) {
+        return null;
+      }
+      const r = rows[0];
+      return new TrashRateAssignmentModel(
+        r.connectionId,
+        r.originClientId,
+        Number(r.assignedAmount),
+        r.origin,
+        r.versionSheet,
+        Number(r.id),
+        r.totalClientOrigin != null ? Number(r.totalClientOrigin) : null,
+        r.emelnorteQuantityOrigin != null ? Number(r.emelnorteQuantityOrigin) : null,
+        r.totalActiveConnections != null ? Number(r.totalActiveConnections) : null,
+        Boolean(r.hasCadastralMismatch),
+        Boolean(r.isPennyRemainder),
+        Boolean(r.isActive),
+        r.startDate ? new Date(r.startDate) : new Date(),
+        r.endDate ? new Date(r.endDate) : null,
+        r.observation ?? null,
+      );
+    } catch (error: any) {
+      // Si la tabla aún no existe en algún ambiente o test, retorna null de forma segura
+      if (error?.code === '42P01') {
+        return null;
+      }
+      console.warn(
+        `[WARN] No se pudo obtener tasa de basura activa para "${cadastralKey}":`,
+        error?.message || error,
+      );
+      return null;
+    }
+  }
+
+  async getActiveTrashRateConfig(
+    categoryId: number,
+    _versionSheet?: string,
+  ): Promise<TrashRateCategoryTariffModel | null> {
+    try {
+      const query = /*sql*/ `
+        SELECT 
+            ttbc.id_tarifa_tasa_basura_categoria AS "id",
+            ttbc.categoria_id AS "categoryId",
+            c.nombre AS "categoryName",
+            ttbc.tipo_cobro AS "billingType",
+            ttbc.valor_fijo AS "fixedValue",
+            ttbc.valor_minimo AS "minimumValue",
+            ptb.codigo_version AS "versionSheet"
+        FROM tarifa_tasa_basura_categoria ttbc
+        JOIN pliego_tasa_basura ptb ON ptb.id_pliego_tasa_basura = ttbc.id_pliego_tasa_basura
+        JOIN categoria c ON c.categoria_id = ttbc.categoria_id
+        WHERE ttbc.categoria_id = $1
+          AND ptb.activo IS TRUE
+          AND ptb.fecha_inicio <= CURRENT_DATE
+          AND (ptb.fecha_fin IS NULL OR ptb.fecha_fin >= CURRENT_DATE)
+        ORDER BY ptb.fecha_inicio DESC
+        LIMIT 1;
+      `;
+      const rows = await this.databaseService.query<any>(query, [categoryId]);
+      if (!rows || rows.length === 0) {
+        return null;
+      }
+      const r = rows[0];
+
+      // Consultar rangos si es por rangos
+      let ranges: TrashRateRangeModel[] = [];
+      if (r.billingType === 'POR_RANGOS_CONSUMO') {
+        const rangesQuery = /*sql*/ `
+          SELECT 
+              rtb.id_rango_tasa_basura AS "id",
+              rtb.codigo_version_rango AS "versionSheet",
+              rtb.rango_minimo AS "minRange",
+              rtb.rango_maximo AS "maxRange",
+              rtb.valor AS "value"
+          FROM rango_tasa_basura rtb
+          WHERE rtb.id_tarifa_tasa_basura_categoria = $1
+            AND rtb.activo IS TRUE
+            AND rtb.fecha_inicio <= CURRENT_DATE
+            AND (rtb.fecha_fin IS NULL OR rtb.fecha_fin >= CURRENT_DATE)
+          ORDER BY rtb.rango_minimo ASC;
+        `;
+        const rangeRows = await this.databaseService.query<any>(rangesQuery, [r.id]);
+        ranges = (rangeRows || []).map(
+          (rng: any) =>
+            new TrashRateRangeModel(
+              Number(rng.minRange),
+              Number(rng.maxRange),
+              Number(rng.value),
+              Number(rng.id),
+              rng.versionSheet,
+            ),
+        );
+      }
+
+      return new TrashRateCategoryTariffModel(
+        Number(r.categoryId),
+        r.categoryName,
+        r.billingType,
+        Number(r.minimumValue ?? 1.0),
+        r.fixedValue != null ? Number(r.fixedValue) : null,
+        r.versionSheet,
+        ranges,
+        Number(r.id),
+      );
+    } catch (error: any) {
+      if (error?.code === '42P01') {
+        return null;
+      }
+      console.warn(
+        `[WARN] No se pudo obtener configuración de pliego para categoría "${categoryId}":`,
+        error?.message || error,
+      );
+      return null;
+    }
+  }
+
+  async getPendingConceptDeferrals(
+    cadastralKey: string,
+  ): Promise<ConceptDeferralModel[]> {
+    try {
+      const query = /*sql*/ `
+        SELECT 
+            cdp.id_concepto_diferido AS "id",
+            cdp.acometida_id AS "connectionId",
+            cdp.concepto_id AS "conceptId",
+            cc.codigo AS "conceptCode",
+            cdp.convenio_id AS "agreementId",
+            cdp.monto_acumulado AS "accumulatedAmount",
+            cdp.cantidad_facturas_origen AS "originInvoicesCount",
+            cdp.estado AS "status",
+            cdp.fecha_registro AS "registrationDate",
+            cdp.observacion AS "observation"
+        FROM concepto_diferido_pendiente cdp
+        JOIN concepto_cobro cc ON cc.id_concepto = cdp.concepto_id
+        WHERE (cdp.acometida_id = $1 OR EXISTS (SELECT 1 FROM acometida a WHERE a.clave_catastral = $1 AND a.acometida_id = cdp.acometida_id))
+          AND cdp.estado = 'PENDIENTE';
+      `;
+      const rows = await this.databaseService.query<any>(query, [cadastralKey]);
+      return (rows || []).map(
+        (r: any) =>
+          new ConceptDeferralModel(
+            r.connectionId,
+            Number(r.conceptId),
+            Number(r.accumulatedAmount),
+            Number(r.originInvoicesCount),
+            r.status,
+            r.agreementId ? Number(r.agreementId) : null,
+            r.conceptCode,
+            null,
+            Number(r.id),
+            r.registrationDate ? new Date(r.registrationDate) : new Date(),
+            null,
+            r.observation ?? null,
+          ),
+      );
+    } catch (error: any) {
+      if (error?.code === '42P01') {
+        return [];
+      }
+      console.warn(
+        `[WARN] No se pudo consultar diferimientos pendientes para "${cadastralKey}":`,
+        error?.message || error,
+      );
+      return [];
+    }
+  }
+
+  async markDeferralsAsApplied(
+    deferralIds: number[],
+    readingId: number,
+  ): Promise<void> {
+    if (!deferralIds || deferralIds.length === 0) {
+      return;
+    }
+    try {
+      const query = /*sql*/ `
+        UPDATE concepto_diferido_pendiente
+        SET estado = 'APLICADO',
+            lectura_id_aplicada = $1,
+            fecha_aplicacion = NOW()
+        WHERE id_concepto_diferido = ANY($2::bigint[]);
+      `;
+      await this.databaseService.query(query, [readingId, deferralIds]);
+    } catch (error: any) {
+      if (error?.code === '42P01') {
+        return;
+      }
+      console.warn(
+        `[WARN] No se pudo marcar diferimientos como aplicados en lectura ${readingId}:`,
+        error?.message || error,
+      );
     }
   }
 

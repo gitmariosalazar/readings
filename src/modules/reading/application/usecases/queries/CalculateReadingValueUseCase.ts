@@ -76,15 +76,26 @@ export class CalculateReadingValueUseCase {
       const categoryId: number = Number(connectionRate.categoryId);
       const rateName: string = connectionRate.categoryName || '';
 
-      // 3. Obtención en paralelo de vigencia de conceptos, rangos tarifarios y beneficios activos
-      const [conceptValidityList, rateRanges, activeBenefits] =
-        await Promise.all([
-          this.readingRepository.getBillingConceptValidity(),
-          this.readingRepository.getRateRange(categoryId),
-          this.readingRepository.getActiveBenefitsByCadastralKey
-            ? this.readingRepository.getActiveBenefitsByCadastralKey(cadastralKey)
-            : Promise.resolve([]),
-        ]);
+      // 3. Obtención en paralelo de vigencia de conceptos, rangos tarifarios, beneficios activos, tasa de basura y diferimientos
+      const [
+        conceptValidityList,
+        rateRanges,
+        activeBenefits,
+        activeTrashRate,
+        pendingDeferrals,
+      ] = await Promise.all([
+        this.readingRepository.getBillingConceptValidity(),
+        this.readingRepository.getRateRange(categoryId),
+        this.readingRepository.getActiveBenefitsByCadastralKey
+          ? this.readingRepository.getActiveBenefitsByCadastralKey(cadastralKey)
+          : Promise.resolve([]),
+        this.readingRepository.getActiveTrashRateByCadastralKey
+          ? this.readingRepository.getActiveTrashRateByCadastralKey(cadastralKey)
+          : Promise.resolve(null),
+        this.readingRepository.getPendingConceptDeferrals
+          ? this.readingRepository.getPendingConceptDeferrals(cadastralKey)
+          : Promise.resolve([]),
+      ]);
 
       if (!rateRanges || rateRanges.length === 0) {
         return this.buildDefaultResult(cadastralKey, consumptionM3, {
@@ -120,6 +131,10 @@ export class CalculateReadingValueUseCase {
         waterCalculation,
         waterVersionSheet: matchedRange?.versionSheet ?? null,
         activeBenefits: activeBenefits ?? [],
+        cadastralKey,
+        trashRateAssignment: activeTrashRate ?? null,
+        fixedTrashRate: activeTrashRate?.assignedAmount ?? null,
+        pendingDeferrals: pendingDeferrals ?? [],
       };
 
       // 7. Construcción de desgloses para auditoría y trazabilidad delegando en las estrategias
@@ -325,12 +340,13 @@ export class CalculateReadingValueUseCase {
       (c) => c.code === this.SEWERAGE_CONCEPT_CODE,
     );
     if (sewerageConcept) {
+      const detail = this.strategyResolver.calculate(sewerageConcept, context);
       conceptBreakdown.push(
-        this.strategyResolver.calculate(sewerageConcept, context),
+        this.applyPendingDeferralIfAny(detail, sewerageConcept, context),
       );
     }
 
-    // 2. Todos los demás conceptos vigentes (Comercialización, rubros fijos u otros configurados)
+    // 2. Todos los demás conceptos vigentes (Aseo, Comercialización, rubros fijos u otros configurados)
     const otherConcepts = conceptValidityList.filter(
       (c) =>
         c.code !== this.SEWERAGE_CONCEPT_CODE &&
@@ -343,7 +359,9 @@ export class CalculateReadingValueUseCase {
       if (this.isDiscountConcept(concept) && detail.amount === 0) {
         continue;
       }
-      conceptBreakdown.push(detail);
+      conceptBreakdown.push(
+        this.applyPendingDeferralIfAny(detail, concept, context),
+      );
     }
 
     // 3. Concepto AGUA (si existe en los conceptos vigentes)
@@ -351,12 +369,48 @@ export class CalculateReadingValueUseCase {
       (c) => c.code === this.WATER_CONCEPT_CODE,
     );
     if (waterConcept) {
+      const detail = this.strategyResolver.calculate(waterConcept, context);
       conceptBreakdown.push(
-        this.strategyResolver.calculate(waterConcept, context),
+        this.applyPendingDeferralIfAny(detail, waterConcept, context),
       );
     }
 
     return conceptBreakdown;
+  }
+
+  /**
+   * Aplica saldos diferidos pendientes por convenio de pago a un concepto.
+   * Si la acometida tiene un saldo diferido acumulado pendiente para este concepto,
+   * se suma al monto regular de este mes y se añade a la fórmula para auditoría.
+   */
+  private applyPendingDeferralIfAny(
+    detail: CalculationConceptBreakdown,
+    concept: BillingConceptValidity,
+    context: ConceptCalculationContext,
+  ): CalculationConceptBreakdown {
+    if (!context.pendingDeferrals || context.pendingDeferrals.length === 0) {
+      return detail;
+    }
+
+    const deferral = context.pendingDeferrals.find(
+      (d) =>
+        d.conceptId === Number(concept.conceptId) ||
+        (d.conceptCode && d.conceptCode === concept.code),
+    );
+
+    if (deferral && deferral.accumulatedAmount > 0) {
+      const baseAmount = Number(detail.amount);
+      const totalAmount = Number(
+        (baseAmount + deferral.accumulatedAmount).toFixed(2),
+      );
+      return {
+        ...detail,
+        amount: totalAmount,
+        formula: `${detail.formula} + Diferido Convenio ($${deferral.accumulatedAmount.toFixed(2)})`,
+      };
+    }
+
+    return detail;
   }
 
   /**

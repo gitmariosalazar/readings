@@ -9,6 +9,7 @@ import { WaterConceptStrategy } from './water-concept.strategy';
 import { SewerageConceptStrategy } from './sewerage-concept.strategy';
 import { PercentageConceptStrategy } from './percentage-concept.strategy';
 import { DiscountConceptStrategy } from './discount-concept.strategy';
+import { TrashConceptStrategy } from './trash-concept.strategy';
 import { DefaultConceptStrategy } from './default-concept.strategy';
 
 export const CONCEPT_CALCULATION_STRATEGIES = 'CONCEPT_CALCULATION_STRATEGIES';
@@ -74,6 +75,7 @@ export class ConceptCalculationStrategyResolver {
     return [
       new WaterConceptStrategy(),
       new SewerageConceptStrategy(),
+      new TrashConceptStrategy(),
       new PercentageConceptStrategy(),
       new DiscountConceptStrategy(),
       new DefaultConceptStrategy(),

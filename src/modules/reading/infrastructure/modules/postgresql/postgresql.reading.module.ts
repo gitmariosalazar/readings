@@ -52,14 +52,21 @@ import { ConnectionEventsKafkaController } from '../../controllers/connection-ev
 import { GetReadingAdjustmentHistoryByReadingIdUseCase } from '../../../application/usecases/queries/getReadingAdjustmentHistoryByReadingId.use-case';
 import { FindReadingImagesByFilterUseCase } from '../../../application/usecases/queries/FindReadingImagesByFilterUseCase';
 import { ReadingBillingBreakdownRecorder } from '../../../application/services/reading-billing-breakdown-recorder.service';
+import { DistributeEmelnorteTrashRateUseCase } from '../../../application/usecases/commands/DistributeEmelnorteTrashRateUseCase';
+import { AssignConnectionTrashRateUseCase } from '../../../application/usecases/commands/AssignConnectionTrashRateUseCase';
+import { ApplyPaymentAgreementUseCase } from '../../../application/usecases/commands/ApplyPaymentAgreementUseCase';
+import { TrashRatePostgreSQLPersistence } from '../../repositories/postgresql/persistence/trash-rate-postgresql.persistence';
+import { PaymentAgreementPostgreSQLPersistence } from '../../repositories/postgresql/persistence/payment-agreement-postgresql.persistence';
 import {
   WaterConceptStrategy,
   SewerageConceptStrategy,
   PercentageConceptStrategy,
   DiscountConceptStrategy,
   DefaultConceptStrategy,
+  TrashConceptStrategy,
   ConceptCalculationStrategyResolver,
 } from '../../../application/strategies/concepts';
+import { CONCEPT_CALCULATION_STRATEGIES } from '../../../application/strategies/concepts/concept-calculation-strategy-resolver.service';
 
 @Module({
   controllers: [
@@ -108,16 +115,47 @@ import {
     FindReadingImagesByFilterUseCase,
     RegisterReadingBillingBreakdownUseCase,
     ReadingBillingBreakdownRecorder,
+    DistributeEmelnorteTrashRateUseCase,
+    AssignConnectionTrashRateUseCase,
+    ApplyPaymentAgreementUseCase,
     WaterConceptStrategy,
     SewerageConceptStrategy,
     PercentageConceptStrategy,
     DiscountConceptStrategy,
+    TrashConceptStrategy,
     DefaultConceptStrategy,
+    {
+      provide: CONCEPT_CALCULATION_STRATEGIES,
+      useFactory: (
+        water: WaterConceptStrategy,
+        sewerage: SewerageConceptStrategy,
+        trash: TrashConceptStrategy,
+        percentage: PercentageConceptStrategy,
+        discount: DiscountConceptStrategy,
+        def: DefaultConceptStrategy,
+      ) => [water, sewerage, trash, percentage, discount, def],
+      inject: [
+        WaterConceptStrategy,
+        SewerageConceptStrategy,
+        TrashConceptStrategy,
+        PercentageConceptStrategy,
+        DiscountConceptStrategy,
+        DefaultConceptStrategy,
+      ],
+    },
     ConceptCalculationStrategyResolver,
 
     {
       provide: 'ReadingRepository',
       useClass: ReadingPersistencePostgreSQL,
+    },
+    {
+      provide: 'TrashRateRepository',
+      useClass: TrashRatePostgreSQLPersistence,
+    },
+    {
+      provide: 'PaymentAgreementRepository',
+      useClass: PaymentAgreementPostgreSQLPersistence,
     },
     {
       provide: 'ObservationReadingRepository',

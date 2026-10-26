@@ -21,6 +21,16 @@ import { GetReadingAdjustmentHistoryByReadingIdUseCase } from '../../application
 import { CalculateReadingValueUseCase } from '../../application/usecases/queries/CalculateReadingValueUseCase';
 import { RegisterReadingBillingBreakdownUseCase } from '../../application/usecases/commands/RegisterReadingBillingBreakdownUseCase';
 import { RegisterReadingBillingBreakdownRequest } from '../../application/dtos/request/register-reading-billing-breakdown.request';
+import { ApplyPaymentAgreementUseCase } from '../../application/usecases/commands/ApplyPaymentAgreementUseCase';
+import { ApplyPaymentAgreementRequest } from '../../application/dtos/request/apply-payment-agreement.request';
+import {
+  DistributeEmelnorteTrashRateUseCase,
+  DistributeEmelnorteTrashRateInput,
+} from '../../application/usecases/commands/DistributeEmelnorteTrashRateUseCase';
+import {
+  AssignConnectionTrashRateUseCase,
+  AssignConnectionTrashRateInput,
+} from '../../application/usecases/commands/AssignConnectionTrashRateUseCase';
 
 @Controller('Readings')
 export class ReadingController {
@@ -41,6 +51,9 @@ export class ReadingController {
     private readonly getReadingAdjustmentHistoryByReadingIdUseCase: GetReadingAdjustmentHistoryByReadingIdUseCase,
     private readonly calculateReadingValueUseCase: CalculateReadingValueUseCase,
     private readonly registerReadingBillingBreakdownUseCase: RegisterReadingBillingBreakdownUseCase,
+    private readonly applyPaymentAgreementUseCase: ApplyPaymentAgreementUseCase,
+    private readonly distributeEmelnorteTrashRateUseCase: DistributeEmelnorteTrashRateUseCase,
+    private readonly assignConnectionTrashRateUseCase: AssignConnectionTrashRateUseCase,
   ) {}
 
   @Get('find-basic-reading/:catastralCode')
@@ -255,5 +268,29 @@ export class ReadingController {
   ) {
     await this.registerReadingBillingBreakdownUseCase.execute(data);
     return { success: true };
+  }
+
+  @Post('apply-payment-agreement')
+  @MessagePattern('reading.apply-payment-agreement')
+  async applyPaymentAgreement(
+    @Payload() data: ApplyPaymentAgreementRequest,
+  ) {
+    return this.applyPaymentAgreementUseCase.execute(data);
+  }
+
+  @Post('distribute-emelnorte-trash-rate')
+  @MessagePattern('reading.distribute-emelnorte-trash-rate')
+  async distributeEmelnorteTrashRate(
+    @Payload() data: DistributeEmelnorteTrashRateInput,
+  ) {
+    return this.distributeEmelnorteTrashRateUseCase.execute(data);
+  }
+
+  @Post('assign-connection-trash-rate')
+  @MessagePattern('reading.assign-connection-trash-rate')
+  async assignConnectionTrashRate(
+    @Payload() data: AssignConnectionTrashRateInput,
+  ) {
+    return this.assignConnectionTrashRateUseCase.execute(data);
   }
 }
