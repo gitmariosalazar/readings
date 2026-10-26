@@ -371,5 +371,61 @@ describe('DiscountConceptStrategy (Estrategia de Subsidios y Convenios)', () => 
       const redCrossResult = strategy.calculate(redCrossConcept, context);
       expect(redCrossResult.amount).toBe(-0.93); // 6.20 * 0.15 = 0.93
     });
+
+    it('applies only one 50% discount when both Third Age (50%) and Disability (50%) are active in VULNERABILIDAD, even if one has isCumulative = true', () => {
+      const seniorBenefit = new ConnectionBenefitModel(
+        'uuid-1',
+        '10-254',
+        '1003426853',
+        1,
+        5,
+        'DESC_TERCERA_EDAD_AGUA',
+        'TERCERA_EDAD',
+        'Subsidio Adulto Mayor (Ley LOPAM)',
+        'VULNERABILIDAD',
+        false,
+        50,
+        20,
+        'V1-2024',
+      );
+
+      const disabilityBenefit = new ConnectionBenefitModel(
+        'uuid-2',
+        '10-254',
+        '1003426853',
+        2,
+        6,
+        'DESC_DISCAPACIDAD_AGUA',
+        'DISCAPACIDAD',
+        'Subsidio Personas con Discapacidad',
+        'VULNERABILIDAD',
+        true, // Even if marked true in table to satisfy partial index
+        50,
+        20,
+        'V1-2024',
+      );
+
+      const context: ConceptCalculationContext = {
+        consumptionM3: 20,
+        rateRanges,
+        matchedRange: rateRanges[1],
+        waterCalculation: {
+          waterAmount: 6.2,
+          additionalM3: 10,
+          appliedBase: 3.7,
+          formula: '3.7 + (10 * 0.25)',
+        },
+        activeBenefits: [seniorBenefit, disabilityBenefit],
+      };
+
+      // Tercera Edad se evalúa primero y aplica 50% (-3.10)
+      const seniorResult = strategy.calculate(seniorConcept, context);
+      expect(seniorResult.amount).toBe(-3.1);
+
+      // Discapacidad cede el paso por exclusión mutua y queda en 0.00
+      const disabilityResult = strategy.calculate(disabilityConcept, context);
+      expect(disabilityResult.amount).toBe(0);
+      expect(disabilityResult.formula).toBe('0');
+    });
   });
 });

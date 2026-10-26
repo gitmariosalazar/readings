@@ -1744,8 +1744,8 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
           cc.codigo AS "conceptCode",
           ctb.codigo AS "benefitTypeCode",
           ctb.nombre AS "benefitTypeName",
-          ab.grupo_beneficio AS "benefitGroup",
-          ab.es_acumulable AS "isCumulative",
+          COALESCE(ctb.grupo_beneficio, ab.grupo_beneficio) AS "benefitGroup",
+          COALESCE(ctb.es_acumulable, ab.es_acumulable) AS "isCumulative",
           COALESCE(
             vtb.porcentaje_fijo,
             edd.porcentaje_descuento,

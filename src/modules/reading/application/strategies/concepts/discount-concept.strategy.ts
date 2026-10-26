@@ -55,10 +55,15 @@ export class DiscountConceptStrategy
     }
 
     // 2. Control de exclusión mutua en beneficios no acumulables del mismo grupo (ej. VULNERABILIDAD)
-    if (!matchingBenefit.isCumulative) {
+    const isCumulative =
+      matchingBenefit.isCumulative &&
+      matchingBenefit.benefitGroup !== 'VULNERABILIDAD';
+
+    if (!isCumulative) {
       const sameGroupNonCumulative = activeBenefits.filter(
         (b) =>
-          b.benefitGroup === matchingBenefit.benefitGroup && !b.isCumulative,
+          b.benefitGroup === matchingBenefit.benefitGroup &&
+          (!b.isCumulative || b.benefitGroup === 'VULNERABILIDAD'),
       );
 
       if (sameGroupNonCumulative.length > 1) {
@@ -69,7 +74,7 @@ export class DiscountConceptStrategy
             : best,
         );
 
-        // Si este beneficio no es el de mayor porcentaje, queda excluido (monto 0)
+        // Si este beneficio no es el de mayor porcentaje (o en empate cede al primero), queda excluido (monto 0)
         if (
           bestBenefit.conceptId !== matchingBenefit.conceptId &&
           bestBenefit.conceptCode !== matchingBenefit.conceptCode

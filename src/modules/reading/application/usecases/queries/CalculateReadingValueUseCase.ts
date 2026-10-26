@@ -346,7 +346,7 @@ export class CalculateReadingValueUseCase {
       );
     }
 
-    // 2. Todos los demás conceptos vigentes (Aseo, Comercialización, rubros fijos u otros configurados)
+    // 2. Todos los demás conceptos vigentes (Aseo, Comercialización, rubros fijos, subsidios o descuentos)
     const otherConcepts = conceptValidityList.filter(
       (c) =>
         c.code !== this.SEWERAGE_CONCEPT_CODE &&
@@ -354,11 +354,6 @@ export class CalculateReadingValueUseCase {
     );
     for (const concept of otherConcepts) {
       const detail = this.strategyResolver.calculate(concept, context);
-      // Si es un concepto de descuento y el monto es 0 (no aplica a esta acometida),
-      // no se incluye en el desglose contable para evitar renglones en cero en detalle_concepto_lectura.
-      if (this.isDiscountConcept(concept) && detail.amount === 0) {
-        continue;
-      }
       conceptBreakdown.push(
         this.applyPendingDeferralIfAny(detail, concept, context),
       );
@@ -411,17 +406,6 @@ export class CalculateReadingValueUseCase {
     }
 
     return detail;
-  }
-
-  /**
-   * Determina si un concepto corresponde a un descuento o subsidio.
-   */
-  private isDiscountConcept(concept: BillingConceptValidity): boolean {
-    return (
-      concept.code.startsWith('DESC_') ||
-      concept.code.startsWith('SUBSIDIO_') ||
-      concept.code.includes('DESCUENTO')
-    );
   }
 
   /**

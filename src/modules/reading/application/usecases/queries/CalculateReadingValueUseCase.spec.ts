@@ -545,11 +545,18 @@ describe('CalculateReadingValueUseCase', () => {
         versionSheet: 'DESC_CRUZ_ROJA-V-V1-CONVENIO',
       });
 
-      // Discapacidad no aplica -> no figura en el desglose contable
-      expect(disabilityDetail).toBeUndefined();
+      // Discapacidad no aplica -> se incluye en el desglose contable con valor 0
+      expect(disabilityDetail).toEqual({
+        conceptId: 6,
+        amount: 0,
+        calculationBase: null,
+        formula: '0',
+        validityConceptId: 7,
+        versionSheet: 'DESC_DISCAPACIDAD_AGUA-V-7',
+      });
     });
 
-    it('excludes 0-value discount concepts from breakdown when connection has no active benefits', async () => {
+    it('includes all active concepts in breakdown with 0-value when connection has no active benefits', async () => {
       mockRepository.getRateConnection.mockResolvedValueOnce(
         new RateConnectionModel(2, 'Residencial'),
       );
@@ -569,9 +576,16 @@ describe('CalculateReadingValueUseCase', () => {
       expect(result.total).toBe(12.48);
 
       const concepts = result.breakdown?.concepts ?? [];
-      expect(concepts.find((c) => c.conceptId === 5)).toBeUndefined();
-      expect(concepts.find((c) => c.conceptId === 6)).toBeUndefined();
-      expect(concepts.find((c) => c.conceptId === 11)).toBeUndefined();
+      // Todos los conceptos activos deben incluirse, aunque su valor sea 0
+      expect(concepts.find((c) => c.conceptId === 5)).toEqual(
+        expect.objectContaining({ conceptId: 5, amount: 0, formula: '0' }),
+      );
+      expect(concepts.find((c) => c.conceptId === 6)).toEqual(
+        expect.objectContaining({ conceptId: 6, amount: 0, formula: '0' }),
+      );
+      expect(concepts.find((c) => c.conceptId === 11)).toEqual(
+        expect.objectContaining({ conceptId: 11, amount: 0, formula: '0' }),
+      );
     });
   });
 
