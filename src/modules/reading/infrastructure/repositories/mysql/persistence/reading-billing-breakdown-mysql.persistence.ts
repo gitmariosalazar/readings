@@ -34,22 +34,37 @@ export class ReadingBillingBreakdownMySQLPersistence implements InterfaceReading
           );
 
           if (conceptDetails.length > 0) {
-            const placeholders = conceptDetails
+            const uniqueDetailsMap = new Map<number, ReadingConceptDetailModel>();
+            for (const d of conceptDetails) {
+              const existing = uniqueDetailsMap.get(d.conceptId);
+              if (!existing) {
+                uniqueDetailsMap.set(d.conceptId, d);
+              } else if (existing.amount === 0 && d.amount !== 0) {
+                uniqueDetailsMap.set(d.conceptId, d);
+              }
+            }
+            const dedupedDetails = Array.from(uniqueDetailsMap.values());
+
+            const placeholders = dedupedDetails
               .map(() => '(?, ?, ?, ?, ?)')
               .join(', ');
-            const params = conceptDetails.flatMap((d) => [
+            const params = dedupedDetails.flatMap((d) => [
               d.readingId,
               d.conceptId,
-              d.amount,
-              d.calculationBase,
-              d.formula,
+              d.amount ?? 0,
+              d.calculationBase != null ? d.calculationBase : null,
+              d.formula ?? null,
             ]);
 
             await client.execute(
               /*sql*/ `
               INSERT INTO detalle_concepto_lectura
                 (lectura_id, concepto_id, valor, base_calculo, formula)
-              VALUES ${placeholders};
+              VALUES ${placeholders}
+              ON DUPLICATE KEY UPDATE
+                valor = VALUES(valor),
+                base_calculo = VALUES(base_calculo),
+                formula = VALUES(formula);
             `,
               params,
             );

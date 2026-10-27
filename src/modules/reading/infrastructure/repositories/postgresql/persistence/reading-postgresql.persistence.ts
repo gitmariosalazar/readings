@@ -1665,7 +1665,8 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
         INNER JOIN tarifa t
         ON a.tarifa_id = t.tarifa_id
         INNER JOIN categoria cat ON cat.categoria_id = t.categoria_id
-        WHERE acometida_id = $1;
+        WHERE (a.acometida_id = $1 OR a.clave_catastral = $1)
+        LIMIT 1;
       `;
       const result = await this.databaseService.query<RateConnectionModel>(
         query,

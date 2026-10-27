@@ -335,8 +335,35 @@ export class CalculateReadingValueUseCase {
   ): CalculationConceptBreakdown[] {
     const conceptBreakdown: CalculationConceptBreakdown[] = [];
 
+    // Asegurar que todos los conceptos vigentes y beneficios activos de la acometida estén incluidos
+    const effectiveConceptList: BillingConceptValidity[] = [...conceptValidityList];
+    if (context.activeBenefits && context.activeBenefits.length > 0) {
+      for (const benefit of context.activeBenefits) {
+        const alreadyExists = effectiveConceptList.some(
+          (c) =>
+            Number(c.conceptId) === Number(benefit.conceptId) ||
+            c.code === benefit.conceptCode,
+        );
+        if (!alreadyExists) {
+          effectiveConceptList.push({
+            conceptId: benefit.conceptId,
+            code: benefit.conceptCode,
+            name: benefit.benefitTypeName || benefit.conceptCode,
+            description: benefit.benefitTypeName || '',
+            defaultValue: 0,
+            isActive: true,
+            waterPercentage: 0,
+            versionSheet: benefit.versionCode
+              ? `${benefit.conceptCode}-V-${benefit.versionCode}`
+              : `${benefit.conceptCode}-V-1`,
+            validityConceptId: benefit.benefitTypeId || 1,
+          });
+        }
+      }
+    }
+
     // 1. Concepto ALCANTARILLADO (si existe en los conceptos vigentes)
-    const sewerageConcept = conceptValidityList.find(
+    const sewerageConcept = effectiveConceptList.find(
       (c) => c.code === this.SEWERAGE_CONCEPT_CODE,
     );
     if (sewerageConcept) {
@@ -347,7 +374,7 @@ export class CalculateReadingValueUseCase {
     }
 
     // 2. Todos los demás conceptos vigentes (Aseo, Comercialización, rubros fijos, subsidios o descuentos)
-    const otherConcepts = conceptValidityList.filter(
+    const otherConcepts = effectiveConceptList.filter(
       (c) =>
         c.code !== this.SEWERAGE_CONCEPT_CODE &&
         c.code !== this.WATER_CONCEPT_CODE,
@@ -360,7 +387,7 @@ export class CalculateReadingValueUseCase {
     }
 
     // 3. Concepto AGUA (si existe en los conceptos vigentes)
-    const waterConcept = conceptValidityList.find(
+    const waterConcept = effectiveConceptList.find(
       (c) => c.code === this.WATER_CONCEPT_CODE,
     );
     if (waterConcept) {

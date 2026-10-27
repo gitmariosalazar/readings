@@ -62,6 +62,31 @@ describe('ReadingBillingBreakdownPostgreSQLPersistence', () => {
     expect(waterParams).toHaveLength(11);
   });
 
+  it('deduplicates concept details by conceptId keeping the one with non-zero amount', async () => {
+    const { client, repo } = setup();
+
+    const detailZero = new ReadingConceptDetailModel({
+      readingId: 10,
+      conceptId: 1,
+      amount: 0,
+      calculationBase: null,
+      formula: '0',
+    });
+    const detailValue = new ReadingConceptDetailModel({
+      readingId: 10,
+      conceptId: 1,
+      amount: 5,
+      calculationBase: 10,
+      formula: '5',
+    });
+
+    await repo.saveBillingBreakdown([detailZero, detailValue], water);
+
+    const [, , [conceptSql, conceptParams]] = client.execute.mock.calls;
+    expect(conceptSql).toContain('detalle_concepto_lectura');
+    expect(conceptParams).toEqual([10, 1, 0, null, 5, 10, '5']);
+  });
+
   it('replaces previous rows for this reading cleanly', async () => {
     const { client, repo } = setup();
 
