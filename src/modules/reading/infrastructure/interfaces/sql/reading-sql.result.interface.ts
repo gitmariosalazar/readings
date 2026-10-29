@@ -198,6 +198,7 @@ export interface ReadingHistorySQLResult {
   consumption: number;
   observation: string;
   reading_value: number;
+  location_reading: { lat: number; lng: number } | null;
 }
 
 export interface ReadingImagesSQLResult {
@@ -225,6 +226,9 @@ export interface PendingReadingConnectionSQLResult {
   card_id: string;
   rate_name: string;
   average_consumption: number;
+  location_connection: { lat: number; lng: number } | null;
+  last_reading: ReadingHistorySQLResult | null;
+  distance_meters?: number | null;
 }
 
 export interface TakenReadingConnectionSQLResult {

@@ -133,6 +133,7 @@ export class ReadingMapper {
       consumption: readingHistory.consumption,
       observation: readingHistory.observation,
       readingValue: readingHistory.readingValue,
+      locationReading: readingHistory.locationReading ?? null,
     };
     return response;
   }
@@ -170,6 +171,9 @@ export class ReadingMapper {
       cardId: pendingReadingConnection.cardId,
       rateName: pendingReadingConnection.rateName,
       averageConsumption: pendingReadingConnection.averageConsumption ?? 0,
+      locationConnection: pendingReadingConnection.locationConnection ?? null,
+      lastReading: pendingReadingConnection.lastReading ?? null,
+      distanceMeters: pendingReadingConnection.distanceMeters ?? null,
     };
     return response;
   }

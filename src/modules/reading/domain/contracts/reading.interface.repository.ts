@@ -61,6 +61,7 @@ export interface InterfaceReadingRepository {
   getPendingReadingsByMonth(
     dateMonth: string,
     sector?: number,
+    lecturistLocation?: { lat: number; lng: number } | null,
   ): Promise<PendingReadingConnectionModel[]>;
 
   getTakenReadingsByMonth(

@@ -16,6 +16,7 @@ export class GetPendingReadingsByMonthUseCase {
   async execute(
     month: string,
     sector?: number,
+    lecturistLocation?: { lat: number; lng: number } | null,
   ): Promise<PendingReadingConnectionResponse[]> {
     if (!month) {
       throw new RpcException({
@@ -25,7 +26,11 @@ export class GetPendingReadingsByMonthUseCase {
     }
 
     const pendingReadings =
-      await this.readingRepository.getPendingReadingsByMonth(month, sector);
+      await this.readingRepository.getPendingReadingsByMonth(
+        month,
+        sector,
+        lecturistLocation,
+      );
     return pendingReadings.map((pendingReading) =>
       ReadingMapper.fromPendingReadingConnectionModelToPendingReadingConnectionResponse(
         pendingReading,

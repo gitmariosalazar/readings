@@ -1,4 +1,5 @@
 import { PhotoReadingResponse } from '../../../../images-readings/application/dtos/response/photo-reading.response';
+import { ReadingHistoryResponse } from './reading-history.response';
 
 export interface ReadingResponse {
   readingId: number;
@@ -32,6 +33,9 @@ export interface PendingReadingConnectionResponse {
   cardId: string;
   rateName: string;
   averageConsumption: number;
+  locationConnection?: { lat: number; lng: number } | null;
+  lastReading?: ReadingHistoryResponse | null;
+  distanceMeters?: number | null;
 }
 
 export interface TakenReadingConnectionResponse {

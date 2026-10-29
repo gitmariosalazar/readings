@@ -997,7 +997,12 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
             l.lectura_actual              AS current_reading,
             (l.lectura_actual - l.lectura_anterior) AS consumption,
             l.novedad                     AS observation,
-            l.valor_lectura               AS reading_value
+            l.valor_lectura               AS reading_value,
+            CASE
+                WHEN l.ubicacion_captura IS NOT NULL THEN
+                    json_build_object('lat', ST_Y(l.ubicacion_captura), 'lng', ST_X(l.ubicacion_captura))
+                ELSE NULL
+            END as "location_reading"
         FROM lectura l
         WHERE l.acometida_id = $1
           AND l.fecha_lectura IS NOT NULL
@@ -1129,51 +1134,125 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
   async getPendingReadingsByMonth(
     dateMonth: string,
     sector?: number | number[] | null,
+    lecturistLocation?: { lat: number; lng: number } | null,
   ): Promise<PendingReadingConnectionModel[]> {
     const dateMonthFormatted = dateMonth.replace('/', '-');
     const params: any[] = [dateMonthFormatted];
+
     let sectorClause = '';
     if (sector != null) {
       const sectors = Array.isArray(sector) ? sector : [sector];
-      sectorClause = `AND ac.sector = ANY($2)`;
       params.push(sectors);
+      sectorClause = `AND ac.sector = ANY($${params.length})`;
+    }
+
+    let distanceColumnSelect = 'NULL::numeric AS distance_meters,';
+    let orderByClause = 'ORDER BY ac.sector, ac.acometida_id';
+
+    if (lecturistLocation?.lat != null && lecturistLocation?.lng != null) {
+      params.push(lecturistLocation.lng);
+      const lngParam = `$${params.length}`;
+      params.push(lecturistLocation.lat);
+      const latParam = `$${params.length}`;
+
+      // Expresión para la coordenada efectiva (acometida o última lectura)
+      const effectiveCoord =
+        'COALESCE(ac.coordenadas, ult_lec.raw_ubicacion_captura)';
+      const lecturistPoint = `ST_SetSRID(ST_MakePoint(${lngParam}, ${latParam}), 4326)`;
+
+      // Cálculo de distancia en metros usando geography redondeado a entero
+      distanceColumnSelect = `
+        CASE 
+          WHEN ${effectiveCoord} IS NOT NULL THEN
+            ROUND(ST_Distance(${effectiveCoord}::geography, ${lecturistPoint}::geography)::numeric, 0)
+          ELSE NULL
+        END AS distance_meters,
+      `;
+
+      // Ordenamiento por menor a mayor distancia, nulos al final
+      orderByClause = `
+        ORDER BY 
+          ${effectiveCoord} <-> ${lecturistPoint} ASC NULLS LAST,
+          ac.sector, 
+          ac.acometida_id
+      `;
     }
 
     const query = /*sql*/ `
-        SELECT  
-            ac.acometida_id          AS cadastral_key,  
-            ac.numero_medidor        AS meter_number,  
-            ac.direccion             AS address,  
-            ac.sector,  
-            ac.cuenta                AS account,  
-            ac.tarifa_id             AS rate_id,  
-            ac.estado,  
-            ct.nombre                AS rate_name,  
-            COALESCE(
-              ci.nombres || ' ' || ci.apellidos, 
-              COALESCE(e.razon_social, e.nombre_comercial, 'Sin nombre registrado')
-            )                        AS client_name,  
-            c.cliente_id             AS card_id,  
-            cp.average_consumption   AS average_consumption  
-        FROM acometida ac  
-            LEFT JOIN cliente c ON ac.cliente_id = c.cliente_id  
-            LEFT JOIN ciudadano ci ON ci.ciudadano_id = c.cliente_id  
-            LEFT JOIN empresa e ON e.ruc = c.cliente_id  
-            LEFT JOIN tarifa t ON t.tarifa_id = ac.tarifa_id  
-            LEFT JOIN categoria ct ON t.categoria_id = ct.categoria_id  
-            LEFT JOIN consumo_promedio cp ON cp.acometida_id = ac.acometida_id
-            -- Use cat_estados_acometida to determine readability (replaces legacy ac.estado boolean)
-            JOIN cat_estados_acometida est ON ac.estado_id = est.id_estado
-        WHERE NOT EXISTS (  
-            SELECT 1  
-            FROM lectura l  
-            WHERE l.acometida_id = ac.acometida_id  
-              AND l.mes_lectura = $1
-        )  
-          AND est.permite_lectura = TRUE
-          ${sectorClause}
-          AND ac.estado_id = 1
-        ORDER BY ac.sector, ac.acometida_id;
+            SELECT
+                ac.acometida_id          AS cadastral_key,
+                ac.numero_medidor        AS meter_number,
+                ac.direccion             AS address,
+                ac.sector,
+                ac.cuenta                AS account,
+                ac.tarifa_id             AS rate_id,
+                ac.estado,
+                ct.nombre                AS rate_name,
+                COALESCE(
+                    ci.nombres || ' ' || ci.apellidos,
+                    e.razon_social,
+                    e.nombre_comercial,
+                    'Sin nombre registrado'
+                )                        AS client_name,
+                c.cliente_id             AS card_id,
+                cp.average_consumption   AS average_consumption,
+                CASE
+                    WHEN COALESCE(ac.coordenadas, ult_lec.raw_ubicacion_captura) IS NOT NULL THEN
+                        json_build_object(
+                            'lat', ST_Y(COALESCE(ac.coordenadas, ult_lec.raw_ubicacion_captura)), 
+                            'lng', ST_X(COALESCE(ac.coordenadas, ult_lec.raw_ubicacion_captura))
+                        )
+                    ELSE NULL
+                END                      AS "location_connection",
+                -- Nueva columna de distancia calculada respecto al lecturista (en metros)
+                ${distanceColumnSelect}
+                -- Detalle de la última lectura tomada históricamente
+                ult_lec.lectura_info     AS last_reading
+            FROM acometida ac
+                JOIN cat_estados_acometida est ON ac.estado_id = est.id_estado
+                LEFT JOIN cliente c ON ac.cliente_id = c.cliente_id
+                LEFT JOIN ciudadano ci ON ci.ciudadano_id = c.cliente_id
+                LEFT JOIN empresa e ON e.ruc = c.cliente_id
+                LEFT JOIN tarifa t ON t.tarifa_id = ac.tarifa_id
+                LEFT JOIN categoria ct ON t.categoria_id = ct.categoria_id
+                LEFT JOIN consumo_promedio cp ON cp.acometida_id = ac.acometida_id
+                LEFT JOIN LATERAL (
+                    SELECT
+                        l.ubicacion_captura AS raw_ubicacion_captura,
+                        json_build_object(
+                            'reading_id', l.lectura_id,
+                            'connection_id', l.acometida_id,
+                            'reading_year', substring(l.mes_lectura FROM 1 FOR 4)::integer,
+                            'reading_month', to_char(to_date(l.mes_lectura, 'YYYY-MM'), 'TMMONTH'),
+                            'reading_date', l.fecha_lectura,
+                            'reading_time', l.hora_lectura,
+                            'previous_reading', l.lectura_anterior,
+                            'current_reading', l.lectura_actual,
+                            'consumption', (l.lectura_actual - l.lectura_anterior),
+                            'observation', l.novedad,
+                            'reading_value', l.valor_lectura,
+                            'location_reading', CASE
+                                                    WHEN l.ubicacion_captura IS NOT NULL THEN
+                                                        json_build_object('lat', ST_Y(l.ubicacion_captura), 'lng', ST_X(l.ubicacion_captura))
+                                                    ELSE NULL
+                                                END
+                        ) AS lectura_info
+                    FROM lectura l
+                    WHERE l.acometida_id = ac.acometida_id
+                    ORDER BY l.mes_lectura DESC, l.fecha_lectura DESC
+                    LIMIT 1
+                ) ult_lec ON TRUE
+            WHERE ac.estado_id = 1
+              ${sectorClause}
+              AND est.permite_lectura = TRUE
+              -- Condición clave: EXCLUYE las que ya tienen lectura registrada en el mes objetivo
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM lectura l_act
+                  WHERE l_act.acometida_id = ac.acometida_id
+                    AND l_act.mes_lectura = $1
+              )
+            ${orderByClause};
     `;
     const result =
       await this.databaseService.query<PendingReadingConnectionSQLResult>(
@@ -1844,8 +1923,12 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
         r.versionSheet,
         Number(r.id),
         r.totalClientOrigin != null ? Number(r.totalClientOrigin) : null,
-        r.emelnorteQuantityOrigin != null ? Number(r.emelnorteQuantityOrigin) : null,
-        r.totalActiveConnections != null ? Number(r.totalActiveConnections) : null,
+        r.emelnorteQuantityOrigin != null
+          ? Number(r.emelnorteQuantityOrigin)
+          : null,
+        r.totalActiveConnections != null
+          ? Number(r.totalActiveConnections)
+          : null,
         Boolean(r.hasCadastralMismatch),
         Boolean(r.isPennyRemainder),
         Boolean(r.isActive),
@@ -1913,7 +1996,9 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
             AND (rtb.fecha_fin IS NULL OR rtb.fecha_fin >= CURRENT_DATE)
           ORDER BY rtb.rango_minimo ASC;
         `;
-        const rangeRows = await this.databaseService.query<any>(rangesQuery, [r.id]);
+        const rangeRows = await this.databaseService.query<any>(rangesQuery, [
+          r.id,
+        ]);
         ranges = (rangeRows || []).map(
           (rng: any) =>
             new TrashRateRangeModel(

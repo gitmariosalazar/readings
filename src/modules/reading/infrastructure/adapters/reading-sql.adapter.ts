@@ -346,6 +346,7 @@ export class ReadingSQLAdapter {
       readingResultSQL.consumption,
       readingResultSQL.observation,
       readingResultSQL.reading_value,
+      readingResultSQL.location_reading ?? null,
     );
     return response;
   }
@@ -383,6 +384,33 @@ export class ReadingSQLAdapter {
       pendingReadingConnectionResultSQL.card_id,
       pendingReadingConnectionResultSQL.rate_name,
       pendingReadingConnectionResultSQL.average_consumption,
+      pendingReadingConnectionResultSQL.location_connection ?? null,
+      this.fromReadingHistoryPostgreSQLResultToReadingHistoryModel(
+        pendingReadingConnectionResultSQL.last_reading,
+      ),
+      pendingReadingConnectionResultSQL.distance_meters ?? null,
+    );
+  }
+
+  static fromReadingHistoryPostgreSQLResultToReadingHistoryModel(
+    readingHistoryResultSQL: ReadingHistorySQLResult | null,
+  ): ReadingHistoryModel | null {
+    if (!readingHistoryResultSQL) {
+      return null;
+    }
+    return new ReadingHistoryModel(
+      readingHistoryResultSQL.reading_id,
+      readingHistoryResultSQL.connection_id,
+      readingHistoryResultSQL.reading_year,
+      readingHistoryResultSQL.reading_month,
+      readingHistoryResultSQL.reading_date,
+      readingHistoryResultSQL.reading_time,
+      readingHistoryResultSQL.previous_reading,
+      readingHistoryResultSQL.current_reading,
+      readingHistoryResultSQL.consumption,
+      readingHistoryResultSQL.observation,
+      readingHistoryResultSQL.reading_value,
+      readingHistoryResultSQL.location_reading ?? null,
     );
   }
 

@@ -11,5 +11,6 @@ export class ReadingHistoryModel {
     public consumption: number,
     public observation: string,
     public readingValue: number,
+    public locationReading?: { lat: number; lng: number } | null,
   ) {}
 }

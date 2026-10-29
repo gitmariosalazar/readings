@@ -142,11 +142,17 @@ export class ReadingController {
   @Get('get-pending-readings-by-month')
   @MessagePattern('reading.get-pending-readings-by-month')
   async getPendingReadingsByMonth(
-    @Payload() data: { month: string; sector?: number },
+    @Payload()
+    data: {
+      month: string;
+      sector?: number;
+      lecturistLocation?: { lat: number; lng: number } | null;
+    },
   ) {
     return this.getPendingReadingsByMonthUseCase.execute(
       data.month,
       data.sector,
+      data.lecturistLocation,
     );
   }
 
@@ -272,9 +278,7 @@ export class ReadingController {
 
   @Post('apply-payment-agreement')
   @MessagePattern('reading.apply-payment-agreement')
-  async applyPaymentAgreement(
-    @Payload() data: ApplyPaymentAgreementRequest,
-  ) {
+  async applyPaymentAgreement(@Payload() data: ApplyPaymentAgreementRequest) {
     return this.applyPaymentAgreementUseCase.execute(data);
   }
 
