@@ -11,5 +11,5 @@ export interface InterfaceObservationReadingRepository {
   getObservationDetailsByCadastralKey(
     cadastralKey: string,
   ): Promise<ObservationDetailsModel[]>;
-  getObservations(): Promise<ObservationDetailsModel[]>;
+  getObservations(month: string): Promise<ObservationDetailsModel[]>;
 }

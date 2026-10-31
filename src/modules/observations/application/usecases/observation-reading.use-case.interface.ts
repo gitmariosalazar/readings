@@ -12,5 +12,5 @@ export interface InterfaceObservationReadingUseCase {
   getObservationDetailsByCadastralKey(
     cadastralKey: string,
   ): Promise<ObservationDetailsResponse[]>;
-  getObservations(): Promise<ObservationDetailsResponse[]>;
+  getObservations(month: string): Promise<ObservationDetailsResponse[]>;
 }

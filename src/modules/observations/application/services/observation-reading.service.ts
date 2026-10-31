@@ -11,17 +11,15 @@ import { validateFields } from '../../../../shared/validators/fields.validators'
 import { statusCode } from '../../../../settings/environments/status-code';
 
 @Injectable()
-export class ObservationReadingService
-  implements InterfaceObservationReadingUseCase
-{
+export class ObservationReadingService implements InterfaceObservationReadingUseCase {
   constructor(
     @Inject('ObservationReadingRepository')
     private readonly observationRepository: InterfaceObservationReadingRepository,
   ) {}
 
-  async getObservations(): Promise<ObservationDetailsResponse[]> {
+  async getObservations(month: string): Promise<ObservationDetailsResponse[]> {
     try {
-      const models = await this.observationRepository.getObservations();
+      const models = await this.observationRepository.getObservations(month);
       return models.map(
         ObservationReadingMapper.fromObservationDetailsModelToResponse,
       );

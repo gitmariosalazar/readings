@@ -40,6 +40,8 @@ export class ObservationReadingSQLAdapter {
       sqlResponse.address,
       sqlResponse.client_name,
       sqlResponse.observations || '',
+      sqlResponse.reading_month || '',
+      sqlResponse.reading_date || '',
     );
   }
 }

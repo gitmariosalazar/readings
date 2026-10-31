@@ -20,5 +20,7 @@ export class ObservationDetailsModel {
     public readonly address: string,
     public readonly clientName: string,
     public readonly observations: string,
+    public readonly readingMonth: string,
+    public readonly readingDate: string,
   ) {}
 }

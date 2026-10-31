@@ -40,9 +40,9 @@ export class ObservationReadingController {
     );
   }
 
-  @Get('get-observations')
+  @Get('get-observations/:month')
   @MessagePattern('observation-reading.get-observations')
-  async getObservations() {
-    return this.observationReadingService.getObservations();
+  async getObservations(@Payload() data: { month: string }) {
+    return this.observationReadingService.getObservations(data.month);
   }
 }

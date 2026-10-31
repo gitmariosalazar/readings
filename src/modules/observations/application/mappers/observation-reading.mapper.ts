@@ -57,6 +57,8 @@ export class ObservationReadingMapper {
       address: model.address,
       clientName: model.clientName,
       observations: model.observations,
+      readingMonth: model.readingMonth,
+      readingDate: model.readingDate,
     };
   }
 }

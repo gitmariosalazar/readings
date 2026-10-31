@@ -40,4 +40,6 @@ export interface ObservationDetailsSQLResponse {
   address: string;
   client_name: string;
   observations: string;
+  reading_month: string;
+  reading_date: string;
 }

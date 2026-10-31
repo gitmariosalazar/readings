@@ -17,12 +17,10 @@ import { statusCode } from '../../../../../../settings/environments/status-code'
 import { RpcException } from '@nestjs/microservices/exceptions/rpc-exception';
 
 @Injectable()
-export class ObservationReadingPostgreSQLPersistence
-  implements InterfaceObservationReadingRepository
-{
+export class ObservationReadingPostgreSQLPersistence implements InterfaceObservationReadingRepository {
   constructor(private readonly databaseService: DatabaseAbstract) {}
 
-  async getObservations(): Promise<ObservationDetailsModel[]> {
+  async getObservations(month: string): Promise<ObservationDetailsModel[]> {
     const query: string = `
       SELECT
           o.titulo_observacion as "observation_title",
@@ -41,6 +39,8 @@ export class ObservationReadingPostgreSQLPersistence
           a.direccion as "address",
           a.observaciones as "observations",
           c.cliente_id as "client_id",
+          l.mes_lectura as "reading_month",
+          l.fecha_lectura as "reading_date",
           COALESCE(c2.nombres || ' ' || c2.apellidos, e.razon_social, e.nombre_comercial) AS "client_name"
       FROM acometida a
       INNER JOIN lectura l ON a.acometida_id = l.acometida_id
@@ -50,10 +50,13 @@ export class ObservationReadingPostgreSQLPersistence
       INNER JOIN cliente c ON a.cliente_id = c.cliente_id
       LEFT JOIN ciudadano c2 ON c2.ciudadano_id = c.cliente_id
       LEFT JOIN empresa e ON e.cliente_id = c.cliente_id
+      WHERE l.mes_lectura = $1 AND l.tipo_novedad_lectura_id IN (5,6)
       ORDER BY l.fecha_lectura DESC;
     `;
     const result: ObservationDetailsSQLResponse[] =
-      await this.databaseService.query<ObservationDetailsSQLResponse>(query);
+      await this.databaseService.query<ObservationDetailsSQLResponse>(query, [
+        month,
+      ]);
 
     if (result.length === 0) return [];
 
