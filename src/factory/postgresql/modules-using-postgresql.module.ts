@@ -4,6 +4,7 @@ import { ObservationReadingPostgreSQLModule } from '../../modules/observations/i
 import { PhotoReadingPostgreSQLModule } from '../../modules/images-readings/infrastructure/modules/postgresql/photo-reading.postgresql.module';
 import { LocationModuleUsingPostgreSQL } from '../../modules/location/infrastructure/modules/postgresql/location.postgresql.module';
 import { IncidentModuleUsingPostgreSQL } from '../../modules/incident/infrastructure/modules/postgresql/postgresql.incident.module';
+import { ReadingRoutesModule } from '../../modules/reading-routes/infrastructure/modules/reading-routes.module';
 
 @Module({
   imports: [
@@ -12,10 +13,12 @@ import { IncidentModuleUsingPostgreSQL } from '../../modules/incident/infrastruc
     PhotoReadingPostgreSQLModule,
     LocationModuleUsingPostgreSQL,
     IncidentModuleUsingPostgreSQL,
+    ReadingRoutesModule,
   ],
   controllers: [],
   providers: [],
-  exports: [],
+  exports: [ReadingRoutesModule],
 })
 export class AppReadingsModulesUsingPostgreSQL { }
+
 
