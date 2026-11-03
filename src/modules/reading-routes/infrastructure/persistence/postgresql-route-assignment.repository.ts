@@ -309,6 +309,7 @@ export class PostgresqlRouteAssignmentRepository implements IRouteAssignmentRepo
                   'cuenta', a.cuenta,
                   'numeroMedidor', a.numero_medidor,
                   'abonado', COALESCE(TRIM(ci.nombres || ' ' || ci.apellidos), em.razon_social, 'SIN NOMBRE'),
+                  'clienteId', a.cliente_id,
                   'direccion', a.direccion,
                   'referencia', a.referencia,
                   'latitud', ROUND(ST_Y(COALESCE(a.ubicacion_ruta, a.coordenadas))::numeric, 6),
