@@ -283,7 +283,8 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
           WHEN ac.coordenadas IS NOT NULL THEN
             json_build_object('lat', ST_Y(ac.coordenadas), 'lng', ST_X(ac.coordenadas))
             ELSE NULL
-          END as "connection_location"
+          END as "connection_location",
+        ac.tiene_fachada AS "has_facade"
 
       FROM ranked l
       -- Joins cruzados limpios que SIEMPRE devuelven 1 fila (nunca rompen el flujo)

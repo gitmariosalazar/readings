@@ -53,6 +53,7 @@ export class ReadingInfoModel {
     public readonly images?: ImagesModel[],
     public readonly observations?: ObservationModel[],
     public readonly readingLocation?: { lat: number; lng: number } | null,
+    public readonly hasFacade?: boolean,
   ) {}
 }
 

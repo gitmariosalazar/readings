@@ -183,6 +183,7 @@ export class ReadingSQLAdapter {
       readingResultSQL.images ?? [],
       readingResultSQL.observations ?? [],
       readingResultSQL.readingLocation ?? null,
+      readingResultSQL.has_facade, // Convert to boolean if it's a number
     );
   }
 

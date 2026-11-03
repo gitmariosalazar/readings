@@ -85,6 +85,7 @@ export class ReadingInfoMapper {
         observation: obs.observation,
       })),
       readingLocation: domainModel.readingLocation,
+      hasFacade: domainModel.hasFacade,
     };
   }
 
