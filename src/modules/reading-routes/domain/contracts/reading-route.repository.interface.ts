@@ -1,4 +1,5 @@
 import { ReadingRouteEntity } from '../entities/reading-route.entity';
+import { RouteConnectionModel } from '../entities/route-connection.entity';
 import { RouteResolutionResult } from './route-resolution-strategy.interface';
 
 export const READING_ROUTE_REPOSITORY = 'ReadingRouteRepository';
@@ -25,13 +26,25 @@ export interface OptimizeSequenceResult {
 }
 
 export interface IReadingRouteRepository {
-  findAll(filter?: RouteFilterParams): Promise<{ items: ReadingRouteEntity[]; total: number }>;
+  findAll(
+    filter?: RouteFilterParams,
+  ): Promise<{ items: ReadingRouteEntity[]; total: number }>;
   findById(id: number): Promise<ReadingRouteEntity | null>;
-  getRoutesGeoJson(filter?: { sectorId?: number; activa?: boolean }): Promise<any>;
+  getRoutesGeoJson(filter?: {
+    sectorId?: number;
+    activa?: boolean;
+  }): Promise<any>;
   getCentroidsGeoJson(activaOnly?: boolean): Promise<any>;
-  getRouteConnections(idRuta: number): Promise<any[]>;
-  resolveRouteByCoordinates(longitud: number, latitud: number, sectorId?: number): Promise<RouteResolutionResult | null>;
+  getRouteConnections(idRuta: number): Promise<RouteConnectionModel[]>;
+  resolveRouteByCoordinates(
+    longitud: number,
+    latitud: number,
+    sectorId?: number,
+  ): Promise<RouteResolutionResult | null>;
   getNextSequenceNumber(idRuta: number): Promise<number>;
   insertConnection(params: InsertConnectionParams): Promise<void>;
-  optimizeRouteSequence(idRuta: number, acometidaInicio?: string): Promise<OptimizeSequenceResult>;
+  optimizeRouteSequence(
+    idRuta: number,
+    acometidaInicio?: string,
+  ): Promise<OptimizeSequenceResult>;
 }

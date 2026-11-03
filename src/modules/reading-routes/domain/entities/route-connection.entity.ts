@@ -25,9 +25,11 @@ export class RouteConnectionModel {
   pisoDepartamento?: string;
   instruccionAcceso?: string;
   activo!: boolean;
+  sector?: string;
   cuenta?: string;
   numeroMedidor?: string;
   abonado?: string;
+  clienteId?: string;
   direccion?: string;
   referencia?: string;
   latitud?: number;

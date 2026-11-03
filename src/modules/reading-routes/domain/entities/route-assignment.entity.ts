@@ -2,6 +2,7 @@ export class RouteAssignmentEntity {
   idAsignacion!: number;
   rutaId!: number;
   usuarioId!: string;
+  identificacionUsuario?: string;
   empleadoId?: string;
   periodoMes!: string;
   fechaProgramada!: Date;

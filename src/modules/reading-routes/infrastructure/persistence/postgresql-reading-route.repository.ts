@@ -11,6 +11,9 @@ import {
   IRouteResolutionStrategy,
   RouteResolutionResult,
 } from '../../domain/contracts/route-resolution-strategy.interface';
+import { RouteConnectionModel } from '../../domain/entities/route-connection.entity';
+import { RouteConnectionSqlResult } from '../interfaces/reading-route.interface';
+import { ReadingRouteAdapters } from '../adapters/reading-route.adapters';
 
 @Injectable()
 export class PostgresqlReadingRouteRepository implements IReadingRouteRepository {
@@ -203,25 +206,27 @@ export class PostgresqlReadingRouteRepository implements IReadingRouteRepository
     return rows[0]?.geojson || { type: 'FeatureCollection', features: [] };
   }
 
-  async getRouteConnections(idRuta: number): Promise<any[]> {
+  async getRouteConnections(idRuta: number): Promise<RouteConnectionModel[]> {
     const query = /*sql*/ `
       SELECT
-          ra.id_ruta_acometida AS "idRutaAcometida",
-          ra.ruta_id AS "rutaId",
-          ra.acometida_id AS "acometidaId",
-          ra.orden_secuencia AS "ordenSecuencia",
-          ra.lado_calle AS "ladoCalle",
-          ra.piso_departamento AS "pisoDepartamento",
-          ra.instruccion_acceso AS "instruccionAcceso",
+          ra.id_ruta_acometida AS "id_ruta_acometida",
+          ra.ruta_id AS "ruta_id",
+          ra.acometida_id AS "acometida_id",
+          ra.orden_secuencia AS "orden_secuencia",
+          ra.lado_calle AS "lado_calle",
+          ra.piso_departamento AS "piso_departamento",
+          ra.instruccion_acceso AS "instruccion_acceso",
           ra.activo,
+          a.sector AS "sector",
           a.cuenta,
-          a.numero_medidor AS "numeroMedidor",
+          a.numero_medidor AS "numero_medidor",
           COALESCE(TRIM(ci.nombres || ' ' || ci.apellidos), e.razon_social, 'SIN NOMBRE') AS "abonado",
+          a.cliente_id AS "cliente_id",
           a.direccion,
           a.referencia,
           ROUND(ST_Y(COALESCE(a.ubicacion_ruta, a.coordenadas))::numeric, 6)::double precision AS "latitud",
           ROUND(ST_X(COALESCE(a.ubicacion_ruta, a.coordenadas))::numeric, 6)::double precision AS "longitud",
-          cp.average_consumption AS "consumoPromedio"
+          cp.average_consumption AS "consumo_promedio"
       FROM public.ruta_acometida ra
       JOIN public.acometida a ON ra.acometida_id = a.acometida_id
       INNER JOIN public.consumo_promedio cp ON cp.acometida_id = a.acometida_id
@@ -232,7 +237,14 @@ export class PostgresqlReadingRouteRepository implements IReadingRouteRepository
       ORDER BY ra.orden_secuencia ASC;
     `;
 
-    return this.databaseService.query<any>(query, [idRuta]);
+    const rows = await this.databaseService.query<RouteConnectionSqlResult>(
+      query,
+      [idRuta],
+    );
+    if (!rows || rows.length === 0) {
+      return [];
+    }
+    return rows.map(ReadingRouteAdapters.toRouteConnectionSqlResult);
   }
 
   async resolveRouteByCoordinates(

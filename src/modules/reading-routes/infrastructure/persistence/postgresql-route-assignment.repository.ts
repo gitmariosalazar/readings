@@ -182,6 +182,7 @@ export class PostgresqlRouteAssignmentRepository implements IRouteAssignmentRepo
           rl.nombre AS "nombreRuta",
           rl.sector_id AS "sector",
           ar.usuario_id AS "usuarioId",
+          e.ciudadano_id as "identificacionUsuario",
           ar.usuario_id AS "lecturistaId",
           COALESCE(
               NULLIF(TRIM(CONCAT(e.nombres, ' ', e.apellidos)), ''),
