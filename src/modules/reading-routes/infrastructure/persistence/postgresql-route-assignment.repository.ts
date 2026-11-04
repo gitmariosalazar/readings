@@ -557,4 +557,79 @@ export class PostgresqlRouteAssignmentRepository implements IRouteAssignmentRepo
       porcentajeEfectividad: Number(rows[0].porcentajeEfectividad || 0),
     };
   }
+
+  async getAssignedRoutesByLecturist(
+    usuarioId: string,
+    fecha?: string,
+    periodoMes?: string,
+  ): Promise<RouteAssignmentEntity[]> {
+    const conditions: string[] = ['ar.usuario_id = $1::uuid'];
+    const params: (string | number)[] = [usuarioId];
+    let pIdx = 2;
+
+    if (fecha) {
+      conditions.push(`ar.fecha_programada = $${pIdx++}::date`);
+      params.push(fecha);
+    }
+
+    if (periodoMes) {
+      conditions.push(`ar.periodo_mes = $${pIdx++}`);
+      params.push(periodoMes);
+    }
+
+    conditions.push(
+      `ar.estado IN ('ASIGNADA', 'EN_PROCESO', 'PAUSADA', 'COMPLETADA')`,
+    );
+
+    const query = `
+      SELECT 
+          ar.id_asignacion AS "idAsignacion",
+          ar.ruta_id AS "rutaId",
+          rl.codigo AS "codigoRuta",
+          rl.nombre AS "nombreRuta",
+          rl.sector_id AS "sector",
+          ar.usuario_id AS "usuarioId",
+          e.ciudadano_id AS "identificacionUsuario",
+          ar.usuario_id AS "lecturistaId",
+          COALESCE(
+              NULLIF(TRIM(CONCAT(e.nombres, ' ', e.apellidos)), ''),
+              u.username,
+              'Operador en campo'
+          ) AS "nombreLecturista",
+          ar.periodo_mes AS "periodoMes",
+          ar.fecha_programada AS "fechaProgramada",
+          ar.fecha_inicio AS "fechaInicio",
+          ar.fecha_fin AS "fechaCierre",
+          ar.estado,
+          ar.lecturas_esperadas AS "totalPredios",
+          ar.lecturas_esperadas AS "lecturasEsperadas",
+          ar.lecturas_completadas AS "prediosLeidos",
+          ar.lecturas_completadas AS "lecturasCompletadas",
+          ar.lecturas_novedad AS "prediosConNovedad",
+          ar.lecturas_novedad AS "lecturasNovedad",
+          ar.lecturas_pendientes AS "prediosPendientes",
+          ar.lecturas_pendientes AS "lecturasPendientes",
+          CASE 
+              WHEN ar.lecturas_esperadas > 0 
+              THEN ROUND((ar.lecturas_completadas + ar.lecturas_novedad)::numeric / ar.lecturas_esperadas::numeric * 100, 2)::float
+              ELSE 0.00
+          END AS "porcentajeAvance",
+          (ar.estado = 'REASIGNADA') AS "esReasignacion",
+          ar.observacion_supervisor AS "motivoReasignacion",
+          ar.created_at AS "createdAt",
+          ar.updated_at AS "updatedAt"
+      FROM public.asignacion_ruta ar
+      JOIN public.ruta_lectura rl ON ar.ruta_id = rl.id_ruta
+      LEFT JOIN public.usuarios u ON ar.usuario_id = u.usuario_id
+      LEFT JOIN public.empleados e ON ar.usuario_id = e.usuario_id
+      WHERE ${conditions.join(' AND ')}
+      ORDER BY ar.fecha_programada DESC, ar.id_asignacion DESC;
+    `;
+
+    const rows = await this.databaseService.query<Partial<RouteAssignmentEntity>>(
+      query,
+      params,
+    );
+    return rows.map((r) => new RouteAssignmentEntity(r));
+  }
 }

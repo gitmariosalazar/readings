@@ -40,6 +40,7 @@ import { GetRouteConnectionsUseCase } from '../../application/usecases/queries/G
 import { GetLiveTrackingAssignmentsUseCase } from '../../application/usecases/queries/GetLiveTrackingAssignmentsUseCase';
 import { GetMobileWorkPackUseCase } from '../../application/usecases/queries/GetMobileWorkPackUseCase';
 import { GetLecturistDailyKpiUseCase } from '../../application/usecases/queries/GetLecturistDailyKpiUseCase';
+import { GetLecturistAssignedRoutesUseCase } from '../../application/usecases/queries/GetLecturistAssignedRoutesUseCase';
 
 @Module({
   imports: [DatabasePersistenceModule],
@@ -98,6 +99,7 @@ import { GetLecturistDailyKpiUseCase } from '../../application/usecases/queries/
     GetLiveTrackingAssignmentsUseCase,
     GetMobileWorkPackUseCase,
     GetLecturistDailyKpiUseCase,
+    GetLecturistAssignedRoutesUseCase,
   ],
   exports: [
     READING_ROUTE_REPOSITORY,
@@ -119,6 +121,7 @@ import { GetLecturistDailyKpiUseCase } from '../../application/usecases/queries/
     GetLiveTrackingAssignmentsUseCase,
     GetMobileWorkPackUseCase,
     GetLecturistDailyKpiUseCase,
+    GetLecturistAssignedRoutesUseCase,
   ],
 })
 export class ReadingRoutesModule {}

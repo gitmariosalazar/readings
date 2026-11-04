@@ -3,7 +3,12 @@ import { MessagePattern, Payload } from '@nestjs/microservices';
 import { GetMobileWorkPackUseCase } from '../../application/usecases/queries/GetMobileWorkPackUseCase';
 import { SyncMobileReadingsBatchUseCase } from '../../application/usecases/commands/SyncMobileReadingsBatchUseCase';
 import { GetLecturistDailyKpiUseCase } from '../../application/usecases/queries/GetLecturistDailyKpiUseCase';
-import { SyncMobileReadingsBatchRequest } from '../../application/dtos/request/route-dtos.request';
+import { GetLecturistAssignedRoutesUseCase } from '../../application/usecases/queries/GetLecturistAssignedRoutesUseCase';
+import {
+  GetLecturistAssignedRoutesRequest,
+  SyncMobileReadingsBatchRequest,
+} from '../../application/dtos/request/route-dtos.request';
+import { RouteAssignmentEntity } from '../../domain/entities/route-assignment.entity';
 
 @Controller()
 export class MobileRouteSyncController {
@@ -11,7 +16,15 @@ export class MobileRouteSyncController {
     private readonly getMobileWorkPackUseCase: GetMobileWorkPackUseCase,
     private readonly syncMobileReadingsBatchUseCase: SyncMobileReadingsBatchUseCase,
     private readonly getLecturistDailyKpiUseCase: GetLecturistDailyKpiUseCase,
+    private readonly getLecturistAssignedRoutesUseCase: GetLecturistAssignedRoutesUseCase,
   ) {}
+
+  @MessagePattern(['reading-routes.mobile.get-my-routes', 'mobile.get-my-routes'])
+  async getMyRoutes(
+    @Payload() payload: GetLecturistAssignedRoutesRequest,
+  ): Promise<RouteAssignmentEntity[]> {
+    return this.getLecturistAssignedRoutesUseCase.execute(payload);
+  }
 
   @MessagePattern(['reading-routes.mobile.get-pack', 'mobile.get-pack'])
   async getPack(@Payload() payload: { assignmentId: number } | number) {
@@ -23,14 +36,16 @@ export class MobileRouteSyncController {
   @MessagePattern(['reading-routes.mobile.sync-readings', 'mobile.sync-readings'])
   async syncReadings(
     @Payload()
-    payload: {
-      dto: SyncMobileReadingsBatchRequest;
-      usuarioId: string;
-    } | SyncMobileReadingsBatchRequest & { usuarioId?: string },
+    payload:
+      | {
+          dto: SyncMobileReadingsBatchRequest;
+          usuarioId: string;
+        }
+      | (SyncMobileReadingsBatchRequest & { usuarioId?: string }),
   ) {
     const dto = 'dto' in payload ? payload.dto : payload;
     const usuarioId =
-      ('usuarioId' in payload && payload.usuarioId)
+      'usuarioId' in payload && payload.usuarioId
         ? payload.usuarioId
         : '00000000-0000-0000-0000-000000000001';
     return this.syncMobileReadingsBatchUseCase.execute(dto, usuarioId);

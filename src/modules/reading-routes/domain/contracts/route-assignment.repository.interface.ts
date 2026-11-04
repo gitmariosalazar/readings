@@ -95,4 +95,10 @@ export interface IRouteAssignmentRepository {
   ): Promise<SyncBatchResult>;
 
   getLecturistDailyKpi(usuarioId: string, fecha?: string): Promise<any>;
+
+  getAssignedRoutesByLecturist(
+    usuarioId: string,
+    fecha?: string,
+    periodoMes?: string,
+  ): Promise<RouteAssignmentEntity[]>;
 }

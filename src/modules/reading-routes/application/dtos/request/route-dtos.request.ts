@@ -64,3 +64,9 @@ export class FindReadingRoutesQueryRequest {
   page?: number;
   limit?: number;
 }
+
+export class GetLecturistAssignedRoutesRequest {
+  usuarioId!: string;
+  fecha?: string;
+  periodoMes?: string;
+}
