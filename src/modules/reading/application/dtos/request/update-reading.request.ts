@@ -15,6 +15,7 @@ export class UpdateReadingRequest {
   meterStatus!: string | null;
   incomeCode!: number | null;
   averageConsumption!: number;
+  averageValue?: number | null;
   typeNoveltyReadingId!: number | null;
   readingMonth!: string;
   locationCapture?: { lat: number; lng: number } | null;

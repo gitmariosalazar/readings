@@ -16,6 +16,7 @@ export class UpdateSpecialReadingRequest {
   typeNoveltyReadingId!: number | null;
   cadastralKey!: string;
   averageConsumption!: number;
+  averageValue?: number | null;
   photos?: (string | PhotoInput)[];
   evidencePhotos?: (string | PhotoInput)[];
   images?: (string | PhotoInput)[];

@@ -62,6 +62,7 @@ export class ReadingInfoMapper {
       account: domainModel.account,
       readingValue: domainModel.readingValue,
       averageConsumption: domainModel.averageConsumption,
+      averageValue: domainModel.averageValue,
       meterNumber: domainModel.meterNumber,
       rateId: domainModel.rateId,
       rateName: domainModel.rateName,

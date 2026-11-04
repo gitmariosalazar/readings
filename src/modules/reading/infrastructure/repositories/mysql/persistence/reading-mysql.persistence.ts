@@ -183,6 +183,7 @@ export class ReadingPersistenceMySQL implements InterfaceReadingRepository {
         ac.sector,
         ac.cuenta AS account,
         cp.average_consumption AS "average_consumption",
+        cp.average_value AS "average_value",
         ac.numero_medidor AS "meter_number",
         ac.tarifa_id AS "rate_id",
         ct.nombre AS "rate_name",
@@ -369,6 +370,7 @@ SELECT
   ac.sector,
   ac.cuenta AS account,
   cp.average_consumption AS "average_consumption",
+  cp.average_value AS "average_value",
   ac.numero_medidor AS "meter_number",
   ac.tarifa_id AS "rate_id",
   ct.nombre AS "rate_name",
@@ -683,10 +685,12 @@ ORDER BY l.fecha_lectura DESC;
         });
       }
 
-      const avgQuery = `SELECT average_consumption FROM consumo_promedio WHERE acometida_id = ? LIMIT 1;`;
+      const avgQuery = `SELECT average_consumption, average_value FROM consumo_promedio WHERE acometida_id = ? LIMIT 1;`;
       const avgRows = await client.query<any>(avgQuery, [acometidaId]);
       const averageConsumption =
-        avgRows.length > 0 ? parseFloat(avgRows[0].average_consumption) : 0;
+        avgRows.length > 0 ? parseFloat(avgRows[0].average_consumption || '0') : 0;
+      const averageValue =
+        avgRows.length > 0 ? parseFloat(avgRows[0].average_value || '0') : 0;
 
       // <-- NUEVO: Obtener novedades dinámicas configuradas en la BD dentro de la transacción
       const noveltiesRows = await client.query<any>(`
@@ -706,6 +710,7 @@ ORDER BY l.fecha_lectura DESC;
         reading.previousReading,
         reading.currentReading,
         averageConsumption,
+        averageValue,
         noveltiesRows, // <-- Pasar las novedades obtenidas de la BD
       );
 
@@ -1633,6 +1638,7 @@ SELECT
   ac.sector,
   ac.cuenta AS account,
   cp.average_consumption AS "average_consumption",
+  cp.average_value AS "average_value",
   ac.numero_medidor AS "meter_number",
   ac.tarifa_id AS "rate_id",
   ct.nombre AS "rate_name",

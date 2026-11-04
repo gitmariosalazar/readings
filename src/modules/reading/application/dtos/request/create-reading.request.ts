@@ -14,6 +14,7 @@ export class CreateReadingRequest {
   novelty!: string | null;
   meterStatus!: string | null;
   averageConsumption!: number;
+  averageValue!: number;
   typeNoveltyReadingId!: number;
   previousMonthReading!: string;
   currentMonthReading!: string;

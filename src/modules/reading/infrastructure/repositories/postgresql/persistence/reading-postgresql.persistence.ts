@@ -248,6 +248,7 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
         ac.sector,
         ac.cuenta AS account,
         cp.average_consumption AS "average_consumption",
+        cp.average_value AS "average_value",
         ac.numero_medidor AS "meter_number",
         ac.tarifa_id AS "rate_id",
         ct.nombre AS "rate_name",
@@ -455,6 +456,7 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
         ac.sector,
         ac.cuenta AS account,
         cp.average_consumption AS "average_consumption",
+        cp.average_value AS "average_value",
         ac.numero_medidor AS "meter_number",
         ac.tarifa_id AS "rate_id",
         ct.nombre AS "rate_name",
@@ -816,12 +818,13 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
 
           // 4. Consumo Promedio
           const avgRows = await client.query<any>(
-            `SELECT average_consumption FROM consumo_promedio WHERE acometida_id = $1 LIMIT 1;`,
+            `SELECT average_consumption, average_value FROM consumo_promedio WHERE acometida_id = $1 LIMIT 1;`,
             [acometidaId],
           );
           const averageConsumption = parseFloat(
             avgRows[0]?.average_consumption || '0',
           );
+          const averageValue = parseFloat(avgRows[0]?.average_value || '0');
 
           // <-- NUEVO: Obtener novedades dinámicas configuradas en la BD dentro de la transacción
           const noveltiesRows = await client.query<any>(
@@ -845,6 +848,7 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
             reading.previousReading,
             reading.currentReading,
             averageConsumption,
+            averageValue,
             noveltiesRows, // <-- Pasar las novedades obtenidas de la BD
           );
 

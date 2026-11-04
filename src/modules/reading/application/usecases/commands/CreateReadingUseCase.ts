@@ -110,31 +110,36 @@ export class CreateReadingUseCase {
       readingRequest.readingTime = hora;
       readingRequest.readingDate = fechaFormateada;
 
+      // 1. Calcular consumo volumétrico (m3)
+      const consumptionM3: number =
+        Number(readingRequest.currentReading) -
+        Number(readingRequest.previousReading);
+
+      // 2. Liquidar valor tarifario y desgloses comerciales según pliego EPAA
+      const valueConsumoAgua: CalculateReadingValueModel =
+        await this.calculateReadingValueUseCase.execute(
+          readingRequest.cadastralKey,
+          consumptionM3,
+        );
+
+      readingRequest.readingValue = valueConsumoAgua.waterConsumptionValue;
+      readingRequest.sewerRate = valueConsumoAgua.sewerageValue;
+      readingRequest.totalValue = valueConsumoAgua.total;
+      readingRequest.consumptionM3 = consumptionM3;
+
+      // 3. Determinar novedad con Escudo de Tarifa Base (0-10 m3)
       const novelties = await this.noveltyRepository.findAllNovelties();
 
       const consumoActual: NoveltyModel = getTypeCurrentConsumption(
         readingRequest.previousReading,
         readingRequest.currentReading,
         readingRequest.averageConsumption,
+        readingRequest.averageValue ?? null,
         novelties,
       );
 
       readingRequest.typeNoveltyReadingId = consumoActual.id;
       readingRequest.novelty = consumoActual.title;
-
-      const valueConsumoAgua: CalculateReadingValueModel =
-        await this.calculateReadingValueUseCase.execute(
-          readingRequest.cadastralKey,
-          Number(readingRequest.currentReading) -
-            Number(readingRequest.previousReading),
-        );
-
-      readingRequest.readingValue = valueConsumoAgua.waterConsumptionValue;
-      readingRequest.sewerRate = valueConsumoAgua.sewerageValue;
-      readingRequest.totalValue = valueConsumoAgua.total;
-      readingRequest.consumptionM3 =
-        Number(readingRequest.currentReading) -
-        Number(readingRequest.previousReading);
 
       const paraCrear: ReadingModel =
         ReadingMapper.fromCreateReadingRequestToReadingModel(readingRequest);
@@ -182,10 +187,26 @@ export class CreateReadingUseCase {
 
       if (consumoActual.id !== 1) {
         creado.novelty = consumoActual.title;
+
+        // Calcular el exceso económico estimado frente al valor habitual o tarifa base
+        const baseRate = valueConsumoAgua.baseRate ?? 3.70;
+        const referenceValue = Math.max(
+          readingRequest.averageValue ?? 0,
+          baseRate,
+        );
+        const monetaryExcess = Math.max(
+          0,
+          (readingRequest.totalValue ?? 0) - referenceValue,
+        );
+        const monetaryDetail =
+          monetaryExcess > 0
+            ? ` | Exceso económico estimado: $${monetaryExcess.toFixed(2)} (Total planilla: $${(readingRequest.totalValue ?? 0).toFixed(2)} vs Promedio/Base: $${referenceValue.toFixed(2)}).`
+            : '';
+
         const solicitudObservacion: CreateObservationReadingRequest = {
           readingId: creado.readingId,
           observationTitle: `NOVEDAD DETECTADA EN LECTURA ID: ${creado.readingId}`,
-          observationDetails: `${consumoActual.description} Acción recomendada: ${consumoActual.actionRecommended}`,
+          observationDetails: `${consumoActual.description}${monetaryDetail} Acción recomendada: ${consumoActual.actionRecommended}`,
         };
         const modeloObservacion: ObservationReadingModel =
           ObservationReadingMapper.fromCreateObservationReadingToModel(

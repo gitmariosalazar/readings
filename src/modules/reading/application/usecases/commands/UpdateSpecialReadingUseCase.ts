@@ -116,21 +116,11 @@ export class UpdateSpecialReadingUseCase {
         });
       }
 
-      const novelties = await this.noveltyRepository.findAllNovelties();
-
-      const consumoActual: NoveltyModel = getTypeCurrentConsumption(
-        request.previousReading,
-        request.currentReading,
-        request.averageConsumption!,
-        novelties,
-      );
-
-      request.typeNoveltyReadingId = consumoActual.id;
-      request.novelty = consumoActual.title;
-
+      // 1. Calcular consumo volumétrico (m3)
       const consumption: number =
         (request.currentReading ?? 0) - (request.previousReading ?? 0);
 
+      // 2. Liquidar valor tarifario y desgloses comerciales según pliego EPAA
       const valueConsumoAgua: CalculateReadingValueModel =
         await this.calculateReadingValueUseCase.execute(
           request.cadastralKey,
@@ -149,6 +139,20 @@ export class UpdateSpecialReadingUseCase {
           message: `Error calculating total amount for reading with ID ${readingId}!`,
         });
       }
+
+      // 3. Determinar novedad con Escudo de Tarifa Base (0-10 m3)
+      const novelties = await this.noveltyRepository.findAllNovelties();
+
+      const consumoActual: NoveltyModel = getTypeCurrentConsumption(
+        request.previousReading,
+        request.currentReading,
+        request.averageConsumption!,
+        request.averageValue ?? null,
+        novelties,
+      );
+
+      request.typeNoveltyReadingId = consumoActual.id;
+      request.novelty = consumoActual.title;
 
       const updatedReading = new ReadingModel(
         readingId,

@@ -66,6 +66,7 @@ export interface ReadingInfoSQLResult {
   account: number;
   reading_value: number;
   average_consumption: number;
+  average_value: number;
   meter_number: string;
   rate_id: number;
   rate_name: string;

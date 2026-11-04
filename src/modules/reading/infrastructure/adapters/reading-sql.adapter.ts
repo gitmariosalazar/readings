@@ -166,6 +166,7 @@ export class ReadingSQLAdapter {
       readingResultSQL.account,
       readingResultSQL.reading_value,
       readingResultSQL.average_consumption,
+      readingResultSQL.average_value,
       readingResultSQL.meter_number,
       readingResultSQL.rate_id,
       readingResultSQL.rate_name,

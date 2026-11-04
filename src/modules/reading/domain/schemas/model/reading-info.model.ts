@@ -38,6 +38,7 @@ export class ReadingInfoModel {
     public readonly account: number,
     public readonly readingValue: number,
     public readonly averageConsumption: number,
+    public readonly averageValue: number,
     public readonly meterNumber: string,
     public readonly rateId: number,
     public readonly rateName: string,
