@@ -812,7 +812,7 @@ export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository 
           if (!isEspecial && parseInt(countRows[0].normales) >= 1) {
             throw new RpcException({
               statusCode: statusCode.CONFLICT,
-              message: `Ya existe una lectura normal en ${mesLectura}.`,
+              message: `Ya existe una lectura normal en ${mesLectura} para la acometida ${acometidaId}. `,
             });
           }
 

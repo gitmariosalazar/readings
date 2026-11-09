@@ -675,7 +675,7 @@ ORDER BY l.fecha_lectura DESC;
       if (!isEspecial && normales >= 1) {
         throw new RpcException({
           statusCode: statusCode.CONFLICT,
-          message: `Ya existe una lectura normal en ${mesLectura}.`,
+          message: `Ya existe una lectura normal en ${mesLectura} para la acometida ${acometidaId}.`,
         });
       }
       if (isEspecial && especiales >= 2) {
@@ -688,7 +688,9 @@ ORDER BY l.fecha_lectura DESC;
       const avgQuery = `SELECT average_consumption, average_value FROM consumo_promedio WHERE acometida_id = ? LIMIT 1;`;
       const avgRows = await client.query<any>(avgQuery, [acometidaId]);
       const averageConsumption =
-        avgRows.length > 0 ? parseFloat(avgRows[0].average_consumption || '0') : 0;
+        avgRows.length > 0
+          ? parseFloat(avgRows[0].average_consumption || '0')
+          : 0;
       const averageValue =
         avgRows.length > 0 ? parseFloat(avgRows[0].average_value || '0') : 0;
 
