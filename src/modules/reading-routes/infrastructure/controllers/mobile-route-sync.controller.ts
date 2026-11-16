@@ -19,7 +19,10 @@ export class MobileRouteSyncController {
     private readonly getLecturistAssignedRoutesUseCase: GetLecturistAssignedRoutesUseCase,
   ) {}
 
-  @MessagePattern(['reading-routes.mobile.get-my-routes', 'mobile.get-my-routes'])
+  @MessagePattern([
+    'reading-routes.mobile.get-my-routes',
+    'mobile.get-my-routes',
+  ])
   async getMyRoutes(
     @Payload() payload: GetLecturistAssignedRoutesRequest,
   ): Promise<RouteAssignmentEntity[]> {
@@ -33,13 +36,17 @@ export class MobileRouteSyncController {
     return this.getMobileWorkPackUseCase.execute(Number(assignmentId));
   }
 
-  @MessagePattern(['reading-routes.mobile.sync-readings', 'mobile.sync-readings'])
+  @MessagePattern([
+    'reading-routes.mobile.sync-readings',
+    'mobile.sync-readings',
+  ])
   async syncReadings(
     @Payload()
     payload:
       | {
           dto: SyncMobileReadingsBatchRequest;
           usuarioId: string;
+          userCardId?: string;
         }
       | (SyncMobileReadingsBatchRequest & { usuarioId?: string }),
   ) {
@@ -48,7 +55,13 @@ export class MobileRouteSyncController {
       'usuarioId' in payload && payload.usuarioId
         ? payload.usuarioId
         : '00000000-0000-0000-0000-000000000001';
-    return this.syncMobileReadingsBatchUseCase.execute(dto, usuarioId);
+    const userCardId =
+      'userCardId' in payload && payload.userCardId ? payload.userCardId : '';
+    return this.syncMobileReadingsBatchUseCase.execute(
+      dto,
+      usuarioId,
+      userCardId,
+    );
   }
 
   @MessagePattern(['reading-routes.mobile.get-my-kpi', 'mobile.get-my-kpi'])

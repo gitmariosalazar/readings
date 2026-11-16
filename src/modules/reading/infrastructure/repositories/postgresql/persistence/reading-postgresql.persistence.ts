@@ -1,5 +1,5 @@
 import { InterfaceReadingRepository } from './../../../../domain/contracts/reading.interface.repository';
-import { Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable } from '@nestjs/common';
 import { toZonedTime } from 'date-fns-tz';
 import {
   BillingConceptValidity,
@@ -59,6 +59,248 @@ import { ConceptDeferralModel } from '../../../../domain/schemas/model/payment-a
 @Injectable()
 export class ReadingPersistencePostgreSQL implements InterfaceReadingRepository {
   constructor(private readonly databaseService: DatabaseAbstract) {}
+  async getMovileWorkPackConnections(filters?: {
+    sector?: number;
+    cadastralKeys?: string[];
+  }): Promise<ReadingInfoModel[]> {
+    try {
+      const cadastralKeys =
+        filters?.cadastralKeys && filters.cadastralKeys.length > 0
+          ? (Array.isArray(filters.cadastralKeys)
+              ? filters.cadastralKeys
+              : [filters.cadastralKeys]
+            )
+              .map((k) => String(k).trim())
+              .filter((k) => k.length > 0)
+          : null;
+      const validCadastralKeys =
+        cadastralKeys && cadastralKeys.length > 0 ? cadastralKeys : null;
+
+      const sector =
+        filters?.sector !== undefined &&
+        filters?.sector !== null &&
+        !isNaN(Number(filters.sector))
+          ? Number(filters.sector)
+          : null;
+
+      const query = /*sql*/ `
+            WITH constantes AS (
+              -- Evaluamos las fechas del sistema una sola vez para toda la consulta
+              SELECT
+                CURRENT_DATE AS hoy,
+                date_trunc('month', CURRENT_DATE)::date AS mes_actual_date,
+                to_char(CURRENT_DATE, 'YYYY-MM') AS mes_actual_str
+            ),
+
+            lecturas_filtradas AS (
+              -- 1. Reducimos el universo de lectura antes de la función de ventana
+              SELECT
+                l.lectura_id,
+                l.acometida_id,
+                l.fecha_lectura,
+                l.hora_lectura,
+                l.lectura_anterior,
+                l.lectura_actual,
+                l.valor_lectura,
+                COALESCE(l.mes_lectura, to_char(l.fecha_lectura, 'YYYY-MM')) AS mes_lectura_calc,
+                l.novedad
+              FROM lectura l
+              WHERE l.fecha_lectura IS NOT NULL
+                AND l.novedad IS NOT NULL
+                -- Filtrado por claves catastrales ($1) y/o sector ($2), o global si ambos son NULL
+                AND ($1::text[] IS NULL OR l.acometida_id = ANY($1::text[]) OR l.clave_catastral = ANY($1::text[]))
+                AND ($2::int IS NULL OR l.acometida_id IN (
+                  SELECT ac_sec.acometida_id FROM acometida ac_sec WHERE ac_sec.sector = $2
+                ))
+            ),
+
+            lecturas_procesadas AS (
+              -- 2. Una sola pasada sobre las lecturas con ventana ordenada aprovechando índices B-Tree
+              SELECT
+                lf.lectura_id,
+                lf.acometida_id,
+                lf.fecha_lectura,
+                lf.hora_lectura,
+                lf.lectura_anterior,
+                lf.lectura_actual,
+                lf.valor_lectura,
+                lf.mes_lectura_calc,
+                ROW_NUMBER() OVER (
+                  PARTITION BY lf.acometida_id
+                  ORDER BY lf.fecha_lectura DESC, lf.hora_lectura DESC
+                ) AS rn,
+                MAX(
+                  CASE 
+                    WHEN lf.novedad NOT LIKE '%INICIAL AUTOMÁTICA%'
+                    AND lf.novedad NOT LIKE '%CAMBIO MEDIDOR%'
+                    AND lf.novedad NOT LIKE '%CAMBIO DE MEDIDOR%'
+                    THEN lf.mes_lectura_calc
+                  END
+                ) OVER (PARTITION BY lf.acometida_id) AS max_mes_normal
+              FROM lecturas_filtradas lf
+            ),
+
+            top_lecturas AS (
+              -- 3. Reducimos a máximo 2 lecturas por acometida y calculamos flags de negocio
+              SELECT
+                lp.lectura_id,
+                lp.acometida_id,
+                lp.fecha_lectura,
+                lp.hora_lectura,
+                lp.lectura_anterior,
+                lp.lectura_actual,
+                lp.valor_lectura,
+                lp.mes_lectura_calc,
+                lp.rn,
+                -- Conversión directa a fecha del 1er día de mes
+                (lp.mes_lectura_calc || '-01')::date AS mes_lectura_trunc,
+                (lp.max_mes_normal = c.mes_actual_str) AS ya_tomada_mes_actual,
+                CASE
+                  WHEN lp.max_mes_normal IS NULL THEN c.mes_actual_date
+                  WHEN ((lp.max_mes_normal || '-01')::date + INTERVAL '1 month')::date < c.mes_actual_date
+                    THEN c.mes_actual_date
+                  ELSE ((lp.max_mes_normal || '-01')::date + INTERVAL '1 month')::date
+                END AS mes_que_toca
+              FROM lecturas_procesadas lp
+              CROSS JOIN constantes c
+              WHERE lp.rn <= 2
+            ),
+
+            ultimo_periodo AS (
+              -- 4. Período filtrado únicamente para las acometidas que existen en top_lecturas
+              SELECT DISTINCT ON (sl.acometida_id)
+                sl.acometida_id,
+                COALESCE(sl.fecha_inicio_periodo, c.hoy - INTERVAL '1 month')::date AS inicio,
+                COALESCE(sl.fecha_fin_periodo, c.hoy + INTERVAL '1 month')::date AS fin
+              FROM siguiente_lectura sl
+              CROSS JOIN constantes c
+              WHERE ($1::text[] IS NULL OR sl.acometida_id = ANY($1::text[]))
+                AND sl.acometida_id IN (SELECT DISTINCT acometida_id FROM top_lecturas)
+              ORDER BY sl.acometida_id, sl.fecha_fin_periodo DESC NULLS LAST
+            ),
+
+            acometida_info AS (
+              -- 5. Ejecutamos los JOINs de cliente, tarifa, PostGIS y vista cliente_contacto
+              --    UNA SOLA VEZ por acometida (en lugar de duplicarlo para rn=1 y rn=2)
+              SELECT
+                ac.acometida_id,
+                ac.direccion AS address,
+                ac.sector,
+                ac.cuenta AS account,
+                ac.numero_medidor AS meter_number,
+                ac.tarifa_id AS rate_id,
+                ac.tiene_fachada AS has_facade,
+                CASE
+                  WHEN ac.coordenadas IS NOT NULL THEN
+                    json_build_object('lat', ST_Y(ac.coordenadas), 'lng', ST_X(ac.coordenadas))
+                  ELSE NULL
+                END AS connection_location,
+                c.cliente_id AS card_id,
+                COALESCE(ci.nombres || ' ' || ci.apellidos, e.razon_social) AS client_name,
+                cc.phones AS client_phones,
+                cc.correos AS client_emails,
+                ct.nombre AS rate_name,
+                cp.average_consumption,
+                cp.average_value,
+                est.id_estado AS connection_state_id,
+                est.nombre AS connection_state_name,
+                est.permite_lectura AS permit_reading
+              FROM acometida ac
+              LEFT JOIN cat_estados_acometida est ON ac.estado_id = est.id_estado
+              LEFT JOIN cliente c ON c.cliente_id = ac.cliente_id
+              LEFT JOIN ciudadano ci ON ci.ciudadano_id = c.cliente_id
+              LEFT JOIN empresa e ON e.ruc = c.cliente_id
+              LEFT JOIN tarifa t ON t.tarifa_id = ac.tarifa_id
+              LEFT JOIN categoria ct ON ct.categoria_id = t.categoria_id
+              LEFT JOIN consumo_promedio cp ON cp.acometida_id = ac.acometida_id
+              LEFT JOIN cliente_contacto cc ON cc.cliente_id = c.cliente_id
+              WHERE ($1::text[] IS NULL OR ac.acometida_id = ANY($1::text[]) OR ac.clave_catastral = ANY($1::text[]))
+                AND ($2::int IS NULL OR ac.sector = $2)
+                AND ac.acometida_id IN (SELECT DISTINCT acometida_id FROM top_lecturas)
+            )
+
+            -- =========================================================================
+            -- RESULTADO FINAL (Exactamente las 33 columnas intactas y con el mismo tipo)
+            -- =========================================================================
+            SELECT
+              l.lectura_id AS "reading_id",
+              l.fecha_lectura AS "previous_reading_date",
+              l.hora_lectura AS "reading_time",
+              ai.acometida_id AS "cadastral_key",
+              ai.card_id AS "card_id",
+              ai.client_name AS "client_name",
+              ai.client_phones AS "client_phones",
+              ai.client_emails AS "client_emails",
+              ai.address AS address,
+              l.lectura_anterior AS "previous_reading",
+              l.lectura_actual AS "current_reading",
+              l.valor_lectura AS "reading_value",
+              ai.sector,
+              ai.account AS account,
+              ai.average_consumption AS "average_consumption",
+              ai.average_value AS "average_value",
+              ai.meter_number AS "meter_number",
+              ai.rate_id AS "rate_id",
+              ai.rate_name AS "rate_name",
+
+              CASE
+                WHEN l.rn = 1
+                  AND l.mes_que_toca = c.mes_actual_date
+                  AND NOT COALESCE(l.ya_tomada_mes_actual, false)
+                THEN true
+                WHEN l.rn = 2 THEN true
+                ELSE false
+              END AS "has_current_reading",
+
+              l.mes_que_toca AS "next_month_to_take_debug",
+              c.mes_actual_date AS "current_month_debug",
+              COALESCE(l.ya_tomada_mes_actual, false) AS "already_taken_current_month_debug",
+              l.mes_lectura_trunc AS "reading_month_debug",
+              up.inicio AS "start_date_period",
+              up.fin AS "end_date_period",
+              COALESCE(c.hoy BETWEEN up.inicio AND up.fin, false) AS "in_period_debug",
+              l.mes_lectura_calc AS "month_reading",
+              ai.connection_state_id AS "connection_state_id",
+              ai.connection_state_name AS "connection_state_name",
+              ai.permit_reading AS "permit_reading",
+              ai.connection_location AS "connection_location",
+              ai.has_facade AS "has_facade"
+
+            FROM top_lecturas l
+            CROSS JOIN constantes c
+            JOIN acometida_info ai ON ai.acometida_id = l.acometida_id
+            LEFT JOIN ultimo_periodo up ON up.acometida_id = l.acometida_id
+
+            ORDER BY l.acometida_id, l.mes_lectura_calc DESC, l.fecha_lectura DESC, l.hora_lectura DESC;
+    `;
+
+      const params = [validCadastralKeys, sector];
+
+      const result = await this.databaseService.query<ReadingInfoSQLResult>(
+        query,
+        params,
+      );
+
+      if (result.length === 0) {
+        throw new RpcException({
+          statusCode: HttpStatus.NOT_FOUND,
+          message: `No se encontraron lecturas para los filtros proporcionados`,
+        });
+      }
+
+      return result.map((value) =>
+        ReadingSQLAdapter.fromReadingPostgreSQLResultToReadingInfoModel(value),
+      );
+    } catch (error) {
+      if (error instanceof RpcException) {
+        throw error;
+      }
+      throw new RpcException({
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        message: `Error en sincronización global de lecturas: ${error}`,
+      });
+    }
+  }
 
   async findReadingBasicInfo(
     cadastralKey: string,

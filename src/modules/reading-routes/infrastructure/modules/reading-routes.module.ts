@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+import { ClientsModule, Transport } from '@nestjs/microservices';
+import { environments } from '../../../../settings/environments/environments';
 import { DatabasePersistenceModule } from '../../../../shared/connections/database/database-persistence.module';
 
 // Controllers
@@ -7,18 +9,20 @@ import { RouteDispatchController } from '../controllers/route-dispatch.controlle
 import { RouteResolutionController } from '../controllers/route-resolution.controller';
 import { MobileRouteSyncController } from '../controllers/mobile-route-sync.controller';
 
-// Contracts
+// Contracts & Ports
 import { READING_ROUTE_REPOSITORY } from '../../domain/contracts/reading-route.repository.interface';
 import { ROUTE_ASSIGNMENT_REPOSITORY } from '../../domain/contracts/route-assignment.repository.interface';
+import { READING_LEGACY_PUBLISHER_PORT } from '../../application/ports/reading-legacy-publisher.port';
 
 // Strategies
 import { PointInPolygonStrategy } from '../strategies/point-in-polygon.strategy';
 import { NearestCentroidKnnStrategy } from '../strategies/nearest-centroid-knn.strategy';
 import { SectorCadastralFallbackStrategy } from '../strategies/sector-cadastral-fallback.strategy';
 
-// Persistence Repositories
+// Persistence Repositories & Adapters
 import { PostgresqlReadingRouteRepository } from '../persistence/postgresql-reading-route.repository';
 import { PostgresqlRouteAssignmentRepository } from '../persistence/postgresql-route-assignment.repository';
+import { KafkaReadingLegacyPublisherAdapter } from '../adapters/kafka-reading-legacy-publisher.adapter';
 
 // Command Use Cases
 import { BatchMorningDispatchUseCase } from '../../application/usecases/commands/BatchMorningDispatchUseCase';
@@ -43,7 +47,22 @@ import { GetLecturistDailyKpiUseCase } from '../../application/usecases/queries/
 import { GetLecturistAssignedRoutesUseCase } from '../../application/usecases/queries/GetLecturistAssignedRoutesUseCase';
 
 @Module({
-  imports: [DatabasePersistenceModule],
+  imports: [
+    DatabasePersistenceModule,
+    ClientsModule.register([
+      {
+        name: environments.READINGS_KAFKA_CLIENT,
+        transport: Transport.KAFKA,
+        options: {
+          client: {
+            brokers: [environments.KAFKA_BROKER_URL],
+            clientId: `${environments.READINGS_KAFKA_CLIENT_ID}-publisher`,
+          },
+          producerOnlyMode: true,
+        },
+      },
+    ]),
+  ],
   controllers: [
     ReadingRouteCatalogController,
     RouteDispatchController,
@@ -78,6 +97,10 @@ import { GetLecturistAssignedRoutesUseCase } from '../../application/usecases/qu
       provide: ROUTE_ASSIGNMENT_REPOSITORY,
       useClass: PostgresqlRouteAssignmentRepository,
     },
+    {
+      provide: READING_LEGACY_PUBLISHER_PORT,
+      useClass: KafkaReadingLegacyPublisherAdapter,
+    },
 
     // Command Use Cases (SOLID - Single Responsibility Principle)
     BatchMorningDispatchUseCase,
@@ -104,6 +127,7 @@ import { GetLecturistAssignedRoutesUseCase } from '../../application/usecases/qu
   exports: [
     READING_ROUTE_REPOSITORY,
     ROUTE_ASSIGNMENT_REPOSITORY,
+    READING_LEGACY_PUBLISHER_PORT,
     BatchMorningDispatchUseCase,
     AssignSingleRouteUseCase,
     ReassignRouteSegmentUseCase,

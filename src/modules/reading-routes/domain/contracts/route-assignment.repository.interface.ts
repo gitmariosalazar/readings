@@ -1,3 +1,4 @@
+import { AsignacionRutaDetalleEntity } from '../entities/reading-route.entity';
 import { RouteAssignmentEntity } from '../entities/route-assignment.entity';
 
 export const ROUTE_ASSIGNMENT_REPOSITORY = 'RouteAssignmentRepository';
@@ -44,7 +45,38 @@ export interface SyncBatchResult {
   totalSincronizados: number;
   totalExitosos: number;
   totalFallidos: number;
-  errores: Array<{ idDetalleAvance: number; acometidaId: string; error: string }>;
+  errores: Array<{
+    idDetalleAvance: number;
+    acometidaId: string;
+    error: string;
+  }>;
+}
+
+export interface AssignmentDetailSyncContext {
+  idDetalle: number;
+  asignacionId: number;
+  acometidaId: string;
+  estadoLectura: string;
+  lecturaId?: number | null;
+  periodoMes: string;
+  asignacionUsuarioId: string;
+  sector: number;
+  cuenta: number;
+  claveCatastral: string;
+  lecturaAnterior: number;
+  averageConsumption: number;
+  averageValue: number;
+}
+
+export interface UpdateAdvanceDetailInput {
+  idDetalle: number;
+  estadoLectura: string;
+  lecturaId: number | null;
+  latitudGps?: number;
+  longitudGps?: number;
+  fechaCaptura?: Date;
+  novedad?: string;
+  tipoNovedadLecturaId?: number | null;
 }
 
 export interface IRouteAssignmentRepository {
@@ -71,9 +103,16 @@ export interface IRouteAssignmentRepository {
     supervisorId: string,
   ): Promise<ReassignSegmentResult>;
 
-  getLiveTracking(periodoMes?: string, fecha?: string): Promise<RouteAssignmentEntity[]>;
+  getLiveTracking(
+    periodoMes?: string,
+    fecha?: string,
+  ): Promise<RouteAssignmentEntity[]>;
 
-  cancelAssignment(idAsignacion: number, motivo?: string, supervisorId?: string): Promise<boolean>;
+  cancelAssignment(
+    idAsignacion: number,
+    motivo?: string,
+    supervisorId?: string,
+  ): Promise<boolean>;
 
   resumeAssignment(
     idAsignacion: number,
@@ -86,7 +125,18 @@ export interface IRouteAssignmentRepository {
     message: string;
   }>;
 
-  getMobileWorkPack(idAsignacion: number): Promise<any>;
+  getMobileWorkPack(idAsignacion: number): Promise<AsignacionRutaDetalleEntity>;
+
+  getAssignmentPeriod(
+    asignacionId: number,
+  ): Promise<{ periodoMes: string; usuarioId: string } | null>;
+
+  getAssignmentDetailSyncContext(
+    idDetalle: number,
+    asignacionId: number,
+  ): Promise<AssignmentDetailSyncContext | null>;
+
+  updateAdvanceDetail(input: UpdateAdvanceDetailInput): Promise<void>;
 
   syncMobileReadingsBatch(
     asignacionId: number,

@@ -108,4 +108,94 @@ describe('ReadingPersistencePostgreSQL', () => {
       expect(result[0].isCumulative).toBe(false);
     });
   });
+
+  describe('getMovileWorkPackConnections', () => {
+    const mockRow = {
+      reading_id: 1,
+      previous_reading_date: new Date(),
+      reading_time: new Date(),
+      reading_date: new Date(),
+      cadastral_key: '0101-001',
+      card_id: '1001',
+      client_name: 'Juan Perez',
+      client_phones: [],
+      client_emails: [],
+      address: 'Calle 1',
+      previous_reading: 10,
+      current_reading: 20,
+      reading_value: 10,
+      sector: 2,
+      account: 123,
+      average_consumption: 15,
+      average_value: 12,
+      meter_number: 'M-123',
+      rate_id: 1,
+      rate_name: 'Residencial',
+      has_current_reading: false,
+      month_reading: '2026-08',
+      start_date_period: new Date(),
+      end_date_period: new Date(),
+      connection_state_id: 1,
+      connection_state_name: 'Activo',
+      permit_reading: true,
+      connection_location: null,
+      has_facade: false,
+    };
+
+    it('filters correctly when sector is provided', async () => {
+      const query = jest.fn().mockResolvedValueOnce([mockRow]);
+      const repository = createRepository(query);
+
+      const result = await repository.getMovileWorkPackConnections({ sector: 2 });
+
+      expect(query).toHaveBeenCalledWith(expect.any(String), [null, 2]);
+      expect(result).toHaveLength(1);
+      expect(result[0].sector).toBe(2);
+    });
+
+    it('filters correctly when cadastralKeys are provided', async () => {
+      const query = jest.fn().mockResolvedValueOnce([mockRow]);
+      const repository = createRepository(query);
+
+      const result = await repository.getMovileWorkPackConnections({
+        cadastralKeys: ['0101-001'],
+      });
+
+      expect(query).toHaveBeenCalledWith(expect.any(String), [['0101-001'], null]);
+      expect(result).toHaveLength(1);
+      expect(result[0].cadastralKey).toBe('0101-001');
+    });
+
+    it('filters correctly when both sector and cadastralKeys are provided', async () => {
+      const query = jest.fn().mockResolvedValueOnce([mockRow]);
+      const repository = createRepository(query);
+
+      const result = await repository.getMovileWorkPackConnections({
+        sector: 2,
+        cadastralKeys: ['0101-001'],
+      });
+
+      expect(query).toHaveBeenCalledWith(expect.any(String), [['0101-001'], 2]);
+      expect(result).toHaveLength(1);
+    });
+
+    it('operates in global mode when no filters are provided', async () => {
+      const query = jest.fn().mockResolvedValueOnce([mockRow]);
+      const repository = createRepository(query);
+
+      const result = await repository.getMovileWorkPackConnections();
+
+      expect(query).toHaveBeenCalledWith(expect.any(String), [null, null]);
+      expect(result).toHaveLength(1);
+    });
+
+    it('throws RpcException when no results are found', async () => {
+      const query = jest.fn().mockResolvedValueOnce([]);
+      const repository = createRepository(query);
+
+      await expect(
+        repository.getMovileWorkPackConnections({ sector: 99 }),
+      ).rejects.toThrow();
+    });
+  });
 });

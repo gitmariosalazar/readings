@@ -1,8 +1,16 @@
-import { Injectable, Inject, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  Inject,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import {
   IRouteAssignmentRepository,
   ROUTE_ASSIGNMENT_REPOSITORY,
 } from '../../../domain/contracts/route-assignment.repository.interface';
+import { AsignacionRutaDetalle } from '../../dtos/response/route-dtos.response';
+import { AsignacionRutaDetalleEntity } from '../../../domain/entities/reading-route.entity';
+import { ReadingRoutesMapper } from '../../mappers/ReadingRoutesMapper';
 
 @Injectable()
 export class GetMobileWorkPackUseCase {
@@ -11,16 +19,20 @@ export class GetMobileWorkPackUseCase {
     private readonly assignmentRepo: IRouteAssignmentRepository,
   ) {}
 
-  async execute(idAsignacion: number): Promise<any> {
+  async execute(idAsignacion: number): Promise<AsignacionRutaDetalle> {
     if (!idAsignacion) {
       throw new BadRequestException('ID de asignación inválido.');
     }
 
-    const pack = await this.assignmentRepo.getMobileWorkPack(idAsignacion);
+    const pack: AsignacionRutaDetalleEntity =
+      await this.assignmentRepo.getMobileWorkPack(idAsignacion);
     if (!pack) {
       throw new NotFoundException(`Asignación ${idAsignacion} no encontrada.`);
     }
 
-    return pack;
+    const response: AsignacionRutaDetalle =
+      ReadingRoutesMapper.toAsignacionRutaDetalleResponse(pack);
+
+    return response;
   }
 }

@@ -48,6 +48,12 @@ export interface InterfaceReadingRepository {
     creatorUserId: UUID,
   ): Promise<ReadingModel | null>;
   findReadingInfo(cadastralKey: string): Promise<ReadingInfoModel[]>;
+  getMovileWorkPackConnections(
+    filters?: {
+      sector?: number;
+      cadastralKeys?: string[];
+    }
+  ): Promise<ReadingInfoModel[]>;
   findReadingInfoForUpdated(
     cadastralKey: string,
     yearAndMonth?: string,

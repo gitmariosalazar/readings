@@ -1,24 +1,62 @@
-import { Injectable, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  Optional,
+} from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
+import { UUID } from 'crypto';
 import {
   DatabaseAbstract,
   IDatabaseClient,
 } from '../../../../shared/connections/database/abstract/abstract.database';
 import {
+  AssignmentDetailSyncContext,
   BatchDispatchSummaryResult,
   IRouteAssignmentRepository,
   ReassignSegmentResult,
   SyncBatchReadingInput,
   SyncBatchResult,
+  UpdateAdvanceDetailInput,
 } from '../../domain/contracts/route-assignment.repository.interface';
 import { RouteAssignmentEntity } from '../../domain/entities/route-assignment.entity';
+import { CreateReadingUseCase } from '../../../reading/application/usecases/commands/CreateReadingUseCase';
+import { CreateReadingRequest } from '../../../reading/application/dtos/request/create-reading.request';
+import { AsignacionRutaDetalleSqlResult } from '../interfaces/reading-route.interface';
+import { AsignacionRutaDetalleEntity } from '../../domain/entities/reading-route.entity';
+import { ReadingRouteAdapters } from '../adapters/reading-route.adapters';
 
 @Injectable()
 export class PostgresqlRouteAssignmentRepository implements IRouteAssignmentRepository {
   private readonly logger = new Logger(
     PostgresqlRouteAssignmentRepository.name,
   );
+  private resolvedCreateReadingUseCase?: CreateReadingUseCase;
 
-  constructor(private readonly databaseService: DatabaseAbstract) {}
+  constructor(
+    private readonly databaseService: DatabaseAbstract,
+    @Optional() private readonly moduleRef?: ModuleRef,
+  ) {}
+
+  private getCreateReadingUseCase(): CreateReadingUseCase | null {
+    if (this.resolvedCreateReadingUseCase) {
+      return this.resolvedCreateReadingUseCase;
+    }
+    if (this.moduleRef) {
+      try {
+        this.resolvedCreateReadingUseCase = this.moduleRef.get(
+          CreateReadingUseCase,
+          { strict: false },
+        );
+        return this.resolvedCreateReadingUseCase;
+      } catch (err: any) {
+        this.logger.debug?.(
+          `CreateReadingUseCase no obtenido vía ModuleRef: ${err.message}`,
+        );
+      }
+    }
+    return null;
+  }
 
   async executeMorningBatchDispatch(
     sectorId: number | null,
@@ -282,7 +320,9 @@ export class PostgresqlRouteAssignmentRepository implements IRouteAssignmentRepo
     };
   }
 
-  async getMobileWorkPack(idAsignacion: number): Promise<any> {
+  async getMobileWorkPack(
+    idAsignacion: number,
+  ): Promise<AsignacionRutaDetalleEntity> {
     const query = /*sql*/ `
       SELECT
           ar.id_asignacion AS "idAsignacion",
@@ -317,37 +357,133 @@ export class PostgresqlRouteAssignmentRepository implements IRouteAssignmentRepo
                   'ladoCalle', ra.lado_calle,
                   'pisoDepartamento', ra.piso_departamento,
                   'instruccionAcceso', ra.instruccion_acceso,
-                  'lecturaAnterior', ult_lec.lectura_actual,
+                  'lecturaAnterior', COALESCE(cur_lec.lectura_anterior, prev_lec.lectura_actual, 0),
                   'consumoPromedio', cp.average_consumption,
-                  'estado', dar.estado_lectura
+                  'estado', dar.estado_lectura,
+                  'lecturaActual', cur_lec.lectura_actual,
+                  'fechaHoraCaptura', dar.fecha_captura,
+                  'tipoNovedadLecturaId', COALESCE(dar.tipo_novedad_lectura_id, cur_lec.tipo_novedad_lectura_id),
+                  'estadoLecturaId', COALESCE(dar.estado_lectura_id, cur_lec.lectura_estado_id),
+                  'observaciones', COALESCE(dar.observacion, cur_lec.observacion)
               ) ORDER BY dar.orden_secuencia ASC
           ) FILTER (WHERE dar.id_detalle IS NOT NULL), '[]'::json) AS acometidas
       FROM public.asignacion_ruta ar
       JOIN public.ruta_lectura rl ON ar.ruta_id = rl.id_ruta
       LEFT JOIN public.detalle_avance_ruta dar ON ar.id_asignacion = dar.asignacion_id
       LEFT JOIN public.acometida a ON dar.acometida_id = a.acometida_id
-      INNER JOIN public.consumo_promedio cp ON cp.acometida_id = a.acometida_id
+      LEFT JOIN public.consumo_promedio cp ON cp.acometida_id = a.acometida_id
       LEFT JOIN public.ruta_acometida ra ON (ra.ruta_id = ar.ruta_id AND ra.acometida_id = a.acometida_id)
       LEFT JOIN public.cliente cl ON a.cliente_id = cl.cliente_id
       LEFT JOIN public.ciudadano ci ON ci.ciudadano_id = cl.cliente_id
       LEFT JOIN public.empresa em ON em.ruc = cl.cliente_id
+      LEFT JOIN public.lectura cur_lec ON cur_lec.lectura_id = dar.lectura_id
       LEFT JOIN LATERAL (
           SELECT l.lectura_actual 
           FROM public.lectura l 
           WHERE l.acometida_id = a.acometida_id 
-          ORDER BY l.fecha_lectura DESC 
+            AND (l.mes_lectura < ar.periodo_mes OR l.mes_lectura IS NULL)
+          ORDER BY l.fecha_lectura DESC, l.lectura_id DESC 
           LIMIT 1
-      ) ult_lec ON TRUE
+      ) prev_lec ON TRUE
       WHERE ar.id_asignacion = $1
       GROUP BY ar.id_asignacion, ar.periodo_mes, ar.fecha_programada, ar.estado, ar.lecturas_esperadas, ar.lecturas_completadas, ar.lecturas_novedad, ar.lecturas_pendientes, rl.id_ruta, rl.codigo, rl.nombre;
     `;
 
-    const rows = await this.databaseService.query<any>(query, [idAsignacion]);
+    const rows =
+      await this.databaseService.query<AsignacionRutaDetalleSqlResult>(query, [
+        idAsignacion,
+      ]);
     if (!rows || rows.length === 0) {
-      return null;
+      throw new NotFoundException(`Asignación ${idAsignacion} no encontrada.`);
     }
 
+    return ReadingRouteAdapters.fromAsignacionRutaDetalleSqlResultToAsignacionRutaDetalleEntity(
+      rows[0],
+    );
+  }
+
+  async getAssignmentPeriod(
+    asignacionId: number,
+  ): Promise<{ periodoMes: string; usuarioId: string } | null> {
+    const rows = await this.databaseService.query<any>(
+      `SELECT id_asignacion, estado, periodo_mes AS "periodoMes", usuario_id AS "usuarioId" 
+       FROM public.asignacion_ruta 
+       WHERE id_asignacion = $1;`,
+      [asignacionId],
+    );
+    if (!rows || rows.length === 0) return null;
     return rows[0];
+  }
+
+  async getAssignmentDetailSyncContext(
+    idDetalle: number,
+    asignacionId: number,
+  ): Promise<AssignmentDetailSyncContext | null> {
+    const rows = await this.databaseService.query<any>(
+      `SELECT dar.id_detalle AS "idDetalle",
+              dar.asignacion_id AS "asignacionId",
+              dar.acometida_id AS "acometidaId",
+              dar.estado_lectura AS "estadoLectura",
+              dar.lectura_id AS "lecturaId",
+              ar.periodo_mes AS "periodoMes",
+              ar.usuario_id AS "asignacionUsuarioId",
+              a.sector,
+              a.cuenta,
+              a.clave_catastral AS "claveCatastral",
+              COALESCE(
+                (SELECT l.lectura_actual 
+                 FROM public.lectura l 
+                 WHERE l.acometida_id = a.acometida_id 
+                   AND (l.mes_lectura < ar.periodo_mes OR l.mes_lectura IS NULL)
+                 ORDER BY l.fecha_lectura DESC, l.lectura_id DESC 
+                 LIMIT 1), 
+                (SELECT l.lectura_actual 
+                 FROM public.lectura l 
+                 WHERE l.acometida_id = a.acometida_id 
+                 ORDER BY l.fecha_lectura DESC, l.lectura_id DESC 
+                 LIMIT 1),
+                0
+              ) AS "lecturaAnterior",
+              COALESCE(cp.average_consumption, 0) AS "averageConsumption",
+              COALESCE(cp.average_value, 0) AS "averageValue"
+       FROM public.detalle_avance_ruta dar
+       JOIN public.asignacion_ruta ar ON ar.id_asignacion = dar.asignacion_id
+       JOIN public.acometida a ON a.acometida_id = dar.acometida_id
+       LEFT JOIN public.consumo_promedio cp ON cp.acometida_id = a.acometida_id
+       WHERE dar.id_detalle = $1 AND dar.asignacion_id = $2;`,
+      [idDetalle, asignacionId],
+    );
+    if (!rows || rows.length === 0) return null;
+    return rows[0];
+  }
+
+  async updateAdvanceDetail(input: UpdateAdvanceDetailInput): Promise<void> {
+    const updateDetailSql = `
+      UPDATE public.detalle_avance_ruta
+      SET estado_lectura = $1::varchar,
+          lectura_id = $2::integer,
+          tipo_novedad_lectura_id = CASE 
+            WHEN $1::varchar = 'NOVEDAD'::varchar THEN (SELECT tipo_novedad_lectura_id FROM public.tipo_novedad_lectura WHERE UPPER(nombre) = UPPER($3) OR tipo_novedad_lectura_id::text = $3 LIMIT 1)
+            ELSE $4::integer 
+          END,
+          coordenadas_captura = CASE WHEN $5::numeric IS NOT NULL AND $6::numeric IS NOT NULL 
+                                    THEN ST_SetSRID(ST_Point($6, $5), 4326) 
+                                    ELSE NULL END,
+          fecha_captura = $7::timestamptz,
+          fecha_sincronizacion = NOW()
+      WHERE id_detalle = $8::bigint;
+    `;
+
+    await this.databaseService.query(updateDetailSql, [
+      input.estadoLectura,
+      input.lecturaId,
+      input.novedad ?? 'NORMAL',
+      input.tipoNovedadLecturaId ?? null,
+      input.latitudGps ?? null,
+      input.longitudGps ?? null,
+      input.fechaCaptura ?? new Date(),
+      input.idDetalle,
+    ]);
   }
 
   async syncMobileReadingsBatch(
@@ -363,13 +499,9 @@ export class PostgresqlRouteAssignmentRepository implements IRouteAssignmentRepo
       error: string;
     }> = [];
 
-    // Validar asignación
-    const assignRows = await this.databaseService.query<any>(
-      `SELECT id_asignacion, estado, periodo_mes FROM public.asignacion_ruta WHERE id_asignacion = $1;`,
-      [asignacionId],
-    );
+    const assignmentInfo = await this.getAssignmentPeriod(asignacionId);
 
-    if (!assignRows || assignRows.length === 0) {
+    if (!assignmentInfo) {
       return {
         success: false,
         totalSincronizados: 0,
@@ -385,110 +517,190 @@ export class PostgresqlRouteAssignmentRepository implements IRouteAssignmentRepo
       };
     }
 
-    const periodoMes = assignRows[0].periodo_mes;
+    const periodoMes = assignmentInfo.periodoMes;
+    const [year, month] = periodoMes.split('-').map(Number);
+    const prevDate = new Date(year, month - 2, 1);
+    const previousMonthReading = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`;
 
-    await this.databaseService.transaction(async (client: IDatabaseClient) => {
-      for (const item of lecturas) {
-        try {
-          const detailRows = await client.query<any>(
-            `SELECT id_detalle, acometida_id, estado_lectura FROM public.detalle_avance_ruta WHERE id_detalle = $1 AND asignacion_id = $2;`,
-            [item.idDetalleAvance, asignacionId],
+    const createReadingUseCase = this.getCreateReadingUseCase();
+
+    const isUuid = (val?: string) =>
+      !!val &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+        val,
+      );
+
+    for (const item of lecturas) {
+      try {
+        const context = await this.getAssignmentDetailSyncContext(
+          item.idDetalleAvance,
+          asignacionId,
+        );
+
+        if (!context) {
+          throw new Error(
+            `Detalle de avance ${item.idDetalleAvance} no corresponde a la asignación ${asignacionId}`,
           );
+        }
 
-          if (!detailRows || detailRows.length === 0) {
-            throw new Error(
-              `Detalle de avance ${item.idDetalleAvance} no corresponde a la asignación ${asignacionId}`,
-            );
-          }
+        const fechaHora = item.fechaHoraCaptura
+          ? new Date(item.fechaHoraCaptura)
+          : new Date();
+        const horaFormatted = fechaHora.toTimeString().split(' ')[0];
 
-          // Estados válidos según trigger trg_actualizar_progreso_asignacion: 'LEIDA', 'NOVEDAD', 'PENDIENTE', 'SALTADA'
-          const nuevoEstado = item.novedadId ? 'NOVEDAD' : 'LEIDA';
-          const fechaHora = item.fechaHoraCaptura
-            ? new Date(item.fechaHoraCaptura)
-            : new Date();
+        const isNovedad =
+          !!item.novedadId &&
+          item.novedadId.trim() !== '' &&
+          item.novedadId.toUpperCase() !== 'NORMAL';
+        const nuevoEstado = isNovedad ? 'NOVEDAD' : 'LEIDA';
 
-          // 1. Registrar lectura
+        let lecturaId: number | null = null;
+        let tipoNovedadId: number | null = isNovedad ? 2 : 1;
+
+        if (createReadingUseCase) {
+          const createReadingRequest: CreateReadingRequest = {
+            connectionId: context.acometidaId,
+            cadastralKey: context.claveCatastral,
+            sector: Number(context.sector),
+            account: Number(context.cuenta),
+            previousReading: Number(context.lecturaAnterior ?? 0),
+            currentReading: Number(item.lecturaActual),
+            incomeCode: 0,
+            rentalIncomeCode: 0,
+            sewerRate: 0,
+            readingValue: 0,
+            consumptionM3: Math.max(
+              0,
+              Number(item.lecturaActual) - Number(context.lecturaAnterior ?? 0),
+            ),
+            totalValue: 0,
+            averageConsumption: Number(context.averageConsumption ?? 0),
+            averageValue: Number(context.averageValue ?? 0),
+            previousMonthReading,
+            currentMonthReading: periodoMes,
+            novelty: item.novedadId ?? null,
+            typeNoveltyReadingId: 1,
+            meterStatus: 'BUENO',
+            locationCapture:
+              item.latitudGps != null && item.longitudGps != null
+                ? {
+                    lat: Number(item.latitudGps),
+                    lng: Number(item.longitudGps),
+                  }
+                : null,
+            readingDate: fechaHora,
+            readingTime: horaFormatted,
+          };
+
+          const effectiveUserId = (
+            isUuid(usuarioId)
+              ? usuarioId
+              : isUuid(context.asignacionUsuarioId)
+                ? context.asignacionUsuarioId
+                : '00000000-0000-0000-0000-000000000001'
+          ) as UUID;
+
+          const created = await createReadingUseCase.execute(
+            createReadingRequest,
+            effectiveUserId,
+          );
+          lecturaId = created?.readingId ?? null;
+          tipoNovedadId =
+            (created as any)?.typeNoveltyReadingId ?? (isNovedad ? 2 : 1);
+        } else {
+          // Fallback SQL directo si se ejecuta fuera del contenedor NestJS
+          const fechaFormatted = fechaHora.toISOString().split('T')[0];
           const lecturaQuery = `
             INSERT INTO public.lectura (
               acometida_id,
+              sector,
+              cuenta,
+              clave_catastral,
+              lectura_anterior,
               lectura_actual,
               fecha_lectura,
               hora_lectura,
               novedad,
+              tipo_novedad_lectura_id,
+              lectura_estado_id,
+              observacion,
               ubicacion_captura,
               mes_lectura
             ) VALUES (
               $1,
               $2,
-              $3::date,
-              $4::time,
+              $3,
+              $4,
               $5,
-              CASE WHEN $6::numeric IS NOT NULL AND $7::numeric IS NOT NULL 
-                   THEN ST_SetSRID(ST_Point($7, $6), 4326) 
+              $6,
+              $7::date,
+              $8::time,
+              $9,
+              COALESCE(
+                (SELECT tipo_novedad_lectura_id FROM public.tipo_novedad_lectura 
+                 WHERE UPPER(nombre) = UPPER($10) OR tipo_novedad_lectura_id::text = $10 LIMIT 1),
+                1
+              ),
+              $11,
+              $12,
+              CASE WHEN $13::numeric IS NOT NULL AND $14::numeric IS NOT NULL 
+                   THEN ST_SetSRID(ST_Point($14, $13), 4326) 
                    ELSE NULL END,
-              $8
+              $15
             )
             RETURNING lectura_id AS "lecturaId";
           `;
 
-          const horaFormatted = fechaHora.toTimeString().split(' ')[0];
-          const fechaFormatted = fechaHora.toISOString().split('T')[0];
-
-          const lecResult = await client.query<{ lecturaId: number }>(
-            lecturaQuery,
-            [
-              item.acometidaId,
-              item.lecturaActual,
-              fechaFormatted,
-              horaFormatted,
-              item.novedadId ?? null,
-              item.latitudGps ?? null,
-              item.longitudGps ?? null,
-              periodoMes,
-            ],
-          );
-
-          const lecturaId = lecResult[0]?.lecturaId ?? null;
-
-          // 2. Actualizar detalle_avance_ruta conforme a columnas de ruta_lectura.sql
-          // (estado_lectura, lectura_id, coordenadas_captura, fecha_captura, fecha_sincronizacion)
-          // Esto dispara automáticamente el trigger trg_detalle_avance_progreso
-          const updateDetailSql = `
-            UPDATE public.detalle_avance_ruta
-            SET estado_lectura = $1,
-                lectura_id = $2,
-                coordenadas_captura = CASE WHEN $3::numeric IS NOT NULL AND $4::numeric IS NOT NULL 
-                                          THEN ST_SetSRID(ST_Point($4, $3), 4326) 
-                                          ELSE NULL END,
-                fecha_captura = $5,
-                fecha_sincronizacion = NOW()
-            WHERE id_detalle = $6;
-          `;
-
-          await client.query(updateDetailSql, [
-            nuevoEstado,
-            lecturaId,
+          const lecResult = await this.databaseService.query<{
+            lecturaId: number;
+          }>(lecturaQuery, [
+            item.acometidaId,
+            context.sector,
+            context.cuenta,
+            context.claveCatastral,
+            context.lecturaAnterior ?? 0,
+            item.lecturaActual,
+            fechaFormatted,
+            horaFormatted,
+            item.novedadId ?? 'LECTURA NORMAL',
+            item.novedadId ?? 'NORMAL',
+            2,
+            item.observaciones ?? item.novedadId ?? 'NORMAL',
             item.latitudGps ?? null,
             item.longitudGps ?? null,
-            fechaHora,
-            item.idDetalleAvance,
+            periodoMes,
           ]);
-
-          totalExitosos++;
-        } catch (err: any) {
-          totalFallidos++;
-          errores.push({
-            idDetalleAvance: item.idDetalleAvance,
-            acometidaId: item.acometidaId,
-            error: err.message || 'Error desconocido al sincronizar',
-          });
+          lecturaId = lecResult[0]?.lecturaId ?? null;
         }
+
+        await this.updateAdvanceDetail({
+          idDetalle: item.idDetalleAvance,
+          estadoLectura: nuevoEstado,
+          lecturaId,
+          latitudGps: item.latitudGps,
+          longitudGps: item.longitudGps,
+          fechaCaptura: fechaHora,
+          novedad: item.novedadId ?? 'NORMAL',
+          tipoNovedadLecturaId: tipoNovedadId,
+        });
+
+        totalExitosos++;
+      } catch (err: any) {
+        totalFallidos++;
+        this.logger.warn(
+          `Error en sincronización de lectura detalle ${item.idDetalleAvance}: ${err.message}`,
+        );
+        errores.push({
+          idDetalleAvance: item.idDetalleAvance,
+          acometidaId: item.acometidaId,
+          error: err.message || 'Error desconocido al sincronizar',
+        });
       }
-    });
+    }
 
     return {
       success: totalFallidos === 0,
-      totalSincronizados: lecturas.length,
+      totalSincronizados: totalExitosos,
       totalExitosos,
       totalFallidos,
       errores,
@@ -626,10 +838,9 @@ export class PostgresqlRouteAssignmentRepository implements IRouteAssignmentRepo
       ORDER BY ar.fecha_programada DESC, ar.id_asignacion DESC;
     `;
 
-    const rows = await this.databaseService.query<Partial<RouteAssignmentEntity>>(
-      query,
-      params,
-    );
+    const rows = await this.databaseService.query<
+      Partial<RouteAssignmentEntity>
+    >(query, params);
     return rows.map((r) => new RouteAssignmentEntity(r));
   }
 }

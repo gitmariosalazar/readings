@@ -67,6 +67,7 @@ import {
   ConceptCalculationStrategyResolver,
 } from '../../../application/strategies/concepts';
 import { CONCEPT_CALCULATION_STRATEGIES } from '../../../application/strategies/concepts/concept-calculation-strategy-resolver.service';
+import { GetMovilePackConnectionsUseCase } from '../../../application/usecases/queries/GetMovilePackConnections';
 
 @Module({
   controllers: [
@@ -124,6 +125,7 @@ import { CONCEPT_CALCULATION_STRATEGIES } from '../../../application/strategies/
     DiscountConceptStrategy,
     TrashConceptStrategy,
     DefaultConceptStrategy,
+    GetMovilePackConnectionsUseCase,
     {
       provide: CONCEPT_CALCULATION_STRATEGIES,
       useFactory: (

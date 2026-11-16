@@ -31,6 +31,7 @@ import {
   AssignConnectionTrashRateUseCase,
   AssignConnectionTrashRateInput,
 } from '../../application/usecases/commands/AssignConnectionTrashRateUseCase';
+import { GetMovilePackConnectionsUseCase } from '../../application/usecases/queries/GetMovilePackConnections';
 
 @Controller('Readings')
 export class ReadingController {
@@ -54,6 +55,7 @@ export class ReadingController {
     private readonly applyPaymentAgreementUseCase: ApplyPaymentAgreementUseCase,
     private readonly distributeEmelnorteTrashRateUseCase: DistributeEmelnorteTrashRateUseCase,
     private readonly assignConnectionTrashRateUseCase: AssignConnectionTrashRateUseCase,
+    private readonly getMovilePackConnectionsUseCase: GetMovilePackConnectionsUseCase,
   ) {}
 
   @Get('find-basic-reading/:catastralCode')
@@ -296,5 +298,13 @@ export class ReadingController {
     @Payload() data: AssignConnectionTrashRateInput,
   ) {
     return this.assignConnectionTrashRateUseCase.execute(data);
+  }
+
+  @Post('get-movile-pack-connections-sync-offline-batch')
+  @MessagePattern('reading.get-movile-pack-connections-sync-offline-batch')
+  async syncOfflineBatch(
+    @Payload() filters: { sector?: number; cadastralKeys?: string[] },
+  ) {
+    return this.getMovilePackConnectionsUseCase.execute(filters);
   }
 }

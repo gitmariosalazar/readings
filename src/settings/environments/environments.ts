@@ -35,6 +35,7 @@ interface EnvironmentsVariables {
   LOCATION_CONNECTION_KAFKA_CLIENT: string;
   LOCATION_CONNECTION_KAFKA_CLIENT_ID: string;
   LOCATION_CONNECTION_KAFKA_GROUP_ID: string;
+  ENABLE_LEGACY_SYNC: boolean;
 }
 
 const environmentsSchema = Joi.object<EnvironmentsVariables>({
@@ -66,6 +67,7 @@ const environmentsSchema = Joi.object<EnvironmentsVariables>({
   LOCATION_CONNECTION_KAFKA_CLIENT: Joi.string().required(),
   LOCATION_CONNECTION_KAFKA_CLIENT_ID: Joi.string().required(),
   LOCATION_CONNECTION_KAFKA_GROUP_ID: Joi.string().required(),
+  ENABLE_LEGACY_SYNC: Joi.boolean().default(false),
 }).unknown(true);
 
 const { error, value: envVars } = environmentsSchema.validate(process.env);
@@ -104,4 +106,5 @@ export const environments: EnvironmentsVariables = {
     envVars.LOCATION_CONNECTION_KAFKA_CLIENT_ID,
   LOCATION_CONNECTION_KAFKA_GROUP_ID:
     envVars.LOCATION_CONNECTION_KAFKA_GROUP_ID,
+  ENABLE_LEGACY_SYNC: envVars.ENABLE_LEGACY_SYNC === true,
 };
