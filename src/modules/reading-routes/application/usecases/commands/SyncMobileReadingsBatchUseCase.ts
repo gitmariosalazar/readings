@@ -210,7 +210,10 @@ export class SyncMobileReadingsBatchUseCase {
             this.logger.log(
               `Lectura para acometida ${context.acometidaId} ya existía en periodo ${periodoMes}. Procediendo como exitoso.`,
             );
-            readingCreated = { readingId: context.lecturaId ?? null };
+            readingCreated = {
+              readingId: context.lecturaId ?? null,
+              readingCode: context.codigoLectura ?? null,
+            };
           } else {
             throw createErr;
           }
@@ -253,6 +256,8 @@ export class SyncMobileReadingsBatchUseCase {
               username: usuarioId,
               userCardId: userCardId ?? '',
               lecturaId: readingCreated?.readingId ?? context.lecturaId,
+              readingCode:
+                readingCreated?.readingCode ?? context.codigoLectura ?? null,
               claveCatastral: context.claveCatastral,
             });
           legacyEvents.push(legacyEvent);

@@ -73,6 +73,7 @@ describe('CalculateReadingValueUseCase', () => {
       getRateRange: jest.fn(),
       getBillingConceptValidity: jest.fn(),
       getActiveBenefitsByCadastralKey: jest.fn().mockResolvedValue([]),
+      getMovileWorkPackConnections: jest.fn().mockResolvedValue([]),
     };
 
     useCase = new CalculateReadingValueUseCase(mockRepository);

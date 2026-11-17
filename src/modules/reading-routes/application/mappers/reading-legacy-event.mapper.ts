@@ -28,7 +28,8 @@ export class ReadingLegacyEventMapper {
     periodoMes?: string | null; // Formato YYYY-MM
     username?: string;
     userCardId: string;
-    lecturaId?: number;
+    lecturaId?: number | string;
+    readingCode?: string | null;
     claveCatastral?: string;
   }): ReadingCreatedLegacyEvent {
     const fecha =
@@ -82,7 +83,12 @@ export class ReadingLegacyEventMapper {
           ? data.userCardId.slice(0, 15)
           : 'MOVIL',
       userCardId: data.userCardId ? data.userCardId.slice(0, 20) : '',
-      readingId: data.lecturaId ? String(data.lecturaId).slice(0, 10) : '',
+      readingId:
+        data.readingCode && data.readingCode.trim() !== ''
+          ? data.readingCode.trim().slice(0, 20)
+          : data.lecturaId
+            ? String(data.lecturaId).slice(0, 20)
+            : '',
       cadastralKey: data.claveCatastral ? data.claveCatastral.slice(0, 20) : '',
     };
   }

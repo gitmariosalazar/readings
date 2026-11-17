@@ -425,6 +425,10 @@ export class PostgresqlRouteAssignmentRepository implements IRouteAssignmentRepo
               dar.acometida_id AS "acometidaId",
               dar.estado_lectura AS "estadoLectura",
               dar.lectura_id AS "lecturaId",
+              COALESCE(
+                (SELECT l.codigo_lectura FROM public.lectura l WHERE l.lectura_id = dar.lectura_id),
+                (SELECT l.codigo_lectura FROM public.lectura l WHERE l.acometida_id = a.acometida_id AND l.mes_lectura = ar.periodo_mes ORDER BY l.fecha_lectura DESC, l.lectura_id DESC LIMIT 1)
+              ) AS "codigoLectura",
               ar.periodo_mes AS "periodoMes",
               ar.usuario_id AS "asignacionUsuarioId",
               a.sector,

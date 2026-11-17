@@ -58,6 +58,7 @@ export interface AssignmentDetailSyncContext {
   acometidaId: string;
   estadoLectura: string;
   lecturaId?: number | null;
+  codigoLectura?: string | null;
   periodoMes: string;
   asignacionUsuarioId: string;
   sector: number;
