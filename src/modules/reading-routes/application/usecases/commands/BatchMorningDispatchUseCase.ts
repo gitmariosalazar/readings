@@ -17,12 +17,6 @@ export class BatchMorningDispatchUseCase {
     dto: BatchMorningDispatchRequest,
     despachadorId: string,
   ): Promise<BatchDispatchResponse> {
-    if (!dto.lecturistaIds || dto.lecturistaIds.length === 0) {
-      throw new BadRequestException(
-        'Debe proporcionar al menos un lecturista para el despacho matutino.',
-      );
-    }
-
     if (!dto.periodo || !/^\d{4}-(0[1-9]|1[0-2])$/.test(dto.periodo)) {
       throw new BadRequestException(
         'El periodo debe tener el formato YYYY-MM (ej. 2026-11).',
@@ -33,7 +27,29 @@ export class BatchMorningDispatchUseCase {
       ? new Date(dto.fechaProgramada)
       : new Date();
 
+    // RAMA A: Despacho Explícito (El supervisor seleccionó exactamente qué ruta va a qué lecturista en la UI)
+    if (dto.asignaciones && dto.asignaciones.length > 0) {
+      return this.assignmentRepo.executeExplicitBatchDispatch(
+        dto.asignaciones,
+        dto.periodo,
+        fecha,
+        despachadorId,
+      );
+    }
+
+    // RAMA B: Despacho Automático por Sector (Procedimiento almacenado de cuadrilla)
     const sectorId = dto.sectorId ?? dto.zonaId ?? null;
+    if (sectorId === null) {
+      throw new BadRequestException(
+        'Debe especificar un sector para el despacho automático de cuadrilla.',
+      );
+    }
+
+    if (!dto.lecturistaIds || dto.lecturistaIds.length === 0) {
+      throw new BadRequestException(
+        'Debe proporcionar al menos un lecturista para el despacho matutino.',
+      );
+    }
 
     return this.assignmentRepo.executeMorningBatchDispatch(
       sectorId,

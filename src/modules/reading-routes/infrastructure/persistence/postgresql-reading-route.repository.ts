@@ -5,6 +5,7 @@ import {
   InsertConnectionParams,
   OptimizeSequenceResult,
   RouteFilterParams,
+  RouteGeoJsonFilter,
 } from '../../domain/contracts/reading-route.repository.interface';
 import { ReadingRouteEntity } from '../../domain/entities/reading-route.entity';
 import {
@@ -30,6 +31,31 @@ export class PostgresqlReadingRouteRepository implements IReadingRouteRepository
     const params: any[] = [];
     let pIdx = 1;
 
+    let joinAssignment = '';
+    if (
+      filter?.periodo !== undefined &&
+      filter.periodo !== null &&
+      String(filter.periodo).trim() !== ''
+    ) {
+      joinAssignment = `LEFT JOIN LATERAL (
+        SELECT *
+        FROM public.asignacion_ruta ar
+        WHERE ar.ruta_id = r.id_ruta
+          AND ar.periodo_mes = $${pIdx++}
+        ORDER BY ar.id_asignacion DESC
+        LIMIT 1
+      ) ar ON true`;
+      params.push(String(filter.periodo).trim());
+    } else {
+      joinAssignment = `LEFT JOIN LATERAL (
+        SELECT *
+        FROM public.asignacion_ruta ar
+        WHERE ar.ruta_id = r.id_ruta
+        ORDER BY ar.id_asignacion DESC
+        LIMIT 1
+      ) ar ON true`;
+    }
+
     if (filter?.sectorId !== undefined && filter.sectorId !== null) {
       conditions.push(`r.sector_id = $${pIdx++}`);
       params.push(filter.sectorId);
@@ -38,6 +64,45 @@ export class PostgresqlReadingRouteRepository implements IReadingRouteRepository
     if (filter?.activa !== undefined && filter.activa !== null) {
       conditions.push(`r.activa = $${pIdx++}`);
       params.push(filter.activa);
+    }
+
+    // Manejo del estado:
+    // 1) null, undefined, '', 'NO_ASIGNADA', 'SIN_ASIGNAR': Rutas NO asignadas (ar.id_asignacion IS NULL)
+    // 2) 'TODOS', 'ALL': No filtra por asignación (trae todas)
+    // 3) 'ACTIVO', 'ACTIVA': Hace referencia a r.activa = true
+    // 4) Otro valor ('ASIGNADA', 'EN_PROCESO', 'COMPLETADA', etc.): Filtra por ar.estado
+    const estadoRaw = filter?.estado;
+    const estadoTrimmed =
+      typeof estadoRaw === 'string' ? estadoRaw.trim() : estadoRaw;
+
+    if (
+      estadoTrimmed === undefined ||
+      estadoTrimmed === null ||
+      estadoTrimmed === ''
+    ) {
+      // Requerimiento: cuando envía null o vacío debe traer las que aún no están asignadas
+      conditions.push(`ar.id_asignacion IS NULL`);
+    } else {
+      const estadoUpper = String(estadoTrimmed).toUpperCase();
+      if (
+        estadoUpper === 'NO_ASIGNADA' ||
+        estadoUpper === 'SIN_ASIGNAR' ||
+        estadoUpper === 'UNASSIGNED'
+      ) {
+        conditions.push(`ar.id_asignacion IS NULL`);
+      } else if (estadoUpper === 'TODOS' || estadoUpper === 'ALL') {
+        // No se agrega condición de asignación para retornar todas
+      } else if (estadoUpper === 'ACTIVO' || estadoUpper === 'ACTIVA') {
+        if (filter?.activa === undefined || filter?.activa === null) {
+          conditions.push(`r.activa = true`);
+        }
+      } else if (estadoUpper === 'EN_CURSO') {
+        conditions.push(`ar.estado = $${pIdx++}`);
+        params.push('EN_PROCESO');
+      } else {
+        conditions.push(`ar.estado = $${pIdx++}`);
+        params.push(estadoUpper);
+      }
     }
 
     if (filter?.search) {
@@ -53,6 +118,7 @@ export class PostgresqlReadingRouteRepository implements IReadingRouteRepository
     const countQuery = `
       SELECT COUNT(*)::int AS count
       FROM public.ruta_lectura r
+      ${joinAssignment}
       WHERE ${whereClause};
     `;
     const countRows = await this.databaseService.query<{ count: number }>(
@@ -62,18 +128,19 @@ export class PostgresqlReadingRouteRepository implements IReadingRouteRepository
     const total = countRows[0]?.count ? Number(countRows[0].count) : 0;
 
     let paginationClause = '';
+    const queryParams = [...params];
     if (filter?.limit !== undefined && filter.limit !== null) {
       paginationClause += ` LIMIT $${pIdx++}`;
-      params.push(filter.limit);
+      queryParams.push(filter.limit);
     }
     if (filter?.offset !== undefined && filter.offset !== null) {
       paginationClause += ` OFFSET $${pIdx++}`;
-      params.push(filter.offset);
+      queryParams.push(filter.offset);
     }
 
     // Nota: Las columnas de ruta_lectura según ruta_lectura.sql no incluyen distancia_estimada_km
-    const selectQuery = `
-      SELECT 
+    const selectQuery = /*sql*/ `
+      SELECT
           r.id_ruta AS "idRuta",
           r.sector_id AS "sectorId",
           r.zona_id AS "zonaId",
@@ -85,23 +152,38 @@ export class PostgresqlReadingRouteRepository implements IReadingRouteRepository
           r.color_identificador AS "colorIdentificador",
           r.es_rural AS "esRural",
           r.activa,
+          ar.id_asignacion AS "idAsignacion",
+          ar.estado AS "estado",
+          ar.usuario_id AS "idUsuarioAsignado",
+          COALESCE(e.nombres || ' ' || e.apellidos) AS "nombreUsuario",
+          u.username AS usuario,
+          ar.periodo_mes AS "periodo",
+          ar.fecha_inicio AS "fechaInicio",
+          ar.fecha_fin AS "fechaFin",
+          ar.lecturas_esperadas AS "lecturasEsperadas",
+          ar.lecturas_completadas AS "lecturasCompletadas",
+          ar.lecturas_pendientes AS "lecturasPendientes",
+          ar.observacion_supervisor AS "observacionSupervisor",
           r.created_at AS "createdAt",
           r.updated_at AS "updatedAt"
       FROM public.ruta_lectura r
+      ${joinAssignment}
+      LEFT JOIN public.usuarios u on ar.usuario_id = u.usuario_id
+      LEFT JOIN public.empleados e on e.usuario_id = u.usuario_id
       WHERE ${whereClause}
       ORDER BY r.sector_id ASC, r.id_ruta ASC
       ${paginationClause};
     `;
 
-    const rows = await this.databaseService.query<any>(selectQuery, params);
+    const rows = await this.databaseService.query<any>(selectQuery, queryParams);
     const items = rows.map((r) => new ReadingRouteEntity(r));
 
     return { items, total };
   }
 
   async findById(id: number): Promise<ReadingRouteEntity | null> {
-    const query = `
-      SELECT 
+    const query = /*sql*/ `
+      SELECT
           r.id_ruta AS "idRuta",
           r.sector_id AS "sectorId",
           r.zona_id AS "zonaId",
@@ -111,12 +193,32 @@ export class PostgresqlReadingRouteRepository implements IReadingRouteRepository
           r.cantidad_acometidas AS "cantidadAcometidas",
           r.tiempo_estimado_horas::float AS "tiempoEstimadoHoras",
           r.color_identificador AS "colorIdentificador",
-          ST_AsGeoJSON(r.poligono) AS "poligono",
           r.es_rural AS "esRural",
           r.activa,
+          ar.id_asignacion AS "idAsignacion",
+          ar.estado AS "estado",
+          ar.usuario_id AS "idUsuarioAsignado",
+          COALESCE(e.nombres || ' ' || e.apellidos) AS "nombreUsuario",
+          u.username AS usuario,
+          ar.periodo_mes AS "periodo",
+          ar.fecha_inicio AS "fechaInicio",
+          ar.fecha_fin AS "fechaFin",
+          ar.lecturas_esperadas AS "lecturasEsperadas",
+          ar.lecturas_completadas AS "lecturasCompletadas",
+          ar.lecturas_pendientes AS "lecturasPendientes",
+          ar.observacion_supervisor AS "observacionSupervisor",
           r.created_at AS "createdAt",
           r.updated_at AS "updatedAt"
       FROM public.ruta_lectura r
+      LEFT JOIN LATERAL (
+        SELECT *
+        FROM public.asignacion_ruta ar
+        WHERE ar.ruta_id = r.id_ruta
+        ORDER BY ar.id_asignacion DESC
+        LIMIT 1
+      ) ar ON true
+      LEFT JOIN public.usuarios u on ar.usuario_id = u.usuario_id
+      LEFT JOIN public.empleados e on e.usuario_id = u.usuario_id
       WHERE r.id_ruta = $1
       LIMIT 1;
     `;
@@ -132,7 +234,78 @@ export class PostgresqlReadingRouteRepository implements IReadingRouteRepository
   async getRoutesGeoJson(filter?: {
     sectorId?: number;
     activa?: boolean;
+    estado?: string;
+    periodo?: string;
   }): Promise<any> {
+    const conditions: string[] = ['r.poligono IS NOT NULL'];
+    const params: any[] = [];
+    let pIdx = 1;
+
+    let joinAssignment = '';
+    if (
+      filter?.periodo !== undefined &&
+      filter.periodo !== null &&
+      String(filter.periodo).trim() !== ''
+    ) {
+      joinAssignment = `LEFT JOIN LATERAL (
+        SELECT *
+        FROM public.asignacion_ruta ar
+        WHERE ar.ruta_id = r.id_ruta
+          AND ar.periodo_mes = $${pIdx++}
+        ORDER BY ar.id_asignacion DESC
+        LIMIT 1
+      ) ar ON true`;
+      params.push(String(filter.periodo).trim());
+    } else {
+      joinAssignment = `LEFT JOIN LATERAL (
+        SELECT *
+        FROM public.asignacion_ruta ar
+        WHERE ar.ruta_id = r.id_ruta
+        ORDER BY ar.id_asignacion DESC
+        LIMIT 1
+      ) ar ON true`;
+    }
+
+    if (filter?.activa !== undefined && filter.activa !== null) {
+      conditions.push(`r.activa = $${pIdx++}`);
+      params.push(filter.activa);
+    }
+
+    if (filter?.sectorId !== undefined && filter.sectorId !== null) {
+      conditions.push(`r.sector_id = $${pIdx++}`);
+      params.push(filter.sectorId);
+    }
+
+    // Filtrado condicional por estado (solo cuando se solicita explícitamente)
+    if (
+      filter?.estado !== undefined &&
+      filter.estado !== null &&
+      String(filter.estado).trim() !== ''
+    ) {
+      const estadoUpper = String(filter.estado).trim().toUpperCase();
+      if (
+        estadoUpper === 'NO_ASIGNADA' ||
+        estadoUpper === 'SIN_ASIGNAR' ||
+        estadoUpper === 'UNASSIGNED'
+      ) {
+        conditions.push(`ar.id_asignacion IS NULL`);
+      } else if (estadoUpper === 'TODOS' || estadoUpper === 'ALL') {
+        // No se restringe por estado
+      } else if (estadoUpper === 'ACTIVO' || estadoUpper === 'ACTIVA') {
+        if (filter?.activa === undefined || filter?.activa === null) {
+          conditions.push(`r.activa = true`);
+        }
+      } else if (estadoUpper === 'EN_CURSO') {
+        conditions.push(`ar.estado = $${pIdx++}`);
+        params.push('EN_PROCESO');
+      } else {
+        conditions.push(`ar.estado = $${pIdx++}`);
+        params.push(estadoUpper);
+      }
+    }
+
+    const whereClause = conditions.join(' AND ');
+
     const query = /*sql*/ `
       SELECT json_build_object(
           'type', 'FeatureCollection',
@@ -144,34 +317,171 @@ export class PostgresqlReadingRouteRepository implements IReadingRouteRepository
                   'properties', json_build_object(
                       'idRuta', r.id_ruta,
                       'codigo', r.codigo,
+                      'codigoRuta', r.codigo,
                       'nombre', r.nombre,
+                      'nombreRuta', r.nombre,
+                      'descripcion', r.descripcion,
                       'sectorId', r.sector_id,
+                      'sector', r.sector_id,
+                      'zonaId', r.zona_id,
                       'cantidadAcometidas', r.cantidad_acometidas,
-                      'tiempoEstimadoHoras', r.tiempo_estimado_horas,
+                      'tiempoEstimadoHoras', r.tiempo_estimado_horas::float,
                       'esRural', r.es_rural,
                       'activa', r.activa,
-                      'stroke', r.color_identificador,
-                      'fill', r.color_identificador,
-                      'fill-opacity', 0.25,
-                      'stroke-width', 2
+                      'colorBase', r.color_identificador,
+                      'estaAsignada', (ar.id_asignacion IS NOT NULL),
+                      'idAsignacion', ar.id_asignacion,
+                      'estado', COALESCE(ar.estado, 'NO_ASIGNADA'),
+                      'periodo', ar.periodo_mes,
+                      'fechaProgramada', ar.fecha_programada,
+                      'fechaInicio', ar.fecha_inicio,
+                      'fechaFin', ar.fecha_fin,
+                      'idUsuarioAsignado', ar.usuario_id,
+                      'usuario', u.username,
+                      'nombreUsuario', COALESCE(TRIM(e.nombres || ' ' || e.apellidos), u.username, NULL),
+                      'observacionSupervisor', ar.observacion_supervisor,
+                      'lecturasEsperadas', COALESCE(ar.lecturas_esperadas, r.cantidad_acometidas, 0),
+                      'lecturasCompletadas', COALESCE(ar.lecturas_completadas, 0),
+                      'lecturasPendientes', COALESCE(ar.lecturas_pendientes, 0),
+                      'lecturasNovedad', COALESCE(ar.lecturas_novedad, 0),
+                      'porcentajeAvance', CASE 
+                        WHEN COALESCE(ar.lecturas_esperadas, 0) > 0 THEN 
+                          ROUND(((ar.lecturas_completadas + COALESCE(ar.lecturas_novedad, 0))::numeric / ar.lecturas_esperadas::numeric) * 100, 1)::float
+                        ELSE 0.0
+                      END,
+                      'color', CASE 
+                        WHEN ar.id_asignacion IS NULL OR ar.estado IS NULL OR ar.estado = 'NO_ASIGNADA' THEN COALESCE(r.color_identificador, '#64748b')
+                        WHEN ar.estado = 'EN_PROCESO' THEN '#f59e0b'
+                        WHEN ar.estado = 'ASIGNADA' THEN '#2563eb'
+                        WHEN ar.estado = 'COMPLETADA' THEN '#10b981'
+                        WHEN ar.estado = 'PAUSADA' THEN '#ef4444'
+                        WHEN ar.estado = 'REASIGNADA' THEN '#8b5cf6'
+                        ELSE COALESCE(r.color_identificador, '#3b82f6')
+                      END,
+                      'stroke', CASE 
+                        WHEN ar.id_asignacion IS NULL OR ar.estado IS NULL OR ar.estado = 'NO_ASIGNADA' THEN COALESCE(r.color_identificador, '#64748b')
+                        WHEN ar.estado = 'EN_PROCESO' THEN '#f59e0b'
+                        WHEN ar.estado = 'ASIGNADA' THEN '#2563eb'
+                        WHEN ar.estado = 'COMPLETADA' THEN '#10b981'
+                        WHEN ar.estado = 'PAUSADA' THEN '#ef4444'
+                        WHEN ar.estado = 'REASIGNADA' THEN '#8b5cf6'
+                        ELSE COALESCE(r.color_identificador, '#3b82f6')
+                      END,
+                      'strokeColor', CASE 
+                        WHEN ar.id_asignacion IS NULL OR ar.estado IS NULL OR ar.estado = 'NO_ASIGNADA' THEN COALESCE(r.color_identificador, '#64748b')
+                        WHEN ar.estado = 'EN_PROCESO' THEN '#f59e0b'
+                        WHEN ar.estado = 'ASIGNADA' THEN '#2563eb'
+                        WHEN ar.estado = 'COMPLETADA' THEN '#10b981'
+                        WHEN ar.estado = 'PAUSADA' THEN '#ef4444'
+                        WHEN ar.estado = 'REASIGNADA' THEN '#8b5cf6'
+                        ELSE COALESCE(r.color_identificador, '#3b82f6')
+                      END,
+                      'fill', CASE 
+                        WHEN ar.id_asignacion IS NULL OR ar.estado IS NULL OR ar.estado = 'NO_ASIGNADA' THEN COALESCE(r.color_identificador, '#64748b')
+                        WHEN ar.estado = 'EN_PROCESO' THEN '#f59e0b'
+                        WHEN ar.estado = 'ASIGNADA' THEN '#2563eb'
+                        WHEN ar.estado = 'COMPLETADA' THEN '#10b981'
+                        WHEN ar.estado = 'PAUSADA' THEN '#ef4444'
+                        WHEN ar.estado = 'REASIGNADA' THEN '#8b5cf6'
+                        ELSE COALESCE(r.color_identificador, '#3b82f6')
+                      END,
+                      'fillColor', CASE 
+                        WHEN ar.id_asignacion IS NULL OR ar.estado IS NULL OR ar.estado = 'NO_ASIGNADA' THEN COALESCE(r.color_identificador, '#64748b')
+                        WHEN ar.estado = 'EN_PROCESO' THEN '#f59e0b'
+                        WHEN ar.estado = 'ASIGNADA' THEN '#2563eb'
+                        WHEN ar.estado = 'COMPLETADA' THEN '#10b981'
+                        WHEN ar.estado = 'PAUSADA' THEN '#ef4444'
+                        WHEN ar.estado = 'REASIGNADA' THEN '#8b5cf6'
+                        ELSE COALESCE(r.color_identificador, '#3b82f6')
+                      END,
+                      'fill-opacity', CASE 
+                        WHEN ar.id_asignacion IS NULL OR ar.estado IS NULL THEN 0.15
+                        WHEN ar.estado = 'EN_PROCESO' THEN 0.35
+                        WHEN ar.estado = 'PAUSADA' THEN 0.35
+                        WHEN ar.estado = 'COMPLETADA' THEN 0.28
+                        ELSE 0.25
+                      END,
+                      'fillOpacity', CASE 
+                        WHEN ar.id_asignacion IS NULL OR ar.estado IS NULL THEN 0.15
+                        WHEN ar.estado = 'EN_PROCESO' THEN 0.35
+                        WHEN ar.estado = 'PAUSADA' THEN 0.35
+                        WHEN ar.estado = 'COMPLETADA' THEN 0.28
+                        ELSE 0.25
+                      END,
+                      'stroke-width', CASE WHEN ar.estado = 'EN_PROCESO' THEN 3 ELSE 2 END,
+                      'strokeWeight', CASE WHEN ar.estado = 'EN_PROCESO' THEN 3 ELSE 2 END
                   )
               )
           ), '[]'::json)
       ) AS geojson
       FROM public.ruta_lectura r
-      WHERE ($1::BOOLEAN IS NULL OR r.activa = $1::BOOLEAN)
-        AND ($2::INTEGER IS NULL OR r.sector_id = $2::INTEGER);
+      ${joinAssignment}
+      LEFT JOIN public.usuarios u ON ar.usuario_id = u.usuario_id
+      LEFT JOIN public.empleados e ON e.usuario_id = u.usuario_id
+      WHERE ${whereClause};
     `;
 
-    const rows = await this.databaseService.query<{ geojson: any }>(query, [
-      filter?.activa ?? null,
-      filter?.sectorId ?? null,
-    ]);
+    const rows = await this.databaseService.query<{ geojson: any }>(
+      query,
+      params,
+    );
 
     return rows[0]?.geojson || { type: 'FeatureCollection', features: [] };
   }
 
-  async getCentroidsGeoJson(activaOnly: boolean = true): Promise<any> {
+  async getCentroidsGeoJson(
+    filter?: boolean | RouteGeoJsonFilter,
+  ): Promise<any> {
+    const conditions: string[] = ['r.poligono IS NOT NULL'];
+    const params: any[] = [];
+
+    const isBooleanFilter = typeof filter === 'boolean';
+    const activaFilter = isBooleanFilter
+      ? filter
+      : (filter?.activa ?? filter?.activaOnly ?? true);
+
+    if (activaFilter !== undefined && activaFilter !== null) {
+      params.push(activaFilter);
+      conditions.push(`r.activa = $${params.length}::BOOLEAN`);
+    }
+
+    const sectorId = !isBooleanFilter ? filter?.sectorId : undefined;
+    if (sectorId !== undefined && sectorId !== null) {
+      params.push(sectorId);
+      conditions.push(`r.sector_id = $${params.length}::INTEGER`);
+    }
+
+    const periodo = !isBooleanFilter ? filter?.periodo : undefined;
+    let joinAssignment = `
+      LEFT JOIN LATERAL (
+        SELECT ar.*
+        FROM public.asignacion_ruta ar
+        WHERE ar.ruta_id = r.id_ruta
+    `;
+
+    if (periodo) {
+      params.push(periodo);
+      joinAssignment += ` AND ar.periodo_mes = $${params.length}`;
+    }
+
+    joinAssignment += `
+        ORDER BY ar.created_at DESC
+        LIMIT 1
+      ) ar ON true
+    `;
+
+    const estado = !isBooleanFilter ? filter?.estado : undefined;
+    if (estado) {
+      if (estado === 'NO_ASIGNADA' || estado === 'SIN_ASIGNAR') {
+        conditions.push(`(ar.id_asignacion IS NULL OR ar.estado = 'NO_ASIGNADA')`);
+      } else {
+        params.push(estado);
+        conditions.push(`ar.estado = $${params.length}`);
+      }
+    }
+
+    const whereClause = conditions.join(' AND ');
+
     const query = /*sql*/ `
       SELECT json_build_object(
           'type', 'FeatureCollection',
@@ -183,25 +493,71 @@ export class PostgresqlReadingRouteRepository implements IReadingRouteRepository
                       'numero', r.id_ruta,
                       'idRuta', r.id_ruta,
                       'codigo', r.codigo,
+                      'codigoRuta', r.codigo,
                       'nombre', r.nombre,
+                      'nombreRuta', r.nombre,
                       'sectorId', r.sector_id,
+                      'sector', r.sector_id,
                       'acometidas', r.cantidad_acometidas,
+                      'cantidadAcometidas', r.cantidad_acometidas,
                       'latitud', ROUND(ST_Y(ST_Centroid(r.poligono))::numeric, 6)::double precision,
                       'longitud', ROUND(ST_X(ST_Centroid(r.poligono))::numeric, 6)::double precision,
                       'title', '#' || r.id_ruta || ' | ' || r.codigo,
-                      'marker-color', r.color_identificador,
+                      'activa', r.activa,
+                      'colorBase', r.color_identificador,
+                      'estaAsignada', (ar.id_asignacion IS NOT NULL),
+                      'idAsignacion', ar.id_asignacion,
+                      'estado', COALESCE(ar.estado, 'NO_ASIGNADA'),
+                      'periodo', ar.periodo_mes,
+                      'fechaProgramada', ar.fecha_programada,
+                      'fechaInicio', ar.fecha_inicio,
+                      'fechaFin', ar.fecha_fin,
+                      'idUsuarioAsignado', ar.usuario_id,
+                      'usuario', u.username,
+                      'nombreUsuario', TRIM(CONCAT(e.nombres, ' ', e.apellidos)),
+                      'lecturasEsperadas', COALESCE(ar.lecturas_esperadas, r.cantidad_acometidas),
+                      'lecturasCompletadas', COALESCE(ar.lecturas_completadas, 0),
+                      'lecturasPendientes', COALESCE(ar.lecturas_pendientes, r.cantidad_acometidas),
+                      'lecturasNovedad', COALESCE(ar.lecturas_novedad, 0),
+                      'porcentajeAvance', CASE 
+                        WHEN COALESCE(ar.lecturas_esperadas, r.cantidad_acometidas, 0) > 0 
+                        THEN ROUND((COALESCE(ar.lecturas_completadas, 0)::numeric / GREATEST(COALESCE(ar.lecturas_esperadas, r.cantidad_acometidas, 1), 1)::numeric) * 100, 1)::double precision
+                        ELSE 0.0
+                      END,
+                      'marker-color', CASE 
+                        WHEN ar.id_asignacion IS NULL OR ar.estado IS NULL OR ar.estado = 'NO_ASIGNADA' THEN COALESCE(r.color_identificador, '#64748b')
+                        WHEN ar.estado = 'EN_PROCESO' THEN '#f59e0b'
+                        WHEN ar.estado = 'ASIGNADA' THEN '#2563eb'
+                        WHEN ar.estado = 'COMPLETADA' THEN '#10b981'
+                        WHEN ar.estado = 'PAUSADA' THEN '#ef4444'
+                        WHEN ar.estado = 'REASIGNADA' THEN '#8b5cf6'
+                        ELSE COALESCE(r.color_identificador, '#3b82f6')
+                      END,
+                      'color', CASE 
+                        WHEN ar.id_asignacion IS NULL OR ar.estado IS NULL OR ar.estado = 'NO_ASIGNADA' THEN COALESCE(r.color_identificador, '#64748b')
+                        WHEN ar.estado = 'EN_PROCESO' THEN '#f59e0b'
+                        WHEN ar.estado = 'ASIGNADA' THEN '#2563eb'
+                        WHEN ar.estado = 'COMPLETADA' THEN '#10b981'
+                        WHEN ar.estado = 'PAUSADA' THEN '#ef4444'
+                        WHEN ar.estado = 'REASIGNADA' THEN '#8b5cf6'
+                        ELSE COALESCE(r.color_identificador, '#3b82f6')
+                      END,
                       'marker-size', 'medium'
                   )
               )
           ), '[]'::json)
       ) AS geojson
       FROM public.ruta_lectura r
-      WHERE ($1::BOOLEAN IS NULL OR r.activa = $1::BOOLEAN);
+      ${joinAssignment}
+      LEFT JOIN public.usuarios u ON ar.usuario_id = u.usuario_id
+      LEFT JOIN public.empleados e ON e.usuario_id = u.usuario_id
+      WHERE ${whereClause};
     `;
 
-    const rows = await this.databaseService.query<{ geojson: any }>(query, [
-      activaOnly ? true : null,
-    ]);
+    const rows = await this.databaseService.query<{ geojson: any }>(
+      query,
+      params,
+    );
 
     return rows[0]?.geojson || { type: 'FeatureCollection', features: [] };
   }

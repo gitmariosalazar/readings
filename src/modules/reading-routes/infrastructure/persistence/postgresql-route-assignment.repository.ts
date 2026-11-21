@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Injectable,
   Logger,
   NotFoundException,
@@ -13,6 +14,7 @@ import {
 import {
   AssignmentDetailSyncContext,
   BatchDispatchSummaryResult,
+  ExplicitRouteAssignmentInput,
   IRouteAssignmentRepository,
   ReassignSegmentResult,
   SyncBatchReadingInput,
@@ -58,6 +60,96 @@ export class PostgresqlRouteAssignmentRepository implements IRouteAssignmentRepo
     return null;
   }
 
+  async executeExplicitBatchDispatch(
+    asignaciones: ExplicitRouteAssignmentInput[],
+    periodoMes: string,
+    fechaProgramada: Date,
+    supervisorId: string,
+  ): Promise<BatchDispatchSummaryResult> {
+    const formattedDate = fechaProgramada.toISOString().split('T')[0];
+    const asignacionIds: number[] = [];
+    const errorDetails: string[] = [];
+
+    for (const item of asignaciones) {
+      const sql = `
+        SELECT public.fn_despachar_ruta_periodo(
+          $1::integer,
+          $2::uuid,
+          $3::varchar,
+          $4::date,
+          $5::uuid
+        ) AS id_asignacion;
+      `;
+      try {
+        const res = await this.databaseService.query<{ id_asignacion: string }>(
+          sql,
+          [
+            item.rutaId,
+            item.lecturistaId,
+            periodoMes,
+            formattedDate,
+            supervisorId,
+          ],
+        );
+        if (res && res.length > 0 && res[0].id_asignacion) {
+          asignacionIds.push(Number(res[0].id_asignacion));
+        }
+      } catch (err: any) {
+        const errorMsg = err?.message || String(err);
+        errorDetails.push(`Ruta ${item.rutaId}: ${errorMsg}`);
+        this.logger.warn(
+          `No se pudo despachar ruta ${item.rutaId} a ${item.lecturistaId}: ${errorMsg}`,
+        );
+      }
+    }
+
+    if (asignacionIds.length === 0) {
+      const uniqueErrors = Array.from(new Set(errorDetails));
+      const reason = uniqueErrors.length > 0
+        ? uniqueErrors.slice(0, 3).join(' | ')
+        : 'Verifique los límites de capacidad de los lecturistas o si las rutas ya se encuentran asignadas.';
+      throw new BadRequestException(
+        `No se pudo despachar ninguna ruta en base de datos. Motivo: ${reason}`,
+      );
+    }
+
+    const summaryQuery = `
+      SELECT 
+          ar.id_asignacion AS "idAsignacion",
+          rl.codigo AS "codigoRuta",
+          ar.usuario_id AS "lecturistaId",
+          ar.lecturas_esperadas AS "totalPredios"
+      FROM public.asignacion_ruta ar
+      JOIN public.ruta_lectura rl ON ar.ruta_id = rl.id_ruta
+      WHERE ar.id_asignacion = ANY($1::bigint[])
+      ORDER BY ar.id_asignacion ASC;
+    `;
+
+    const dispatched = await this.databaseService.query<any>(summaryQuery, [
+      asignacionIds,
+    ]);
+
+    const totalRutasAsignadas = dispatched.length;
+    const totalAcometidasDespachadas = dispatched.reduce(
+      (acc, curr) => acc + Number(curr.totalPredios || 0),
+      0,
+    );
+
+    return {
+      success: true,
+      message: `Despacho explícito completado exitosamente: ${totalRutasAsignadas} de ${asignaciones.length} rutas despachadas.`,
+      periodo: periodoMes,
+      totalRutasAsignadas,
+      totalAcometidasDespachadas,
+      rutasDespachadas: dispatched.map((d) => ({
+        idAsignacion: Number(d.idAsignacion),
+        codigoRuta: d.codigoRuta,
+        lecturistaId: d.lecturistaId,
+        totalPredios: Number(d.totalPredios),
+      })),
+    };
+  }
+
   async executeMorningBatchDispatch(
     sectorId: number | null,
     periodoMes: string,
@@ -86,7 +178,18 @@ export class PostgresqlRouteAssignmentRepository implements IRouteAssignmentRepo
       supervisorId,
     ]);
 
-    // Resumen de asignaciones generadas conforme a asignacion_ruta
+    // Resumen optimizado con predicados dinámicos para índice B-Tree
+    const conditions: string[] = [
+      'ar.periodo_mes = $1',
+      'ar.fecha_programada = $2::date',
+    ];
+    const params: any[] = [periodoMes, formattedDate];
+
+    if (sectorId !== null && sectorId !== undefined) {
+      params.push(sectorId);
+      conditions.push(`rl.sector_id = $${params.length}::integer`);
+    }
+
     const summaryQuery = `
       SELECT 
           ar.id_asignacion AS "idAsignacion",
@@ -95,17 +198,11 @@ export class PostgresqlRouteAssignmentRepository implements IRouteAssignmentRepo
           ar.lecturas_esperadas AS "totalPredios"
       FROM public.asignacion_ruta ar
       JOIN public.ruta_lectura rl ON ar.ruta_id = rl.id_ruta
-      WHERE ar.periodo_mes = $1
-        AND ar.fecha_programada = $2::date
-        AND ($3::INTEGER IS NULL OR rl.sector_id = $3::INTEGER)
+      WHERE ${conditions.join(' AND ')}
       ORDER BY ar.id_asignacion ASC;
     `;
 
-    const dispatched = await this.databaseService.query<any>(summaryQuery, [
-      periodoMes,
-      formattedDate,
-      sectorId,
-    ]);
+    const dispatched = await this.databaseService.query<any>(summaryQuery, params);
 
     const totalRutasAsignadas = dispatched.length;
     const totalAcometidasDespachadas = dispatched.reduce(

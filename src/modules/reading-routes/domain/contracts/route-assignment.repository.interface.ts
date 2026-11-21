@@ -80,7 +80,19 @@ export interface UpdateAdvanceDetailInput {
   tipoNovedadLecturaId?: number | null;
 }
 
+export interface ExplicitRouteAssignmentInput {
+  rutaId: number;
+  lecturistaId: string;
+}
+
 export interface IRouteAssignmentRepository {
+  executeExplicitBatchDispatch(
+    asignaciones: ExplicitRouteAssignmentInput[],
+    periodoMes: string,
+    fechaProgramada: Date,
+    supervisorId: string,
+  ): Promise<BatchDispatchSummaryResult>;
+
   executeMorningBatchDispatch(
     sectorId: number | null,
     periodoMes: string,

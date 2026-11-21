@@ -12,6 +12,18 @@ export class ReadingRouteEntity {
   poligono?: string | any;
   esRural!: boolean;
   activa!: boolean;
+  idAsignacion?: number;
+  estado?: string;
+  periodo?: string;
+  idUsuarioAsignado?: string;
+  nombreUsuario?: string;
+  usuario?: string;
+  fechaInicio?: Date;
+  fechaFin?: Date;
+  lecturasEsperadas?: number;
+  lecturasCompletadas?: number;
+  lecturasPendientes?: number;
+  observacionSupervisor?: string;
   createdAt?: Date;
   updatedAt?: Date;
 

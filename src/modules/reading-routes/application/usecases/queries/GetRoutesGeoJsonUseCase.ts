@@ -11,7 +11,12 @@ export class GetRoutesGeoJsonUseCase {
     private readonly routeRepo: IReadingRouteRepository,
   ) {}
 
-  async execute(filter?: { sectorId?: number; activa?: boolean }): Promise<any> {
+  async execute(filter?: {
+    sectorId?: number;
+    activa?: boolean;
+    estado?: string;
+    periodo?: string;
+  }): Promise<any> {
     return this.routeRepo.getRoutesGeoJson(filter);
   }
 }

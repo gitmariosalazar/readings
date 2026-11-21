@@ -1,9 +1,15 @@
+export class ExplicitRouteAssignmentItem {
+  rutaId!: number;
+  lecturistaId!: string;
+}
+
 export class BatchMorningDispatchRequest {
   zonaId?: number;
   sectorId?: number;
   periodo!: string;
   fechaProgramada!: string;
-  lecturistaIds!: string[];
+  lecturistaIds?: string[];
+  asignaciones?: ExplicitRouteAssignmentItem[];
   observaciones?: string;
 }
 
@@ -60,6 +66,8 @@ export class SyncMobileReadingsBatchRequest {
 export class FindReadingRoutesQueryRequest {
   sectorId?: number;
   activa?: boolean;
+  estado?: string;
+  periodo?: string;
   search?: string;
   page?: number;
   limit?: number;

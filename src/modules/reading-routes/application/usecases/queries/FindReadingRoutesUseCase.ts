@@ -15,7 +15,12 @@ export class FindReadingRoutesUseCase {
 
   async execute(
     query?: FindReadingRoutesQueryRequest,
-  ): Promise<{ items: ReadingRouteEntity[]; total: number; page: number; limit: number }> {
+  ): Promise<{
+    items: ReadingRouteEntity[];
+    total: number;
+    page: number;
+    limit: number;
+  }> {
     const page = query?.page ? Math.max(1, Number(query.page)) : 1;
     const limit = query?.limit ? Math.max(1, Number(query.limit)) : 100;
     const offset = (page - 1) * limit;
@@ -23,6 +28,8 @@ export class FindReadingRoutesUseCase {
     const { items, total } = await this.routeRepo.findAll({
       sectorId: query?.sectorId,
       activa: query?.activa,
+      estado: query?.estado,
+      periodo: query?.periodo,
       search: query?.search,
       limit,
       offset,

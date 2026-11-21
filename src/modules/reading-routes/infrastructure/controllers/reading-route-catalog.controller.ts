@@ -23,13 +23,30 @@ export class ReadingRouteCatalogController {
   }
 
   @MessagePattern(['reading-routes.get-geojson', 'routes.get-geojson'])
-  async getGeoJson(@Payload() payload: { sectorId?: number; activa?: boolean }) {
+  async getGeoJson(
+    @Payload()
+    payload: {
+      sectorId?: number;
+      activa?: boolean;
+      estado?: string;
+      periodo?: string;
+    },
+  ) {
     return this.getRoutesGeoJsonUseCase.execute(payload);
   }
 
   @MessagePattern(['reading-routes.get-centroids', 'routes.get-centroids'])
-  async getCentroids(@Payload() payload: { activaOnly?: boolean }) {
-    return this.getCentroidsGeoJsonUseCase.execute(payload?.activaOnly);
+  async getCentroids(
+    @Payload()
+    payload: {
+      activaOnly?: boolean;
+      activa?: boolean;
+      sectorId?: number;
+      estado?: string;
+      periodo?: string;
+    },
+  ) {
+    return this.getCentroidsGeoJsonUseCase.execute(payload);
   }
 
   @MessagePattern(['reading-routes.get-by-id', 'routes.get-by-id'])
