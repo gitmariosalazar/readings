@@ -19,17 +19,36 @@ export class NearestCentroidKnnStrategy implements IRouteResolutionStrategy {
     }
 
     const query = /*sql*/ `
+      WITH punto AS (
+          SELECT 
+              ST_SetSRID(ST_Point($1, $2), 4326) AS geom,
+              ST_SetSRID(ST_Point($1, $2), 4326)::geography AS geog
+      ),
+      candidatos_bbox AS (
+          SELECT 
+              r.id_ruta,
+              r.codigo,
+              r.nombre,
+              r.sector_id,
+              r.poligono
+          FROM public.ruta_lectura r, punto p
+          WHERE r.activa = TRUE
+            AND r.poligono IS NOT NULL
+          ORDER BY r.poligono <-> p.geom
+          LIMIT 5
+      )
       SELECT 
-          r.id_ruta AS "idRuta",
-          r.codigo,
-          r.nombre,
-          r.sector_id AS "sectorId",
+          c.id_ruta AS "idRuta",
+          c.codigo,
+          c.nombre,
+          c.sector_id AS "sectorId",
           'NEAREST_CENTROID_KNN' AS "metodoResolucion",
-          ROUND(ST_Distance(r.poligono::geography, ST_SetSRID(ST_Point($1, $2), 4326)::geography)::numeric, 1) AS "distanciaMetros"
-      FROM public.ruta_lectura r
-      WHERE r.activa = TRUE
-        AND ($3::INTEGER IS NULL OR r.sector_id = $3::INTEGER)
-      ORDER BY r.poligono <-> ST_SetSRID(ST_Point($1, $2), 4326)
+          ROUND(ST_Distance(c.poligono::geography, p.geog)::numeric, 1) AS "distanciaMetros"
+      FROM candidatos_bbox c, punto p
+      ORDER BY 
+          ST_Distance(c.poligono::geography, p.geog) ASC,
+          CASE WHEN $3::INTEGER IS NOT NULL AND c.sector_id = $3::INTEGER THEN 0 ELSE 1 END ASC,
+          c.id_ruta ASC
       LIMIT 1;
     `;
 
